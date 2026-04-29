@@ -1,0 +1,769 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
+import { ArrowUpFromLine, Plus, X, ArrowLeft, Save } from 'lucide-react'
+import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi } from '@/infrastructure/api/endpoints'
+import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  CUSTOMERS,
+  GATE_OUTWARD_STORAGE_KEY,
+  INITIAL_GATE_OUTWARD_RECORDS,
+  PRODUCTS,
+  UNITS,
+} from '@/application/services/store/gateOutwardMock'
+
+const SOURCE_INVENTORY = 'inventory'
+const SOURCE_FINISHED_GOODS = 'finished_goods'
+const MANUAL_CUSTOMER_STORAGE_KEY = 'qf-gate-outward-manual-customers'
+
+const SOURCE_OPTIONS = [
+  { value: SOURCE_INVENTORY, label: 'Inventory' },
+  { value: SOURCE_FINISHED_GOODS, label: 'Finished Goods' },
+]
+
+const todayISO = () => new Date().toISOString().split('T')[0]
+
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+const toNumberOrNull = (value) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const normalizeCustomer = (entry, idx = 0, prefix = 'customer') => {
+  const name = String(entry?.name || '').trim()
+  if (!name) return null
+
+  const rawId = entry?.id ?? `${prefix}-${idx}`
+  return {
+    id: String(rawId),
+    name,
+    address: String(entry?.address || ''),
+    isManual: Boolean(entry?.isManual),
+  }
+}
+
+const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
+  const name = String(entry?.product || entry?.name || '').trim()
+  if (!name) return null
+
+  return {
+    id: `${prefix}-${entry?.id ?? idx}`,
+    source: SOURCE_INVENTORY,
+    name,
+    brand: String(entry?.brand || entry?.brand_name || '').trim(),
+    unit: String(entry?.unit || 'Unit').trim() || 'Unit',
+    available: toNumberOrNull(entry?.quantity ?? entry?.available),
+  }
+}
+
+const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg') => {
+  const firstMeta = Array.isArray(entry?.products)
+    ? (entry.products[0] || {})
+    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
+
+  const name = String(
+    entry?.brand
+    || entry?.product_name
+    || firstMeta?.product
+    || firstMeta?.name
+    || firstMeta?.description
+    || ''
+  ).trim()
+  if (!name) return null
+
+  return {
+    id: `${prefix}-${entry?.id ?? idx}`,
+    source: SOURCE_FINISHED_GOODS,
+    name,
+    brand: String(firstMeta?.code || '').trim(),
+    unit: String(entry?.unit || firstMeta?.packing || 'Unit').trim() || 'Unit',
+    available: toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity),
+  }
+}
+
+const mergeCustomers = (...groups) => {
+  const seen = new Set()
+  const merged = []
+
+  groups.flat().forEach((entry) => {
+    if (!entry) return
+    const name = String(entry.name || '').trim()
+    if (!name) return
+
+    const key = name.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+
+    merged.push({
+      id: String(entry.id),
+      name,
+      address: String(entry.address || ''),
+      isManual: Boolean(entry.isManual),
+    })
+  })
+
+  return merged.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+const uniqueProducts = (items) => {
+  const seen = new Set()
+  const list = []
+
+  items.forEach((entry) => {
+    if (!entry) return
+    const key = `${entry.source}|${entry.name.toLowerCase()}|${(entry.brand || '').toLowerCase()}`
+    if (seen.has(key)) return
+    seen.add(key)
+    list.push(entry)
+  })
+
+  return list
+}
+
+const fallbackCustomers = mergeCustomers(
+  CUSTOMERS.map((entry, idx) => normalizeCustomer(entry, idx, 'mock-customer')).filter(Boolean)
+)
+
+const fallbackInventoryProducts = uniqueProducts(
+  PRODUCTS.map((entry, idx) => normalizeInventoryProduct(entry, idx, 'mock-inv')).filter(Boolean)
+)
+
+const fallbackFinishedGoodsProducts = uniqueProducts(
+  PRODUCTS.map((entry, idx) => normalizeFinishedGoodProduct(
+    { id: entry.id, brand: entry.name, unit: entry.unit, quantity: entry.available, products: [{ code: entry.brand }] },
+    idx,
+    'mock-fg'
+  )).filter(Boolean)
+)
+
+const blankItem = () => ({
+  key: Date.now() + Math.random(),
+  source: '',
+  productId: '',
+  quantity: '',
+  unit: 'Unit',
+  error: '',
+})
+
+function loadRecords() {
+  if (typeof window === 'undefined') return INITIAL_GATE_OUTWARD_RECORDS
+  try {
+    const raw = window.localStorage.getItem(GATE_OUTWARD_STORAGE_KEY)
+    if (!raw) return INITIAL_GATE_OUTWARD_RECORDS
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : INITIAL_GATE_OUTWARD_RECORDS
+  } catch {
+    return INITIAL_GATE_OUTWARD_RECORDS
+  }
+}
+
+function saveRecords(next) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(GATE_OUTWARD_STORAGE_KEY, JSON.stringify(next))
+}
+
+function loadManualCustomers() {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(MANUAL_CUSTOMER_STORAGE_KEY)
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw)
+    const normalized = toList(parsed)
+      .map((entry, idx) => normalizeCustomer({ ...entry, isManual: true }, idx, 'manual-customer'))
+      .filter(Boolean)
+      .map((entry) => ({ ...entry, isManual: true }))
+
+    return mergeCustomers(normalized).filter((entry) => entry.isManual)
+  } catch {
+    return []
+  }
+}
+
+function saveManualCustomers(list) {
+  if (typeof window === 'undefined') return
+  const safe = toList(list).map((entry) => ({
+    id: String(entry.id),
+    name: String(entry.name || '').trim(),
+    address: String(entry.address || ''),
+    isManual: true,
+  }))
+  window.localStorage.setItem(MANUAL_CUSTOMER_STORAGE_KEY, JSON.stringify(safe))
+}
+
+function nextGoNo(records) {
+  const maxNum = records.reduce((max, r) => {
+    const n = Number(String(r.goNo || '').replace(/\D/g, ''))
+    return Number.isFinite(n) ? Math.max(max, n) : max
+  }, 0)
+  return `QUD${maxNum + 1}`
+}
+
+export default function GateOutwardNewPage() {
+  const router = useRouter()
+
+  const [goNo, setGoNo] = useState('QUD1')
+  const [date, setDate] = useState(todayISO())
+  const [customerId, setCustomerId] = useState('')
+  const [address, setAddress] = useState('')
+  const [manualCustomerName, setManualCustomerName] = useState('')
+
+  const [vehicleNo, setVehicleNo] = useState('')
+  const [driverName, setDriverName] = useState('')
+  const [driverPhone, setDriverPhone] = useState('')
+  const [driverCnic, setDriverCnic] = useState('')
+
+  const [note, setNote] = useState('')
+  const [numbering, setNumbering] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
+
+  const [items, setItems] = useState([blankItem()])
+  const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [loadingOptions, setLoadingOptions] = useState(true)
+  const [loadWarning, setLoadWarning] = useState('')
+
+  const [customers, setCustomers] = useState(fallbackCustomers)
+  const [manualCustomers, setManualCustomers] = useState([])
+  const [productsBySource, setProductsBySource] = useState({
+    [SOURCE_INVENTORY]: fallbackInventoryProducts,
+    [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+  })
+
+  useEffect(() => {
+    let active = true
+    const loadNext = async () => {
+      try {
+        const res = await gateOutwardApi.nextGO()
+        const go = String(res?.go_no || '').trim()
+        if (active && go) setGoNo(go)
+      } catch {
+        const records = loadRecords()
+        if (active) setGoNo(nextGoNo(records))
+      }
+    }
+    loadNext()
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const persistedManual = loadManualCustomers()
+    setManualCustomers(persistedManual)
+
+    const loadOptions = async () => {
+      setLoadingOptions(true)
+      setLoadWarning('')
+
+      try {
+        const [customersRes, inventoryRes, finishedGoodsRes] = await Promise.all([
+          customersApi.list(),
+          inventoryApi.list(),
+          finishedGoodsApi.list(),
+        ])
+
+        if (!active) return
+
+        const apiCustomers = toList(customersRes)
+          .map((entry, idx) => normalizeCustomer(entry, idx, 'api-customer'))
+          .filter(Boolean)
+        const mergedCustomers = mergeCustomers(apiCustomers, persistedManual)
+
+        const inventoryProducts = uniqueProducts(
+          toList(inventoryRes)
+            .map((entry, idx) => normalizeInventoryProduct(entry, idx, 'inv'))
+            .filter(Boolean)
+        )
+        const finishedGoodsProducts = uniqueProducts(
+          toList(finishedGoodsRes)
+            .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx, 'fg'))
+            .filter(Boolean)
+        )
+
+        setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
+        setProductsBySource({
+          [SOURCE_INVENTORY]: inventoryProducts,
+          [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
+        })
+      } catch {
+        if (!active) return
+
+        setCustomers(mergeCustomers(fallbackCustomers, persistedManual))
+        setProductsBySource({
+          [SOURCE_INVENTORY]: fallbackInventoryProducts,
+          [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+        })
+        setLoadWarning('Unable to fetch latest Settings data. Showing fallback options.')
+      } finally {
+        if (active) setLoadingOptions(false)
+      }
+    }
+
+    loadOptions()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const unitOptions = useMemo(() => {
+    const all = new Set(UNITS)
+    Object.values(productsBySource).flat().forEach((entry) => {
+      const unitName = String(entry?.unit || '').trim()
+      if (unitName) all.add(unitName)
+    })
+    return Array.from(all)
+  }, [productsBySource])
+
+  const customer = useMemo(
+    () => customers.find((entry) => String(entry.id) === String(customerId)) || null,
+    [customerId, customers]
+  )
+
+  const getProductsForSource = (source) => productsBySource[source] || []
+
+  const getProduct = (source, productId) =>
+    getProductsForSource(source).find((entry) => String(entry.id) === String(productId)) || null
+
+  const hasStockLimit = (entry) => Number.isFinite(entry?.available)
+
+  const handleAddManualCustomer = () => {
+    const name = manualCustomerName.trim()
+    if (!name) return
+
+    const existing = customers.find((entry) => entry.name.toLowerCase() === name.toLowerCase())
+    if (existing) {
+      setCustomerId(String(existing.id))
+      setAddress(existing.address || '')
+      setManualCustomerName('')
+      setErrors((prev) => ({ ...prev, customer: undefined }))
+      return
+    }
+
+    const manualEntry = {
+      id: `manual-${Date.now()}`,
+      name,
+      address: address.trim(),
+      isManual: true,
+    }
+
+    const nextManual = mergeCustomers(manualCustomers, [manualEntry]).map((entry) => ({ ...entry, isManual: true }))
+    const nextCustomers = mergeCustomers(customers, [manualEntry])
+
+    setManualCustomers(nextManual)
+    saveManualCustomers(nextManual)
+    setCustomers(nextCustomers)
+    setCustomerId(String(manualEntry.id))
+    setManualCustomerName('')
+    setErrors((prev) => ({ ...prev, customer: undefined }))
+  }
+
+  const updateItem = (key, field, value) => {
+    setItems((prev) =>
+      prev.map((row) => {
+        if (row.key !== key) return row
+        const updated = { ...row, [field]: value, error: '' }
+
+        if (field === 'source') {
+          updated.productId = ''
+          updated.quantity = ''
+          updated.unit = unitOptions[0] || 'Unit'
+        }
+
+        if (field === 'productId') {
+          const product = getProduct(updated.source, value)
+          updated.unit = product?.unit || row.unit
+          if (updated.quantity && product && hasStockLimit(product) && Number(updated.quantity) > product.available) {
+            updated.quantity = String(product.available)
+            updated.error = `Quantity cannot be over ${product.available} ${product.unit}`
+          }
+        }
+
+        if (field === 'quantity') {
+          const product = getProduct(updated.source, updated.productId)
+          if (product && hasStockLimit(product) && Number(value) > product.available) {
+            updated.quantity = String(product.available)
+            updated.error = `Quantity cannot be over ${product.available} ${product.unit}`
+          }
+        }
+
+        return updated
+      })
+    )
+
+    setErrors((prev) => ({ ...prev, items: undefined }))
+  }
+
+  const addItem = () => setItems((prev) => [...prev, blankItem()])
+  const removeItem = (key) => setItems((prev) => (prev.length > 1 ? prev.filter((x) => x.key !== key) : prev))
+
+  const validate = () => {
+    const nextErrors = {}
+
+    if (!date) nextErrors.date = 'Please select a date'
+    if (!customerId) nextErrors.customer = 'Please select a customer'
+
+    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0)
+    if (missing) nextErrors.items = 'Please complete source, product, and quantity for all rows'
+
+    const overLimitRow = items.find((row) => {
+      const product = getProduct(row.source, row.productId)
+      if (!product || !hasStockLimit(product)) return false
+      return Number(row.quantity) > product.available
+    })
+
+    if (overLimitRow) nextErrors.items = 'Quantity cannot be over available stock'
+
+    const totalBySourceAndProduct = items.reduce((acc, row) => {
+      if (!row.source || !row.productId) return acc
+      const key = `${row.source}::${row.productId}`
+      acc[key] = (acc[key] || 0) + Number(row.quantity || 0)
+      return acc
+    }, {})
+
+    const productOverTotal = Object.entries(totalBySourceAndProduct).find(([key, total]) => {
+      const [source, productId] = key.split('::')
+      const product = getProduct(source, productId)
+      return product && hasStockLimit(product) && total > product.available
+    })
+
+    if (productOverTotal) {
+      const [source, productId] = productOverTotal[0].split('::')
+      const product = getProduct(source, productId)
+      const sourceName = SOURCE_OPTIONS.find((entry) => entry.value === source)?.label || source
+      nextErrors.items = `${product.name} (${sourceName}): total quantity cannot be over ${product.available} ${product.unit}`
+    }
+
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  const handleSave = async () => {
+    if (!validate()) return
+    setSaving(true)
+
+    try {
+      const customerPk = Number(customer?.id)
+      const payload = {
+        go_no: goNo,
+        dispatch_date: date,
+        vehicle_no: vehicleNo,
+        driver_name: driverName,
+        driver_phone: driverPhone,
+        driver_cnic: driverCnic,
+        customer: Number.isFinite(customerPk) ? customerPk : null,
+        customer_name: customer?.name || '',
+        address,
+        note,
+        numbering,
+        batch_number: batchNumber,
+        status: 'Dispatched',
+        items: items.map((row) => {
+          const product = getProduct(row.source, row.productId)
+          return {
+            source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
+            sourceType: row.source,
+            productId: product?.id ?? row.productId,
+            productName: product?.name || '',
+            brand: product?.brand || '',
+            quantity: Number(row.quantity),
+            unit: row.unit || product?.unit || 'Unit',
+          }
+        }),
+      }
+
+      await gateOutwardApi.create(payload)
+      incrementStoreEntries('gate-outward')
+      router.push('/gate-outward')
+    } catch {
+      setErrors((prev) => ({ ...prev, form: 'Unable to save gate outward entry. Please check backend connection.' }))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <DashboardLayout>
+      <div style={s.wrapper}>
+        <div style={s.pageHeader}>
+          <div style={s.headerLeft}>
+            <button style={s.backBtn} onClick={() => router.push('/gate-outward')}>
+              <ArrowLeft size={16} />
+            </button>
+            <div>
+              <h1 style={s.pageTitle}><ArrowUpFromLine size={20} color="#54B45B" style={{ marginRight: 8 }} />Gate Outward</h1>
+              <p style={s.pageSubtitle}>Add new entry</p>
+            </div>
+          </div>
+          <button style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
+          </button>
+        </div>
+
+        <div style={s.card}>
+          {loadWarning ? <div style={s.warningBanner}>{loadWarning}</div> : null}
+          {errors.form ? <div style={s.warningBanner}>{errors.form}</div> : null}
+
+          <div style={s.topRow}>
+            <div style={s.fieldGroup}>
+              <label style={s.label}>GO Number:</label>
+              <div style={s.readonlyInput}>{goNo}</div>
+            </div>
+
+            <div style={s.fieldGroup}>
+              <label style={s.label}>Date:</label>
+              <StoreThemeDatePicker
+                value={date}
+                onChange={setDate}
+                placeholder="Select date"
+                variant="input"
+                triggerStyle={errors.date ? s.inputError : {}}
+              />
+              {errors.date && <span style={s.errorText}>{errors.date}</span>}
+            </div>
+
+            <div style={s.fieldGroup}>
+              <label style={s.label}>Customer:</label>
+              <StoreThemeDropdown
+                value={customerId}
+                disabled={loadingOptions}
+                onChange={(id) => {
+                  setCustomerId(id)
+                  const picked = customers.find((entry) => String(entry.id) === String(id))
+                  setAddress(picked?.address || '')
+                  setErrors((prev) => ({ ...prev, customer: undefined }))
+                }}
+                variant="input"
+                placeholder={loadingOptions ? 'Loading customers...' : 'Select Customer'}
+                options={[
+                  { value: '', label: loadingOptions ? 'Loading customers...' : 'Select Customer' },
+                  ...customers.map((entry) => ({
+                    value: String(entry.id),
+                    label: `${entry.name}${entry.isManual ? ' (Manual)' : ''}`,
+                  })),
+                ]}
+              />
+              <div style={s.manualCustomerRow}>
+                <input
+                  style={s.manualCustomerInput}
+                  placeholder="Type customer name and click Add"
+                  value={manualCustomerName}
+                  onChange={(e) => setManualCustomerName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddManualCustomer()
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  style={manualCustomerName.trim() ? s.manualCustomerBtn : s.manualCustomerBtnDisabled}
+                  onClick={handleAddManualCustomer}
+                  disabled={!manualCustomerName.trim()}
+                >
+                  Add
+                </button>
+              </div>
+              {errors.customer && <span style={s.errorText}>{errors.customer}</span>}
+            </div>
+          </div>
+
+          <div style={s.midRow}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Address:</label>
+              <textarea
+                style={{ ...s.input, ...s.textarea }}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Auto-filled from customer selection or type manually"
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Note:</label>
+              <textarea style={{ ...s.input, ...s.textarea }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note..." />
+            </div>
+          </div>
+
+          <div style={s.extraRow}>
+            <div style={s.fieldGroup}>
+              <label style={s.label}>Numbering:</label>
+              <textarea style={{ ...s.input, ...s.textareaSmall }} value={numbering} onChange={(e) => setNumbering(e.target.value)} placeholder="Add numbering comment" />
+            </div>
+            <div style={s.fieldGroup}>
+              <label style={s.label}>Batch Number:</label>
+              <textarea style={{ ...s.input, ...s.textareaSmall }} value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Add batch number comment" />
+            </div>
+          </div>
+
+          <div style={s.driverRow}>
+            <input style={s.input} placeholder="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} />
+            <input style={s.input} placeholder="Driver Name" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
+            <input style={s.input} placeholder="Driver Phone" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} />
+            <input style={s.input} placeholder="Driver CNIC" value={driverCnic} onChange={(e) => setDriverCnic(e.target.value)} />
+          </div>
+
+          <div style={s.itemsHeader}>
+            <button style={s.addItemBtn} onClick={addItem}>
+              <Plus size={15} />
+            </button>
+          </div>
+
+          <div style={s.divider} />
+
+          {errors.items && <div style={s.itemsError}>{errors.items}</div>}
+
+          {items.map((item, idx) => {
+            const productsForSource = getProductsForSource(item.source)
+            const product = getProduct(item.source, item.productId)
+
+            let availableText = 'Select source first'
+            if (item.source && productsForSource.length === 0) availableText = 'No products available for selected source'
+            if (item.source && productsForSource.length > 0) availableText = 'Select product to view available stock'
+            if (product && hasStockLimit(product)) availableText = `Available: ${product.available} ${product.unit}`
+            if (product && !hasStockLimit(product)) availableText = `Unit: ${product.unit}`
+
+            return (
+              <div key={item.key} style={s.itemBlock}>
+                <div style={s.itemRow}>
+                  <div style={s.itemField}>
+                    {idx === 0 && <label style={s.label}>Source</label>}
+                    <StoreThemeDropdown
+                      value={item.source}
+                      onChange={(nextSource) => updateItem(item.key, 'source', nextSource)}
+                      variant="input"
+                      placeholder="Source"
+                      options={[
+                        { value: '', label: 'Source' },
+                        ...SOURCE_OPTIONS.map((entry) => ({ value: entry.value, label: entry.label })),
+                      ]}
+                    />
+                  </div>
+
+                  <div style={s.itemField}>
+                    {idx === 0 && <label style={s.label}>Select Product</label>}
+                    <select
+                      style={s.input}
+                      value={item.productId}
+                      onChange={(e) => updateItem(item.key, 'productId', e.target.value)}
+                      disabled={!item.source}
+                    >
+                      <option value="">
+                        {!item.source
+                          ? 'Select source first'
+                          : productsForSource.length === 0
+                            ? 'No products found'
+                            : 'Select Product'}
+                      </option>
+                      {productsForSource.map((entry) => (
+                        <option key={`${item.source}-${entry.id}`} value={entry.id}>
+                          {entry.name}{entry.brand ? ` (${entry.brand})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                    {idx === 0 && <label style={s.label}>Quantity</label>}
+                    <input
+                      style={s.input}
+                      type="number"
+                      min="1"
+                      placeholder="Quantity"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                    {idx === 0 && <label style={s.label}>Unit</label>}
+                    <StoreThemeDropdown
+                      value={item.unit}
+                      onChange={(nextUnit) => updateItem(item.key, 'unit', nextUnit)}
+                      variant="input"
+                      options={UNITS.map((u) => ({ value: u, label: u }))}
+                    />
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: '0 0 36px', alignSelf: 'flex-end' }}>
+                    {items.length > 1 && (
+                      <button style={s.removeBtn} onClick={() => removeItem(item.key)} title="Remove item">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <p style={{ ...s.stockHint, color: item.error ? '#ef4444' : '#6b7280' }}>{item.error || availableText}</p>
+              </div>
+            )
+          })}
+
+          <div style={s.formFooter}>
+            <button style={s.cancelBtn} onClick={() => router.push('/gate-outward')}>Cancel</button>
+            <button style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+              <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}
+
+const s = {
+  wrapper: { maxWidth: 1100, margin: '0 auto' },
+
+  pageHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  backBtn: { background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: '#6b7280', display: 'flex' },
+  pageTitle: { fontSize: 22, fontWeight: 800, color: '#1a2e1b', margin: '0 0 2px', display: 'flex', alignItems: 'center' },
+  pageSubtitle: { fontSize: 13, color: '#9ca3af', margin: 0 },
+
+  saveBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#54B45B', border: 'none', borderRadius: 8, padding: '9px 28px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer', letterSpacing: '0.5px' },
+  saveBtnDisabled: { display: 'flex', alignItems: 'center', gap: 6, background: '#a7f3d0', border: 'none', borderRadius: 8, padding: '9px 28px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed', letterSpacing: '0.5px' },
+  cancelBtn: { background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer' },
+
+  card: { background: '#fff', borderRadius: 14, border: '1px solid #e8f5e9', padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
+  warningBanner: { background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, color: '#c2410c', fontSize: 12.5, padding: '8px 12px', marginBottom: 12 },
+
+  topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 },
+  midRow: { display: 'flex', gap: 20, marginBottom: 14 },
+  extraRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 14 },
+  driverRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 },
+
+  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
+  itemField: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
+
+  label: { fontSize: 13, fontWeight: 600, color: '#374151' },
+  input: { background: '#f0faf4', border: '1px solid #d1fae5', borderRadius: 8, padding: '9px 12px', fontSize: 13.5, color: '#1a2e1b', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  inputError: { borderColor: '#fca5a5', background: '#fff5f5' },
+  readonlyInput: { background: '#f0faf4', border: '1px solid #d1fae5', borderRadius: 8, padding: '9px 12px', fontSize: 13.5, color: '#374151', fontWeight: 600 },
+
+  manualCustomerRow: { display: 'flex', gap: 8, marginTop: 2 },
+  manualCustomerInput: { flex: 1, border: '1px solid #d1fae5', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#1a2e1b', background: '#ffffff', outline: 'none' },
+  manualCustomerBtn: { border: 'none', borderRadius: 8, background: '#54B45B', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', cursor: 'pointer' },
+  manualCustomerBtnDisabled: { border: 'none', borderRadius: 8, background: '#d1d5db', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', cursor: 'not-allowed' },
+
+  textarea: { height: 80, resize: 'vertical', fontFamily: 'inherit' },
+  textareaSmall: { height: 60, resize: 'vertical', fontFamily: 'inherit' },
+
+  errorText: { fontSize: 11.5, color: '#ef4444', marginTop: 2 },
+  itemsError: { background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#ef4444', marginBottom: 12 },
+
+  itemsHeader: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
+  addItemBtn: { background: '#54B45B', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', boxShadow: '0 2px 8px rgba(84,180,91,0.35)' },
+
+  divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
+  itemBlock: { marginBottom: 10 },
+  itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end' },
+  stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
+
+  removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },
+
+  formFooter: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6' },
+}
+
+

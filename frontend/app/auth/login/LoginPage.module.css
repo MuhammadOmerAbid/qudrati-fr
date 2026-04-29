@@ -1,0 +1,469 @@
+/* ═══════════════════════════════════════════════════════
+   QUDRATI FOODS — Login · CSS Module
+   Design: Premium White Card · Professional Corporate
+   Elegant & Sophisticated Business Styling
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Page root ─────────────────────────────────────────── */
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Background Image with Blur ────────────────────────── */
+.bgImage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  filter: blur(4px);
+  transform: scale(1.02);
+}
+
+/* ── Dark Overlay for better text readability ──────────── */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* ── Professional Dark Blue Gradient Background (fallback) ── */
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(145deg, 
+    #0a0e1a 0%,
+    #0f1622 25%,
+    #131b2a 50%,
+    #0e1420 75%,
+    #090d17 100%);
+}
+
+/* Ambient orbs - subtle and professional */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  animation: subtleFloat 20s ease-in-out infinite;
+}
+.o1 { 
+  width: 500px; height: 500px; top: -200px; left: -150px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.12), transparent 70%); 
+}
+.o2 { 
+  width: 450px; height: 450px; bottom: -150px; right: -120px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.08), transparent 70%);
+  animation-delay: 8s; 
+}
+.o3 { 
+  width: 300px; height: 300px; top: 50%; left: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.06), transparent 70%);
+  animation-delay: 14s; 
+  transform: translate(-50%, -50%);
+}
+@keyframes subtleFloat {
+  0%,100% { transform: translate(0,0) scale(1); opacity: 0.4; }
+  50%      { transform: translate(20px,-15px) scale(1.05); opacity: 0.6; }
+}
+
+/* Professional grain overlay */
+.grain {
+  position: absolute; inset: 0; z-index: 0;
+  opacity: 0.02; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ── Card wrapper ──────────────────────────────────────── */
+.wrap {
+  position: relative; 
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(14px) scale(0.978);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(.16,.86,.26,1);
+}
+.wrapIn {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* ── Premium White Card - Clean White Background ──────── */
+.glassCard {
+  width: 300px;
+  min-height: 470px;
+  background: #ffffff;
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  border-radius: 32px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 30px 50px rgba(0, 0, 0, 0.25),
+    0 10px 20px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  position: relative;
+  overflow: hidden;
+  padding: 35px 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Subtle gradient overlay for depth */
+.glassCard {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #fafafa 100%
+  );
+}
+
+.glassCard > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Premium top highlight */
+.glassCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 1),
+    rgba(255, 255, 255, 0.95),
+    transparent
+  );
+  z-index: 1;
+}
+
+/* Left edge elegance */
+.glassCard::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8),
+    rgba(0, 0, 0, 0.03),
+    rgba(0, 0, 0, 0)
+  );
+  z-index: 1;
+}
+
+/* ── Logo Section ──────────────────────────────────────── */
+.logoSection {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 35px;
+}
+
+.logoImg {
+  display: block;
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.1));
+  transition: transform 0.3s ease;
+}
+
+/* ── Form ─────────────────────────────────────────────── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+/* Field */
+.field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 7px; 
+  width: 100%;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.55);
+  transition: color 0.2s;
+}
+
+.fieldFoc .label { 
+  color: rgba(0, 0, 0, 0.85); 
+}
+
+.shell { 
+  position: relative; 
+  display: flex; 
+  align-items: center; 
+  width: 100%;
+}
+
+.icon {
+  position: absolute; 
+  left: 13px;
+  color: rgba(0, 0, 0, 0.35);
+  pointer-events: none; 
+  display: flex; 
+  align-items: center;
+  transition: color 0.2s; 
+  z-index: 1;
+}
+
+.fieldFoc .icon { 
+  color: #22c55e; 
+}
+
+.input {
+  width: 100%;
+  padding: 11px 12px 11px 38px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #f8f9fa;
+  border: 1.5px solid #e9ecef;
+  border-radius: 14px;
+  color: #1a1a1a;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.input::placeholder { 
+  color: #adb5bd; 
+  font-size: 12px; 
+}
+
+.input:hover { 
+  background: #ffffff;
+  border-color: #dee2e6; 
+}
+
+.fieldFoc .input {
+  background: #ffffff;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+.input:disabled { 
+  opacity: 0.48; 
+  cursor: not-allowed; 
+}
+
+/* Eye toggle */
+.eye {
+  position: absolute; 
+  right: 12px;
+  background: none; 
+  border: none; 
+  padding: 0; 
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.35); 
+  display: flex; 
+  align-items: center;
+  transition: all 0.2s; 
+  z-index: 1;
+}
+
+.eye:hover { 
+  color: #22c55e; 
+}
+
+/* Remember row */
+.metaRow {
+  display: flex; 
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+
+.remLabel {
+  display: flex; 
+  align-items: center; 
+  gap: 7px;
+  cursor: pointer; 
+  user-select: none;
+}
+
+.chk {
+  width: 15px; 
+  height: 15px; 
+  border-radius: 4px;
+  border: 1.5px solid #dee2e6;
+  background: #f8f9fa;
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  flex-shrink: 0; 
+  transition: all 0.18s;
+}
+
+.chkOn { 
+  background: #22c55e;
+  border-color: #22c55e; 
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.2); 
+  position: relative;
+}
+
+.chkOn::after {
+  content: '✓';
+  font-size: 10px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.remLabel span { 
+  font-size: 11px; 
+  color: rgba(0, 0, 0, 0.55); 
+  transition: color 0.2s;
+}
+
+.remLabel:hover span {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* ── Green Professional Submit Button ──────────────────── */
+.btn {
+  position: relative; 
+  overflow: hidden;
+  width: 100%; 
+  padding: 12px 18px;
+  font-size: 13px; 
+  font-weight: 600; 
+  font-family: inherit;
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff; 
+  border: none; 
+  border-radius: 14px;
+  cursor: pointer; 
+  margin-top: 6px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #2dd96b 0%, #15803d 100%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 15px rgba(34, 197, 94, 0.2);
+}
+
+.btn:active:not(:disabled) { 
+  transform: translateY(0); 
+}
+
+.btn:disabled { 
+  opacity: 0.58; 
+  cursor: not-allowed; 
+}
+
+/* ── Error message ─────────────────────────────────────── */
+.errInside {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: #dc2626;
+  width: 100%;
+  letter-spacing: 0.01em;
+  animation: shake 0.35s ease;
+  background: transparent;
+  border: none;
+}
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .glassCard { 
+    width: 270px;
+    min-height: 440px;
+    padding: 28px 20px;
+  }
+  
+  .logoImg {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .logoSection {
+    margin-bottom: 28px;
+  }
+}
+
+@media (max-width: 380px) {
+  .glassCard { 
+    width: 255px;
+    min-height: 420px;
+    padding: 24px 18px;
+  }
+  
+  .logoImg {
+    width: 110px;
+    height: 110px;
+  }
+  
+  .logoSection {
+    margin-bottom: 24px;
+  }
+  
+  .form {
+    gap: 14px;
+  }
+}
+
+@media (max-height: 600px) {
+  .glassCard { 
+    min-height: 430px;
+    padding: 25px 22px;
+  }
+  
+  .logoSection {
+    margin-bottom: 25px;
+  }
+  
+  .logoImg {
+    width: 115px;
+    height: 115px;
+  }
+  
+  .form {
+    gap: 14px;
+  }
+}

@@ -1,0 +1,161 @@
+[data-panel-content='store'] {
+  --store-select-bg: #ffffff;
+  --store-select-border: #d4dfd4;
+  --store-select-text: #1f2f21;
+  --store-select-muted: #7a8a7a;
+  --store-select-menu-bg: #ffffff;
+  --store-select-item-bg: #f7faf7;
+  --store-select-item-active-bg: #e8f0e8;
+  --store-select-item-active-text: #1f7a2b;
+  --store-select-focus-ring: rgba(45, 122, 51, 0.2);
+  --store-select-shadow: 0 12px 28px rgba(26, 61, 31, 0.12);
+}
+
+[data-panel-content='store'] select {
+  color: var(--store-select-text);
+  background-color: var(--store-select-bg);
+  border-color: var(--store-select-border);
+  color-scheme: light;
+  font-family: inherit;
+}
+
+[data-panel-content='store'] select:focus {
+  outline: none;
+  border-color: #9bc59f;
+  box-shadow: 0 0 0 3px var(--store-select-focus-ring);
+}
+
+[data-panel-content='store'] select option,
+[data-panel-content='store'] select optgroup {
+  background: #ffffff !important;
+  color: #1f2f21 !important;
+}
+
+[data-panel-content='store'] select option:checked,
+[data-panel-content='store'] select option:hover,
+[data-panel-content='store'] select option:focus {
+  background: #e8f0e8 !important;
+  color: #1f7a2b !important;
+}
+
+[data-panel-content='store'] select:disabled {
+  background: #f4f6f4 !important;
+  color: #9aa69a !important;
+  border-color: #d4dfd4 !important;
+  cursor: not-allowed;
+}
+
+[data-panel-content='store'] input[type='date'] {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #d4dfd4 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #1f2f21 !important;
+  font-size: 13px !important;
+  font-family: inherit;
+  line-height: 1.2;
+  padding: 9px 34px 9px 12px !important;
+  outline: none;
+}
+
+[data-panel-content='store'] input[type='date']:focus {
+  border-color: #9bc59f !important;
+  box-shadow: 0 0 0 3px rgba(45, 122, 51, 0.2);
+}
+
+[data-panel-content='store'] input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.9;
+  filter: invert(38%) sepia(19%) saturate(1153%) hue-rotate(74deg) brightness(93%) contrast(86%);
+}
+
+[data-panel-content='store'] input[type='date']::-webkit-datetime-edit {
+  color: #1f2f21;
+}
+
+[data-panel-content='store'] input[type='date']::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+[data-panel-content='store'] input[type='date']:disabled {
+  background: #f4f6f4 !important;
+  color: #9aa69a !important;
+  cursor: not-allowed;
+}
+
+[data-panel-content='store'] .store-theme-dropdown-menu {
+  background: var(--store-select-menu-bg);
+  border: 1px solid var(--store-select-border);
+  box-shadow: var(--store-select-shadow);
+}
+
+[data-panel-content='store'] .store-theme-dropdown-item {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+[data-panel-content='store'] .store-theme-dropdown-item:hover,
+[data-panel-content='store'] .store-theme-dropdown-item:focus-visible {
+  background: var(--store-select-item-bg) !important;
+  color: #1f2f21 !important;
+  outline: none;
+}
+
+[data-panel-content='store'] .store-theme-dropdown-item.store-theme-dropdown-item-active {
+  background: var(--store-select-item-active-bg) !important;
+  color: var(--store-select-item-active-text) !important;
+}
+
+[data-panel-content='store'] .store-theme-dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-panel-content='store'] .store-theme-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #c7d8c8;
+  border-radius: 999px;
+}
+
+.sidebar-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 138, 122, 0.32) transparent;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-scroll-thin::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.sidebar-scroll-thin::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+  border-radius: 999px;
+}
+
+.sidebar-scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(122, 138, 122, 0.34);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.sidebar-scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 138, 122, 0.45);
+}
+
+.sidebar-scroll-invisible {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scroll-invisible::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
