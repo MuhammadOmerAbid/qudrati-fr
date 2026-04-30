@@ -2,11 +2,21 @@ import axios from 'axios'
 
 const RESOLVE_ENDPOINT = '/api/backend-base'
 const RESOLVE_TIMEOUT_MS = 4000
-const LOCALHOST_API_REGEX = /^https?:\/\/localhost:(8000|8001)\/api$/i
 const DEFAULT_BASES = ['http://localhost:8000/api', 'http://localhost:8001/api']
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+const RAILWAY_FALLBACK = 'https://qudarti-foods-10-production.up.railway.app/api'
 
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '')
-const isLocalhostApiBase = (value) => LOCALHOST_API_REGEX.test(normalizeBase(value))
+const isValidApiBase = (value) => {
+  const normalized = normalizeBase(value)
+  if (!normalized) return false
+  try {
+    const parsed = new URL(normalized)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 const parseCandidateBases = () => {
   const raw = String(process.env.NEXT_PUBLIC_API_CANDIDATES || '').trim()
@@ -14,13 +24,14 @@ const parseCandidateBases = () => {
   const fromEnv = raw
     .split(',')
     .map((v) => normalizeBase(v))
-    .filter(isLocalhostApiBase)
+    .filter(isValidApiBase)
   return fromEnv.length ? fromEnv : DEFAULT_BASES
 }
 
-const explicitBase = isLocalhostApiBase(process.env.NEXT_PUBLIC_API_URL)
-  ? normalizeBase(process.env.NEXT_PUBLIC_API_URL)
-  : ''
+const explicitBase = isValidApiBase(API_URL)
+  ? normalizeBase(API_URL)
+  : normalizeBase(RAILWAY_FALLBACK)
+  
 const candidateBases = parseCandidateBases()
 let resolvedBase = explicitBase
 let resolveBasePromise = null
@@ -38,7 +49,7 @@ const discoverBaseViaServer = async () => {
     if (!response.ok) return ''
     const body = await response.json().catch(() => null)
     const base = normalizeBase(body?.base)
-    return isLocalhostApiBase(base) ? base : ''
+    return isValidApiBase(base) ? base : ''
   } catch {
     return ''
   } finally {
@@ -121,7 +132,9 @@ export const clearTokens = () => {
 api.interceptors.request.use(async (config) => {
   const base = await resolveApiBase()
   if (!base) {
-    throw new Error(`Backend API not reachable. Start Django on one of: ${candidateBases.join(', ')}`)
+    throw new Error(
+      `Backend API not reachable. Set NEXT_PUBLIC_API_URL (for Vercel/Railway) or run backend on one of: ${candidateBases.join(', ')}`
+    )
   }
   config.baseURL = base
   if (typeof window !== 'undefined') {
