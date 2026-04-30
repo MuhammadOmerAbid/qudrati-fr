@@ -1,9 +1,31 @@
-const LOCALHOST_API_REGEX = /^https?:\/\/localhost:(8000|8001)\/api$/i
 const DEFAULT_BASES = ['http://localhost:8000/api', 'http://localhost:8001/api']
 const PROBE_TIMEOUT_MS = 2500
+const RAILWAY_URL = 'https://qudarti-foods-10-production.up.railway.app/api'
 
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '')
-const isLocalhostApiBase = (value) => LOCALHOST_API_REGEX.test(normalizeBase(value))
+const isValidApiBase = (value) => {
+  const normalized = normalizeBase(value)
+  if (!normalized) return false
+  try {
+    const parsed = new URL(normalized)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const getExplicitBase = () => {
+  // Hardcoded production URL as fallback
+  const hardcoded = RAILWAY_URL
+
+  const privateBase = normalizeBase(process.env.BACKEND_API_URL)
+  if (isValidApiBase(privateBase)) return privateBase
+
+  const publicBase = normalizeBase(process.env.NEXT_PUBLIC_API_URL)
+  if (isValidApiBase(publicBase)) return publicBase
+
+  return hardcoded
+}
 
 const parseCandidateBases = () => {
   const raw = String(process.env.NEXT_PUBLIC_API_CANDIDATES || '').trim()
@@ -11,7 +33,7 @@ const parseCandidateBases = () => {
   const fromEnv = raw
     .split(',')
     .map((v) => normalizeBase(v))
-    .filter(isLocalhostApiBase)
+    .filter(isValidApiBase)
   return fromEnv.length ? fromEnv : DEFAULT_BASES
 }
 
@@ -35,6 +57,11 @@ const probeBase = async (base) => {
 }
 
 export async function resolveBackendBase() {
+  const explicitBase = getExplicitBase()
+  if (explicitBase) {
+    return { base: explicitBase, message: '' }
+  }
+
   const candidateBases = parseCandidateBases()
   for (const base of candidateBases) {
     if (await probeBase(base)) {
@@ -44,6 +71,6 @@ export async function resolveBackendBase() {
 
   return {
     base: null,
-    message: 'Backend API is not reachable on localhost:8000 or localhost:8001.',
+    message: 'Backend API is not reachable. Set BACKEND_API_URL/NEXT_PUBLIC_API_URL or verify NEXT_PUBLIC_API_CANDIDATES.',
   }
 }
