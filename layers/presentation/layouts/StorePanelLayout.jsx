@@ -5,7 +5,7 @@ import AppSidebar from '@/components/layout/Sidebar'
 
 // Store panel screens are visually denser and were feeling "enlarged" at browser 100%.
 // We keep the explicit zoom knob here so this panel can be tuned independently.
-const STORE_PANEL_ZOOM = 1.0
+const STORE_PANEL_ZOOM = 0.8
 
 export default function DashboardLayout({ children }) {
   return (

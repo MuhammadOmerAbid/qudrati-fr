@@ -420,7 +420,7 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
 
           {dateKey ? (
             <>
-              <div style={{ minWidth: 170 }}>
+              <div style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
                 <StoreThemeDatePicker
                   value={fromDate}
                   onChange={setFromDate}
@@ -428,7 +428,7 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
                   variant="pill"
                 />
               </div>
-              <div style={{ minWidth: 170 }}>
+              <div style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
                 <StoreThemeDatePicker
                   value={toDate}
                   onChange={setToDate}
@@ -529,7 +529,7 @@ export const ui = {
   },
   pageTitle: {
     margin: 0,
-    fontSize: 30,
+    fontSize: 'clamp(24px, 5vw, 30px)',
     lineHeight: 1.2,
     letterSpacing: '-0.6px',
     fontWeight: 800,
@@ -621,7 +621,9 @@ export const ui = {
     border: '1px solid #d4dfd4',
     borderRadius: 40,
     padding: '8px 10px',
-    minWidth: 240,
+    minWidth: 0,
+    width: 'min(100%, 320px)',
+    flex: '1 1 220px',
     background: '#fff',
   },
   searchInputBare: {
@@ -640,7 +642,7 @@ export const ui = {
     color: '#1f2f21',
     outline: 'none',
     background: '#ffffff',
-    minWidth: 170,
+    minWidth: 130,
     appearance: 'none',
     backgroundImage:
       "url(\"data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364758b' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9L12 15L18 9'/%3E%3C/svg%3E\")",
@@ -786,7 +788,7 @@ export const ui = {
     background: '#f2f4f2',
     border: '1px solid #e2e8e2',
     boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-    padding: 20,
+    padding: 16,
   },
   modalHeaderTop: {
     display: 'flex',
@@ -825,7 +827,7 @@ export const ui = {
   },
   formCol: {
     flex: 1,
-    minWidth: 220,
+    minWidth: 'min(220px, 100%)',
   },
   label: {
     display: 'block',
@@ -912,6 +914,7 @@ export const ui = {
     flexWrap: 'wrap',
     marginBottom: 12,
     alignItems: 'center',
+    width: '100%',
   },
   reportTableWrap: {
     border: '1px solid #e2e8e2',

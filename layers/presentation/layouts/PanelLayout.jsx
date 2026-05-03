@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { Bell, Mail, Search, X } from 'lucide-react'
+import { Menu, Search, X } from 'lucide-react'
 
 export default function PanelLayout({
   children,
@@ -15,6 +15,9 @@ export default function PanelLayout({
   const { user, token, panel, hasHydrated } = useAuthStore()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [isCompactViewport, setIsCompactViewport] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [globalQuery, setGlobalQuery] = useState('')
   const searchInputRef = useRef(null)
 
@@ -34,11 +37,26 @@ export default function PanelLayout({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(max-width: 1024px)')
-    const apply = () => setCollapsed(mq.matches)
+    const compactQuery = window.matchMedia('(max-width: 1024px)')
+    const mobileQuery = window.matchMedia('(max-width: 900px)')
+
+    const apply = () => {
+      const compact = compactQuery.matches
+      const mobile = mobileQuery.matches
+      setIsCompactViewport(compact)
+      setCollapsed(mobile ? false : compact)
+      setIsMobile(mobile)
+      if (!mobile) setMobileSidebarOpen(false)
+    }
+
     apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
+    compactQuery.addEventListener('change', apply)
+    mobileQuery.addEventListener('change', apply)
+
+    return () => {
+      compactQuery.removeEventListener('change', apply)
+      mobileQuery.removeEventListener('change', apply)
+    }
   }, [])
 
   useEffect(() => {
@@ -49,10 +67,22 @@ export default function PanelLayout({
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
       }
+
+      if (event.key === 'Escape' && mobileSidebarOpen) {
+        setMobileSidebarOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
-  }, [])
+  }, [mobileSidebarOpen])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.style.overflow = isMobile && mobileSidebarOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isMobile, mobileSidebarOpen])
 
   const setNativeInputValue = (inputEl, value) => {
     const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
@@ -97,17 +127,55 @@ export default function PanelLayout({
 
   const initial = (user?.username?.[0] || 'U').toUpperCase()
   const accountType = user?.role === 'superuser' ? 'Super User' : 'User'
+  const effectiveZoom = isCompactViewport ? 1 : panelZoom
 
   if (!hasHydrated || !user || !token || !panel) return null
 
   return (
-    <div style={{ ...s.layout, zoom: panelZoom }}>
-      <SidebarComponent collapsed={collapsed} setCollapsed={setCollapsed} />
+    <div style={{ ...s.layout, zoom: effectiveZoom }}>
+      <SidebarComponent
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        isMobile={isMobile}
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
+      />
 
-      <main style={{ ...s.main, paddingLeft: collapsed ? 88 : 256 }}>
-        <header style={s.header}>
+      <main
+        style={{
+          ...s.main,
+          paddingLeft: isMobile ? 0 : (collapsed ? 88 : 256),
+        }}
+      >
+        <header
+          style={{
+            ...s.header,
+            height: isMobile ? 56 : 64,
+            borderRadius: isMobile ? 16 : 40,
+            padding: isMobile ? '0 10px' : '0 20px',
+            margin: isMobile ? '8px 8px 0 8px' : '14px 20px 0 20px',
+            top: isMobile ? 8 : 14,
+            gap: isMobile ? 8 : 12,
+          }}
+        >
+          {isMobile ? (
+            <button
+              type="button"
+              style={s.mobileMenuBtn}
+              title="Open menu"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              <Menu size={16} />
+            </button>
+          ) : null}
+
           <form
-            style={s.searchWrap}
+            style={{
+              ...s.searchWrap,
+              flex: isMobile ? '1 1 auto' : '0 1 300px',
+              minWidth: isMobile ? 120 : 0,
+              padding: isMobile ? '5px 12px' : '6px 16px',
+            }}
             onSubmit={(event) => {
               event.preventDefault()
               runGlobalSearch(globalQuery)
@@ -132,32 +200,39 @@ export default function PanelLayout({
                 <X size={12} />
               </button>
             ) : null}
-            <kbd style={s.searchKbd}>Ctrl F</kbd>
+            {!isMobile ? <kbd style={s.searchKbd}>Ctrl F</kbd> : null}
           </form>
 
-          <div style={{ flex: 1 }} />
+          {!isMobile ? <div style={{ flex: 1 }} /> : null}
 
-          <div style={s.headerRight}>
-            <button style={s.iconBtn} title="Messages">
-              <Mail size={16} strokeWidth={1.5} color="#528a52" />
-            </button>
-            <button style={s.iconBtn} title="Notifications">
-              <Bell size={16} strokeWidth={1.5} color="#528a52" />
-            </button>
-
-            <div style={s.divider} />
+          <div
+            style={{
+              ...s.headerRight,
+              marginLeft: isMobile ? 0 : 0,
+              width: isMobile ? 'auto' : undefined,
+            }}
+          >
+            {!isMobile ? <div style={s.divider} /> : null}
 
             <div style={s.userPill}>
               <div style={s.avatar}>{initial}</div>
-              <div style={s.userMeta}>
-                <span style={s.userName}>{user?.username || 'User'}</span>
-                <span style={s.userEmail}>{accountType}</span>
-              </div>
+              {!isMobile ? (
+                <div style={s.userMeta}>
+                  <span style={s.userName}>{user?.username || 'User'}</span>
+                  <span style={s.userEmail}>{accountType}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
 
-        <div style={s.content} data-panel-content={panelName}>
+        <div
+          style={{
+            ...s.content,
+            padding: isMobile ? '14px 10px 20px' : '20px 20px 28px',
+          }}
+          data-panel-content={panelName}
+        >
           {children}
         </div>
       </main>
@@ -239,6 +314,20 @@ const s = {
     fontFamily: 'inherit',
     border: 'none',
   },
+  mobileMenuBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    border: '1px solid #cde0cd',
+    background: '#ffffff',
+    color: '#2d7a33',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
   headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   divider: {
     width: 1,
@@ -293,4 +382,3 @@ const s = {
     backgroundColor: '#ffffff',
   },
 }
-

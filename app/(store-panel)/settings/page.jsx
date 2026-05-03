@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
@@ -112,11 +113,37 @@ export default function SettingsPage() {
   const router = useRouter()
   const { user } = useAuthStore()
   const isSuperuser = user?.role === 'superuser'
+  const [isTablet, setIsTablet] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const tabletQuery = window.matchMedia('(max-width: 1024px)')
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+
+    const apply = () => {
+      setIsTablet(tabletQuery.matches)
+      setIsMobile(mobileQuery.matches)
+    }
+
+    apply()
+    tabletQuery.addEventListener('change', apply)
+    mobileQuery.addEventListener('change', apply)
+    return () => {
+      tabletQuery.removeEventListener('change', apply)
+      mobileQuery.removeEventListener('change', apply)
+    }
+  }, [])
 
   if (!isSuperuser) {
     return (
       <DashboardLayout>
-        <div style={styles.denied}>
+        <div
+          style={{
+            ...styles.denied,
+            padding: isMobile ? 36 : 80,
+          }}
+        >
           <Shield size={48} color={settingsTheme.textSubtle} />
           <h2 style={styles.deniedTitle}>Access Restricted</h2>
           <p style={styles.deniedText}>Only super users can access Settings.</p>
@@ -127,31 +154,92 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div style={styles.page}>
-        <div style={styles.header}>
+      <div
+        style={{
+          ...styles.page,
+          maxWidth: isTablet ? '100%' : 980,
+          borderRadius: isMobile ? 14 : 20,
+          padding: isMobile ? 12 : isTablet ? 16 : 22,
+        }}
+      >
+        <div
+          style={{
+            ...styles.header,
+            marginBottom: isMobile ? 14 : 22,
+          }}
+        >
           <div>
-            <h1 style={styles.title}>Settings</h1>
-            <p style={styles.subtitle}>Manage your application configuration</p>
+            <h1
+              style={{
+                ...styles.title,
+                fontSize: isMobile ? 18 : 22,
+              }}
+            >
+              Settings
+            </h1>
+            <p
+              style={{
+                ...styles.subtitle,
+                fontSize: isMobile ? 12 : 13.5,
+              }}
+            >
+              Manage your application configuration
+            </p>
           </div>
         </div>
 
-        <div style={styles.grid}>
+        <div
+          style={{
+            ...styles.grid,
+            gridTemplateColumns: isMobile
+              ? '1fr'
+              : isTablet
+                ? 'repeat(auto-fit, minmax(260px, 1fr))'
+                : 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: isMobile ? 10 : 14,
+          }}
+        >
           {SETTING_CARDS.map((card) => {
             const Icon = card.icon
             return (
               <button
                 key={card.id}
                 onClick={() => router.push(card.path)}
-                style={styles.card}
+                style={{
+                  ...styles.card,
+                  gap: isMobile ? 12 : 16,
+                  padding: isMobile ? '12px 12px' : '18px 20px',
+                }}
               >
-                <div style={{ ...styles.iconBox, background: card.bg }}>
-                  <Icon size={22} color={card.color} />
+                <div
+                  style={{
+                    ...styles.iconBox,
+                    width: isMobile ? 40 : 46,
+                    height: isMobile ? 40 : 46,
+                    background: card.bg,
+                  }}
+                >
+                  <Icon size={isMobile ? 18 : 22} color={card.color} />
                 </div>
                 <div style={styles.cardBody}>
-                  <span style={styles.cardTitle}>{card.label}</span>
-                  <span style={styles.cardDesc}>{card.description}</span>
+                  <span
+                    style={{
+                      ...styles.cardTitle,
+                      fontSize: isMobile ? 13.5 : 14.5,
+                    }}
+                  >
+                    {card.label}
+                  </span>
+                  <span
+                    style={{
+                      ...styles.cardDesc,
+                      fontSize: isMobile ? 11.5 : 12.5,
+                    }}
+                  >
+                    {card.description}
+                  </span>
                 </div>
-                <ChevronRight size={16} color={settingsTheme.textSubtle} />
+                {!isMobile ? <ChevronRight size={16} color={settingsTheme.textSubtle} /> : null}
               </button>
             )
           })}
@@ -181,7 +269,7 @@ const styles = {
   subtitle: { margin: '4px 0 0', fontSize: 13.5, color: settingsTheme.textMuted },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: 14,
   },
   card: {

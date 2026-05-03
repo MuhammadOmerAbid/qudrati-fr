@@ -495,7 +495,8 @@ const styles = {
     borderRadius: 12,
     padding: 12,
     boxShadow: '0 12px 28px rgba(26, 61, 31, 0.15)',
-    minWidth: 280,
+    minWidth: 'min(280px, calc(100vw - 28px))',
+    maxWidth: 'calc(100vw - 28px)',
   },
   calendarHeader: {
     display: 'flex',

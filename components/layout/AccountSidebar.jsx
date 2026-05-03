@@ -32,7 +32,7 @@ const NAV_ITEMS_GENERAL = [
   { id: 'logout', label: 'Logout', icon: LogOut, path: null, isLogout: true },
 ]
 
-export default function AccountSidebar({ collapsed, setCollapsed }) {
+export default function AccountSidebar({ collapsed, setCollapsed, isMobile = false, mobileOpen = false, setMobileOpen }) {
   return (
     <BaseSidebar
       collapsed={collapsed}
@@ -41,6 +41,9 @@ export default function AccountSidebar({ collapsed, setCollapsed }) {
       generalItems={NAV_ITEMS_GENERAL}
       alwaysVisibleMenuIds={['accounts-dashboard']}
       sidebarScroll="thin"
+      isMobile={isMobile}
+      mobileOpen={mobileOpen}
+      setMobileOpen={setMobileOpen}
     />
   )
 }

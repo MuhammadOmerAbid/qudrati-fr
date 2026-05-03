@@ -6,6 +6,11 @@ export const metadata = {
   icons: { icon: '/qudartinew.png' },
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+}
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
@@ -17,7 +22,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", zoom: 0.8 }}>
+      <body style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", margin: 0, minHeight: '100vh' }}>
         {children}
       </body>
     </html>
