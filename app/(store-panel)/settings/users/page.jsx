@@ -9,6 +9,10 @@ import { ConfirmDelete, SettingsSelect, Toast, settingsTheme } from '@/component
 import StorePermissionMatrix, { STORE_PERMISSION_SECTIONS } from '@/components/settings/StorePermissionMatrix'
 import { X, Shield, Pencil, Trash2, Plus, ChevronDown, ChevronUp, RefreshCw, ArrowLeft } from 'lucide-react'
 
+const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
+const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').trim().toLowerCase())
+const normalizeRoleForApi = (role) => (hasFullAccessRole(role) ? 'superuser' : 'user')
+
 function UserModal({ open, onClose, onSave, initial }) {
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user', permissions: [] })
   const [showPerm, setShowPerm] = useState(true)
@@ -71,12 +75,13 @@ function UserModal({ open, onClose, onSave, initial }) {
             <label style={labelStyle}>Role</label>
             <SettingsSelect value={form.role} onChange={(e) => set('role', e.target.value)} wrapperStyle={{ width: '100%' }} selectStyle={selectInputStyle}>
               <option value="user">User</option>
+              <option value="admin">Admin</option>
               <option value="superuser">Super User</option>
             </SettingsSelect>
           </div>
         </div>
 
-        {form.role !== 'superuser' && (
+        {!hasFullAccessRole(form.role) && (
           <div style={{ marginBottom: 16 }}>
             <button onClick={() => setShowPerm((v) => !v)} style={permToggleBtn} type="button">
               <Shield size={14} color={settingsTheme.primary} />
@@ -96,10 +101,10 @@ function UserModal({ open, onClose, onSave, initial }) {
           </div>
         )}
 
-        {form.role === 'superuser' && (
+        {hasFullAccessRole(form.role) && (
           <div style={superUserNote}>
             <p style={{ margin: 0, fontSize: 12.5, color: '#8a5a00', fontWeight: 600 }}>
-              Super users have full access to all sections including Settings.
+              Admin users have full access to all sections including Settings.
             </p>
           </div>
         )}
@@ -124,7 +129,7 @@ function AccessBadge({ perm }) {
 export default function UsersPage() {
   const router = useRouter()
   const { user: currentUser } = useAuthStore()
-  const isSuperuser = currentUser?.role === 'superuser'
+  const isSuperuser = hasFullAccessRole(currentUser?.role)
 
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -148,7 +153,13 @@ export default function UsersPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (!isSuperuser) {
+      setUsers([])
+      return
+    }
+    load()
+  }, [isSuperuser, load])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -164,8 +175,8 @@ export default function UsersPage() {
       const payload = {
         username: form.username,
         email: form.email,
-        role: form.role,
-        permissions: form.role === 'superuser' ? [] : form.permissions,
+        role: normalizeRoleForApi(form.role),
+        permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
       if (form.password) payload.password = form.password
 
@@ -178,8 +189,8 @@ export default function UsersPage() {
       }
       setModal(null)
       load()
-    } catch {
-      showToast('Failed to save user', 'error')
+    } catch (error) {
+      showToast(error?.message || 'Failed to save user', 'error')
     }
   }
 
@@ -189,8 +200,8 @@ export default function UsersPage() {
       setDeleteTarget(null)
       showToast('User deleted')
       load()
-    } catch {
-      showToast('Failed to delete user', 'error')
+    } catch (error) {
+      showToast(error?.message || 'Failed to delete user', 'error')
     }
   }
 
@@ -198,14 +209,14 @@ export default function UsersPage() {
     try {
       await usersApi.update(user.id, { is_active: !user.is_active })
       load()
-    } catch {
-      showToast('Failed to update status', 'error')
+    } catch (error) {
+      showToast(error?.message || 'Failed to update status', 'error')
     }
   }
 
   const filtered = users.filter((user) => {
-    if (filterAccess === 'superuser') return user.role === 'superuser'
-    if (filterAccess === 'user') return user.role !== 'superuser'
+    if (filterAccess === 'superuser') return hasFullAccessRole(user.role)
+    if (filterAccess === 'user') return !hasFullAccessRole(user.role)
     return true
   })
 
@@ -247,7 +258,7 @@ export default function UsersPage() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
           <SettingsSelect value={filterAccess} onChange={(e) => setFilterAccess(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 170, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
             <option value="all">All</option>
-            <option value="superuser">Super Users</option>
+            <option value="superuser">Admins</option>
             <option value="user">Regular Users</option>
           </SettingsSelect>
         </div>
@@ -278,7 +289,7 @@ export default function UsersPage() {
                           width: 32,
                           height: 32,
                           borderRadius: '50%',
-                          background: user.role === 'superuser'
+                          background: hasFullAccessRole(user.role)
                             ? 'linear-gradient(135deg,#de4a4a,#b92d2d)'
                             : 'linear-gradient(135deg,#2d7a33,#54B45B)',
                           display: 'flex',
@@ -292,15 +303,15 @@ export default function UsersPage() {
                         </div>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontSize: 13.5, fontWeight: 700, color: settingsTheme.text }}>{user.username}</div>
-                          <div style={{ fontSize: 11.5, color: user.role === 'superuser' ? '#c83535' : settingsTheme.primarySoft, fontWeight: 600 }}>
-                            {user.role === 'superuser' ? 'Super User' : 'User'}
+                          <div style={{ fontSize: 11.5, color: hasFullAccessRole(user.role) ? '#c83535' : settingsTheme.primarySoft, fontWeight: 600 }}>
+                            {hasFullAccessRole(user.role) ? 'Admin' : 'User'}
                           </div>
                         </div>
                       </div>
                     </td>
 
                     <td style={{ padding: '14px 20px', textAlign: 'center', maxWidth: 280 }}>
-                      {user.role === 'superuser' ? (
+                      {hasFullAccessRole(user.role) ? (
                         <span style={allAccessBadge}>All Access</span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>

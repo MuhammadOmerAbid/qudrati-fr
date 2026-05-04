@@ -8,6 +8,10 @@ import { usersApi } from '@/infrastructure/api/endpoints'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 import { ArrowLeft, ChevronDown, ChevronUp, Save, Shield } from 'lucide-react'
 
+const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
+const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').trim().toLowerCase())
+const normalizeRoleForApi = (role) => (hasFullAccessRole(role) ? 'superuser' : 'user')
+
 const ALL_SECTIONS = [
   { id: 'gate-inward', label: 'Gate Inward' },
   { id: 'inventory', label: 'Inventory' },
@@ -105,7 +109,7 @@ export default function UserNewPage() {
   const router = useRouter()
   const { user } = useAuthStore()
 
-  const isSuperuser = user?.role === 'superuser'
+  const isSuperuser = hasFullAccessRole(user?.role)
 
   const [saving, setSaving] = useState(false)
   const [showPerm, setShowPerm] = useState(true)
@@ -129,7 +133,7 @@ export default function UserNewPage() {
     const next = {}
     if (!form.username.trim()) next.username = 'Username is required'
     if (!form.password) next.password = 'Password is required'
-    if (form.role !== 'superuser' && form.permissions.length === 0) {
+    if (!hasFullAccessRole(form.role) && form.permissions.length === 0) {
       next.permissions = 'Select at least one section permission'
     }
     setErrors(next)
@@ -146,14 +150,14 @@ export default function UserNewPage() {
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,
-        role: form.role,
-        permissions: form.role === 'superuser' ? [] : form.permissions,
+        role: normalizeRoleForApi(form.role),
+        permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
 
       await usersApi.create(payload)
       router.push('/settings/users')
-    } catch {
-      setErrorMsg('Failed to create user. Please try again.')
+    } catch (error) {
+      setErrorMsg(error?.message || 'Failed to create user. Please try again.')
       setSaving(false)
     }
   }
@@ -246,12 +250,13 @@ export default function UserNewPage() {
                 selectStyle={s.selectInput}
               >
                 <option value="user">User</option>
+                <option value="admin">Admin</option>
                 <option value="superuser">Super User</option>
               </SettingsSelect>
             </div>
           </div>
 
-          {form.role !== 'superuser' ? (
+          {!hasFullAccessRole(form.role) ? (
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setShowPerm((v) => !v)} style={s.permToggleBtn} type="button">
                 <Shield size={14} color={settingsTheme.primary} />
@@ -266,7 +271,7 @@ export default function UserNewPage() {
           ) : (
             <div style={s.superUserNote}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#8a5a00', fontWeight: 600 }}>
-                Super users have full access to all sections including Settings.
+                Admin users have full access to all sections including Settings.
               </p>
             </div>
           )}

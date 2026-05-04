@@ -2,6 +2,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
+
+const normalizeRole = (role) => String(role || '').trim().toLowerCase()
+const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(normalizeRole(role))
+const normalizeAuthUser = (user) => {
+  if (!user || typeof user !== 'object') return user
+  if (hasFullAccessRole(user.role)) return { ...user, role: 'superuser' }
+  return user
+}
+
 export const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -12,7 +22,7 @@ export const useAuthStore = create(
       hasHydrated: false,
 
       setAuth: (user, token, refreshToken) =>
-        set({ user, token, refreshToken }),
+        set({ user: normalizeAuthUser(user), token, refreshToken }),
 
       setPanel: (panel) => set({ panel }),
 
@@ -26,18 +36,18 @@ export const useAuthStore = create(
       hasPermission: (perm) => {
         const { user } = get()
         if (!user) return false
-        if (user.role === 'superuser') return true
+        if (hasFullAccessRole(user.role)) return true
         return user.permissions?.includes(perm) ?? false
       },
 
-      isSuperuser: () => get().user?.role === 'superuser',
+      isSuperuser: () => hasFullAccessRole(get().user?.role),
       canEdit: () => {
         const u = get().user
-        return u?.role === 'superuser' || u?.can_edit === true
+        return hasFullAccessRole(u?.role) || u?.can_edit === true
       },
       canDelete: () => {
         const u = get().user
-        return u?.role === 'superuser' || u?.can_delete === true
+        return hasFullAccessRole(u?.role) || u?.can_delete === true
       },
     }),
     {
@@ -49,6 +59,9 @@ export const useAuthStore = create(
         panel: state.panel,
       }),
       onRehydrateStorage: () => (state) => {
+        if (state?.user) {
+          state.user = normalizeAuthUser(state.user)
+        }
         state?.setHasHydrated(true)
       },
     }

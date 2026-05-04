@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
@@ -130,12 +131,28 @@ function DropdownField({
 // UPDATED: DatePicker with auto-positioning and right alignment option
 function DatePicker({ value, onChange, placeholder = "Select date", alignRight = false }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
   const [tempDate, setTempDate] = useState(value ? new Date(value) : null)
   const [displayValue, setDisplayValue] = useState(value || '')
-  const [calendarPosition, setCalendarPosition] = useState({ top: '100%', left: 0, right: 'auto' })
+  const [calendarPosition, setCalendarPosition] = useState({
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    transform: 'translate(-50%, -50%)',
+    width: 'min(320px, calc(100vw - 28px))',
+    maxWidth: 'calc(100vw - 28px)',
+    maxHeight: 'calc(100vh - 32px)',
+    overflowY: 'auto',
+  })
   const pickerRef = useRef(null)
   const buttonRef = useRef(null)
   const containerRef = useRef(null)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   const currentDate = tempDate || new Date()
   const currentYear = currentDate.getFullYear()
@@ -144,21 +161,48 @@ function DatePicker({ value, onChange, placeholder = "Select date", alignRight =
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate()
   const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay()
 
-  // Calculate position to prevent going off-screen
   const calculatePosition = () => {
     if (!buttonRef.current) return
-    
     const rect = buttonRef.current.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
     const calendarHeight = 320
-    const spaceBelow = viewportHeight - rect.bottom
-    const spaceAbove = rect.top
-    
-    if (spaceBelow < calendarHeight && spaceAbove > spaceBelow) {
-      setCalendarPosition({ bottom: '100%', top: 'auto', left: alignRight ? 'auto' : 0, right: alignRight ? 0 : 'auto' })
-    } else {
-      setCalendarPosition({ top: '100%', bottom: 'auto', left: alignRight ? 'auto' : 0, right: alignRight ? 0 : 'auto' })
+    const mobile = viewportWidth <= 640
+
+    if (mobile) {
+      setCalendarPosition({
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(320px, calc(100vw - 28px))',
+        maxWidth: 'calc(100vw - 28px)',
+        maxHeight: 'calc(100vh - 32px)',
+        overflowY: 'auto',
+      })
+      return
     }
+
+    const calendarWidth = Math.min(320, viewportWidth - 28)
+    const spaceBelow = viewportHeight - rect.bottom
+    const placeAbove = spaceBelow < calendarHeight && rect.top > spaceBelow
+    const desiredLeft = alignRight ? rect.right - calendarWidth : rect.left
+    const clampedLeft = Math.max(14, Math.min(desiredLeft, viewportWidth - calendarWidth - 14))
+
+    setCalendarPosition({
+      position: 'fixed',
+      top: placeAbove ? Math.max(12, rect.top - calendarHeight - 8) : Math.min(viewportHeight - calendarHeight - 12, rect.bottom + 8),
+      left: clampedLeft,
+      right: 'auto',
+      bottom: 'auto',
+      transform: 'none',
+      width: calendarWidth,
+      maxWidth: calendarWidth,
+      maxHeight: 'calc(100vh - 24px)',
+      overflowY: 'auto',
+    })
   }
 
   useEffect(() => {
@@ -175,8 +219,10 @@ function DatePicker({ value, onChange, placeholder = "Select date", alignRight =
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target) && 
-          buttonRef.current && !buttonRef.current.contains(event.target)) {
+      const target = event.target
+      const clickedTrigger = containerRef.current?.contains(target)
+      const clickedPicker = pickerRef.current?.contains(target)
+      if (!clickedTrigger && !clickedPicker) {
         setIsOpen(false)
       }
     }
@@ -240,6 +286,7 @@ function DatePicker({ value, onChange, placeholder = "Select date", alignRight =
         <button
           key={day}
           type="button"
+          className="store-theme-calendar-day"
           onClick={() => handleDateSelect(day)}
           style={{
             ...s.calendarDay,
@@ -257,6 +304,29 @@ function DatePicker({ value, onChange, placeholder = "Select date", alignRight =
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December']
+
+  const calendarPopup = isOpen ? (
+    <div
+      ref={pickerRef}
+      className="store-theme-calendar-popup"
+      style={{
+        ...s.calendarContainer,
+        ...calendarPosition,
+        zIndex: 2200,
+      }}
+    >
+      <div style={s.calendarHeader}>
+        <button type="button" className="store-theme-calendar-nav-btn" onClick={() => changeMonth(-1)} style={s.calendarNavBtn}><ChevronLeft size={14} /></button>
+        <span style={s.calendarMonthYear}>{monthNames[currentMonth]} {currentYear}</span>
+        <button type="button" className="store-theme-calendar-nav-btn" onClick={() => changeMonth(1)} style={s.calendarNavBtn}><ChevronRight size={14} /></button>
+      </div>
+      <div style={s.calendarGrid}>{renderCalendar()}</div>
+      <div style={s.calendarFooter}>
+        <button type="button" className="store-theme-calendar-footer-btn" onClick={handleToday} style={s.calendarFooterBtn}>Today</button>
+        <button type="button" className="store-theme-calendar-footer-btn" onClick={handleClear} style={s.calendarFooterBtn}>Clear</button>
+      </div>
+    </div>
+  ) : null
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
@@ -276,27 +346,7 @@ function DatePicker({ value, onChange, placeholder = "Select date", alignRight =
         />
       </button>
 
-      {isOpen && (
-        <div 
-          ref={pickerRef} 
-          style={{
-            ...s.calendarContainer,
-            position: 'absolute',
-            ...calendarPosition
-          }}
-        >
-          <div style={s.calendarHeader}>
-            <button type="button" onClick={() => changeMonth(-1)} style={s.calendarNavBtn}><ChevronLeft size={14} /></button>
-            <span style={s.calendarMonthYear}>{monthNames[currentMonth]} {currentYear}</span>
-            <button type="button" onClick={() => changeMonth(1)} style={s.calendarNavBtn}><ChevronRight size={14} /></button>
-          </div>
-          <div style={s.calendarGrid}>{renderCalendar()}</div>
-          <div style={s.calendarFooter}>
-            <button type="button" onClick={handleToday} style={s.calendarFooterBtn}>Today</button>
-            <button type="button" onClick={handleClear} style={s.calendarFooterBtn}>Clear</button>
-          </div>
-        </div>
-      )}
+      {hasMounted && calendarPopup ? createPortal(calendarPopup, document.body) : null}
     </div>
   )
 }

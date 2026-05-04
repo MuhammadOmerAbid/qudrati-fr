@@ -90,12 +90,12 @@ export const accountEntryStyles = {
   },
   row2: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))',
     gap: 12,
   },
   row3: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))',
     gap: 12,
   },
   mutedText: {
@@ -123,6 +123,7 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
+    minWidth: 0,
   },
   backBtn: {
     width: 42,
@@ -135,10 +136,11 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
+    flexShrink: 0,
   },
   pageTitle: {
     margin: '0 0 4px',
-    fontSize: 30,
+    fontSize: 'clamp(20px, 5vw, 30px)',
     fontWeight: 800,
     lineHeight: 1.2,
     letterSpacing: '-0.6px',
@@ -155,7 +157,7 @@ const s = {
     border: '1px solid #e2e8e2',
     borderRadius: 20,
     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-    padding: 24,
+    padding: 'clamp(14px, 3vw, 24px)',
   },
   footer: {
     marginTop: 14,

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { authApi } from '@/infrastructure/api/endpoints'
 import { Menu, Search, X } from 'lucide-react'
 
 export default function PanelLayout({
@@ -12,7 +13,7 @@ export default function PanelLayout({
   SidebarComponent,
   panelZoom = 1,
 }) {
-  const { user, token, panel, hasHydrated } = useAuthStore()
+  const { user, token, refreshToken, panel, hasHydrated, setAuth } = useAuthStore()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -27,6 +28,35 @@ export default function PanelLayout({
     else if (!panel) router.replace('/panel-selection')
     else if (panel !== panelName) router.replace(wrongPanelRedirect)
   }, [hasHydrated, user, token, panel, panelName, wrongPanelRedirect, router])
+
+  useEffect(() => {
+    if (!hasHydrated || !user || !token) return
+    let active = true
+    const syncUserAccess = async () => {
+      try {
+        const latestUser = await authApi.me()
+        if (!active || !latestUser) return
+        const currentPermissions = Array.isArray(user.permissions) ? user.permissions : []
+        const latestPermissions = Array.isArray(latestUser.permissions) ? latestUser.permissions : []
+        const normalizedCurrentPermissions = [...currentPermissions].sort()
+        const normalizedLatestPermissions = [...latestPermissions].sort()
+        const sameRole = String(user.role || '') === String(latestUser.role || '')
+        const sameUser = String(user.id || '') === String(latestUser.id || '')
+        const samePermissions = normalizedCurrentPermissions.length === normalizedLatestPermissions.length
+          && normalizedCurrentPermissions.every((perm, idx) => perm === normalizedLatestPermissions[idx])
+
+        if (!sameRole || !samePermissions || !sameUser) {
+          setAuth({ ...user, ...latestUser }, token, refreshToken)
+        }
+      } catch {
+        // Ignore user sync failures; existing auth state remains usable.
+      }
+    }
+    syncUserAccess()
+    return () => {
+      active = false
+    }
+  }, [hasHydrated, user, token, refreshToken, setAuth])
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -84,6 +114,16 @@ export default function PanelLayout({
     }
   }, [isMobile, mobileSidebarOpen])
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.setAttribute('data-active-panel', panelName)
+    return () => {
+      if (document.body.getAttribute('data-active-panel') === panelName) {
+        document.body.removeAttribute('data-active-panel')
+      }
+    }
+  }, [panelName])
+
   const setNativeInputValue = (inputEl, value) => {
     const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
     if (descriptor?.set) descriptor.set.call(inputEl, value)
@@ -110,18 +150,18 @@ export default function PanelLayout({
     return pageSearchInputs.length
   }
 
-  const runGlobalSearch = (query) => {
+  const runGlobalSearch = (query, allowBrowserFind = false) => {
     const trimmed = query.trim()
     const syncedCount = syncSearchToPage(trimmed)
 
     if (!trimmed || syncedCount > 0) return
-    if (typeof window !== 'undefined' && typeof window.find === 'function') {
+    if (allowBrowserFind && typeof window !== 'undefined' && typeof window.find === 'function') {
       window.find(trimmed, false, false, true, false, false, false)
     }
   }
 
   useEffect(() => {
-    const timeout = setTimeout(() => runGlobalSearch(globalQuery), 120)
+    const timeout = setTimeout(() => runGlobalSearch(globalQuery, false), 120)
     return () => clearTimeout(timeout)
   }, [globalQuery])
 
@@ -178,7 +218,7 @@ export default function PanelLayout({
             }}
             onSubmit={(event) => {
               event.preventDefault()
-              runGlobalSearch(globalQuery)
+              runGlobalSearch(globalQuery, true)
             }}
           >
             <Search size={14} color="#6c8d6c" style={{ flexShrink: 0 }} />

@@ -28,9 +28,16 @@ const parseCandidateBases = () => {
   return fromEnv.length ? fromEnv : DEFAULT_BASES
 }
 
-const explicitBase = isValidApiBase(API_URL)
+const hasPublicApiUrl = isValidApiBase(API_URL)
+const explicitBase = hasPublicApiUrl
   ? normalizeBase(API_URL)
   : normalizeBase(RAILWAY_FALLBACK)
+
+const isLocalHostname = () => {
+  if (typeof window === 'undefined') return false
+  const host = String(window.location?.hostname || '').toLowerCase()
+  return host === 'localhost' || host === '127.0.0.1'
+}
   
 const candidateBases = parseCandidateBases()
 let resolvedBase = explicitBase
@@ -58,7 +65,9 @@ const discoverBaseViaServer = async () => {
 }
 
 const resolveApiBase = async (force = false) => {
-  if (explicitBase) return explicitBase
+  // Keep deployed behavior intact, but let localhost auto-discover local backend
+  // when NEXT_PUBLIC_API_URL is not explicitly configured.
+  if (explicitBase && (hasPublicApiUrl || !isLocalHostname())) return explicitBase
   if (typeof window === 'undefined') return candidateBases[0]
 
   if (!force) {
@@ -73,8 +82,8 @@ const resolveApiBase = async (force = false) => {
       return discovered
     }
 
-    resolvedBase = ''
-    return ''
+    resolvedBase = explicitBase || ''
+    return resolvedBase
   })().finally(() => {
     resolveBasePromise = null
   })

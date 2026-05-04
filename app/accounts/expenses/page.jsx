@@ -270,10 +270,10 @@ export default function ExpensesPage() {
 
 const s = {
   page: { width: '100%', display: 'flex', flexDirection: 'column', gap: 20 },
-  hero: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, background: 'linear-gradient(135deg, rgb(26, 61, 31) 0%, rgb(45, 122, 51) 100%)', borderRadius: 24, padding: '24px 28px' },
-  heroLeft: { display: 'flex', alignItems: 'center', gap: 16 },
-  heroIcon: { width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  title: { margin: 0, fontSize: 22, fontWeight: 800, color: '#fff' },
+  hero: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, background: 'linear-gradient(135deg, rgb(26, 61, 31) 0%, rgb(45, 122, 51) 100%)', borderRadius: 24, padding: 'clamp(14px, 3vw, 24px)' },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: '1 1 320px' },
+  heroIcon: { width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  title: { margin: 0, fontSize: 'clamp(18px, 3.2vw, 22px)', fontWeight: 800, color: '#fff' },
   subtitle: { margin: '4px 0 0', fontSize: 13, color: '#fde68a' },
   heroActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   refreshBtn: { display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.14)', color: '#fff', borderRadius: 999, padding: '10px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' },

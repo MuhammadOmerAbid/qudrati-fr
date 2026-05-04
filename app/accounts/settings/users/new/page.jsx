@@ -8,6 +8,10 @@ import AccountPermissionMatrix, { ACCOUNT_PERMISSION_SECTIONS } from '@/componen
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { usersApi } from '@/infrastructure/api/endpoints'
 
+const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
+const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').trim().toLowerCase())
+const normalizeRoleForApi = (role) => (hasFullAccessRole(role) ? 'superuser' : 'user')
+
 export default function AccountsUserNewPage() {
   const router = useRouter()
   const { user } = useAuthStore()
@@ -34,7 +38,7 @@ export default function AccountsUserNewPage() {
     const next = {}
     if (!form.username.trim()) next.username = 'Username is required'
     if (!form.password) next.password = 'Password is required'
-    if (form.role !== 'superuser' && form.permissions.length === 0) {
+    if (!hasFullAccessRole(form.role) && form.permissions.length === 0) {
       next.permissions = 'Select at least one account permission'
     }
     setErrors(next)
@@ -51,14 +55,14 @@ export default function AccountsUserNewPage() {
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,
-        role: form.role,
-        permissions: form.role === 'superuser' ? [] : form.permissions,
+        role: normalizeRoleForApi(form.role),
+        permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
 
       await usersApi.create(payload)
       router.push('/accounts/settings')
-    } catch {
-      setErrorMsg('Failed to create user. Please try again.')
+    } catch (error) {
+      setErrorMsg(error?.message || 'Failed to create user. Please try again.')
       setSaving(false)
     }
   }
@@ -147,7 +151,7 @@ export default function AccountsUserNewPage() {
             </div>
           </div>
 
-          {form.role !== 'superuser' ? (
+          {!hasFullAccessRole(form.role) ? (
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setShowPerm((open) => !open)} style={s.permToggleBtn} type="button">
                 <Shield size={14} color="#14532d" />

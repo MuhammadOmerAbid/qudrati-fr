@@ -295,9 +295,9 @@ const s = {
     border: '1px solid #d1fae5',
     background: 'linear-gradient(120deg, #f0fdf4 0%, #ecfeff 100%)',
     borderRadius: 16,
-    padding: '16px 18px',
+    padding: 'clamp(12px, 2.4vw, 16px) clamp(12px, 2.6vw, 18px)',
   },
-  heroLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 320px' },
   heroIcon: {
     width: 40,
     height: 40,
@@ -306,8 +306,9 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  title: { margin: 0, fontSize: 22, color: '#14532d', fontWeight: 800 },
+  title: { margin: 0, fontSize: 'clamp(18px, 3.2vw, 22px)', color: '#14532d', fontWeight: 800 },
   subtitle: { margin: '4px 0 0', fontSize: 12.5, color: '#166534' },
   heroActions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   actionBtn: {

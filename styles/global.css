@@ -3,12 +3,19 @@
   --store-select-border: #d4dfd4;
   --store-select-text: #1f2f21;
   --store-select-muted: #7a8a7a;
-  --store-select-menu-bg: #ffffff;
+  --store-select-menu-bg: #f6faf6;
   --store-select-item-bg: #f7faf7;
   --store-select-item-active-bg: #e8f0e8;
   --store-select-item-active-text: #1f7a2b;
   --store-select-focus-ring: rgba(45, 122, 51, 0.2);
   --store-select-shadow: 0 12px 28px rgba(26, 61, 31, 0.12);
+}
+
+[data-panel-content='account'] {
+  --account-select-bg: #ffffff;
+  --account-select-border: #d4dfd4;
+  --account-select-text: #1f2f21;
+  --account-select-focus-ring: rgba(45, 122, 51, 0.2);
 }
 
 [data-panel-content='store'] select {
@@ -19,10 +26,42 @@
   font-family: inherit;
 }
 
+[data-panel-content='account'] select {
+  color: var(--account-select-text);
+  background-color: var(--account-select-bg);
+  border-color: var(--account-select-border);
+  color-scheme: light;
+  font-family: inherit;
+}
+
 [data-panel-content='store'] select:focus {
   outline: none;
   border-color: #9bc59f;
   box-shadow: 0 0 0 3px var(--store-select-focus-ring);
+}
+
+[data-panel-content='account'] select:focus {
+  outline: none;
+  border-color: #9bc59f;
+  box-shadow: 0 0 0 3px var(--account-select-focus-ring);
+}
+
+.app-theme-select-wrap {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.app-theme-select {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  line-height: 1.25;
+  padding-right: 34px;
+}
+
+.app-theme-select-wrap .lucide-chevron-down {
+  right: 11px;
 }
 
 [data-panel-content='store'] select option,
@@ -89,6 +128,34 @@
   background: var(--store-select-menu-bg);
   border: 1px solid var(--store-select-border);
   box-shadow: var(--store-select-shadow);
+}
+
+body[data-active-panel='store'] .store-theme-calendar-popup {
+  background: #f4f8f4 !important;
+  border: 1px solid #d4dfd4 !important;
+  box-shadow: 0 16px 34px rgba(26, 61, 31, 0.16) !important;
+}
+
+body[data-active-panel='store'] .store-theme-calendar-nav-btn {
+  background: #ffffff !important;
+  border: 1px solid #d4dfd4 !important;
+  color: #1f7a2b !important;
+}
+
+body[data-active-panel='store'] .store-theme-calendar-day {
+  background: #ffffff;
+  border-color: #e2e8e2 !important;
+}
+
+body[data-active-panel='store'] .store-theme-calendar-day:hover {
+  background: #e8f0e8 !important;
+  color: #14532d !important;
+}
+
+body[data-active-panel='store'] .store-theme-calendar-footer-btn {
+  background: #ffffff !important;
+  border: 1px solid #d4dfd4 !important;
+  color: #1f7a2b !important;
 }
 
 [data-panel-content='store'] .store-theme-dropdown-item {

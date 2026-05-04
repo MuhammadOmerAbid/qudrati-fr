@@ -149,8 +149,12 @@ export function SettingsSelect({
   selectStyle = {},
 }) {
   return (
-    <div style={{ ...styles.selectWrap, ...(disabled ? styles.selectWrapDisabled : {}), ...wrapperStyle }}>
+    <div
+      className="app-theme-select-wrap"
+      style={{ ...styles.selectWrap, ...(disabled ? styles.selectWrapDisabled : {}), ...wrapperStyle }}
+    >
       <select
+        className="app-theme-select"
         value={value}
         onChange={onChange}
         disabled={disabled}

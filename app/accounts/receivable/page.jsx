@@ -1017,11 +1017,11 @@ export default function AccountsReceivablePage() {
 
 const s = {
   page: { width: '100%', display: 'flex', flexDirection: 'column', gap: 20 },
-  hero: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, background: 'linear-gradient(135deg, rgb(26, 61, 31) 0%, rgb(45, 122, 51) 100%)', borderRadius: 28, padding: '24px 28px' },
-  heroLeft: { display: 'flex', alignItems: 'center', gap: 16 },
-  heroIcon: { width: 48, height: 48, borderRadius: 16, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  hero: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, background: 'linear-gradient(135deg, rgb(26, 61, 31) 0%, rgb(45, 122, 51) 100%)', borderRadius: 24, padding: 'clamp(14px, 3vw, 24px)' },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: '1 1 320px' },
+  heroIcon: { width: 48, height: 48, borderRadius: 16, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   heroActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  title: { margin: 0, fontSize: 22, fontWeight: 800, color: '#fff' },
+  title: { margin: 0, fontSize: 'clamp(18px, 3.2vw, 22px)', fontWeight: 800, color: '#fff' },
   subtitle: { margin: '4px 0 0', fontSize: 13, color: '#d4dfd4' },
   addBtn: { display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', color: '#2a6f31', border: 'none', borderRadius: '999px', padding: '10px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   secondaryBtn: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '999px', padding: '9px 16px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' },

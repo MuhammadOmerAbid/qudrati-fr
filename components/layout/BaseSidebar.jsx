@@ -3,7 +3,10 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { useState } from 'react'
-import { ChevronRight, ChevronLeft, X } from 'lucide-react'
+import { ChevronRight, ChevronLeft } from 'lucide-react'
+
+const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
+const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').trim().toLowerCase())
 
 export default function BaseSidebar({
   collapsed,
@@ -20,15 +23,24 @@ export default function BaseSidebar({
   const router = useRouter()
   const pathname = usePathname()
   const [logoHover, setLogoHover] = useState(false)
+  const isCollapsed = isMobile ? false : collapsed
 
   const visibleMenuItems = menuItems.filter((item) => {
     if (alwaysVisibleMenuIds.includes(item.id)) return true
-    if (user?.role === 'superuser') return true
+    if (hasFullAccessRole(user?.role)) return true
     return user?.permissions?.includes(item.id)
   })
 
   const closeMobileDrawer = () => {
     if (isMobile) setMobileOpen?.(false)
+  }
+
+  const handleLogoToggle = () => {
+    if (isMobile) {
+      closeMobileDrawer()
+      return
+    }
+    setCollapsed(!isCollapsed)
   }
 
   const handleNavigation = (path) => {
@@ -63,7 +75,7 @@ export default function BaseSidebar({
         style={{
           ...s.sidebar,
           overflowY: sidebarScroll === 'clipped' ? 'hidden' : 'auto',
-          width: collapsed ? 70 : 240,
+          width: isCollapsed ? 70 : 240,
           left: isMobile ? 10 : 20,
           top: isMobile ? 10 : 20,
           bottom: isMobile ? 10 : 20,
@@ -77,74 +89,71 @@ export default function BaseSidebar({
         <div
           style={{
             ...s.logoRow,
-            justifyContent: collapsed ? 'center' : 'space-between',
-            padding: collapsed ? '14px 0 10px' : '14px 14px 10px',
+            justifyContent: isCollapsed ? 'center' : 'space-between',
+            padding: isCollapsed ? '14px 0 10px' : '14px 14px 10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              gap: 10,
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
             <button
               type="button"
-              onClick={() => setCollapsed(!collapsed)}
-              onMouseEnter={() => setLogoHover(true)}
-              onMouseLeave={() => setLogoHover(false)}
+              onClick={handleLogoToggle}
+              onMouseEnter={() => !isMobile && setLogoHover(true)}
+              onMouseLeave={() => !isMobile && setLogoHover(false)}
               style={s.logoBtn}
-              title={collapsed ? 'Expand' : 'Collapse'}
+              title={isMobile ? 'Close menu' : (isCollapsed ? 'Expand' : 'Collapse')}
             >
-              {logoHover ? (
-                collapsed ? <ChevronRight size={18} color="#2d7a33" /> : <ChevronLeft size={18} color="#2d7a33" />
+              {!isMobile && logoHover ? (
+                isCollapsed ? <ChevronRight size={18} color="#2d7a33" /> : <ChevronLeft size={18} color="#2d7a33" />
               ) : (
                 <img src="/qudartinew.png" alt="Qudrati Logo" style={s.logoImg} />
               )}
             </button>
-            {!collapsed && (
+            {!isCollapsed && (
               <span style={s.logoName}>
                 <span style={{ display: 'block', whiteSpace: 'nowrap' }}>Qudarti Food Processors</span>
                 <span style={{ display: 'block' }}>(SMC-PVT)LTD.</span>
               </span>
             )}
           </div>
-
-          {isMobile ? (
-            <button
-              type="button"
-              style={s.mobileCloseBtn}
-              onClick={() => setMobileOpen?.(false)}
-              aria-label="Close menu"
-              title="Close menu"
-            >
-              <X size={16} />
-            </button>
-          ) : null}
         </div>
 
-        {!collapsed && <p style={s.sectionLabel}>MENU</p>}
-        <nav style={{ ...s.nav, alignItems: collapsed ? 'center' : 'stretch' }}>
+        {!isCollapsed && <p style={s.sectionLabel}>MENU</p>}
+        <nav style={{ ...s.nav, alignItems: isCollapsed ? 'center' : 'stretch' }}>
           {visibleMenuItems.map((item) => {
             const active = isPathActive(item.path)
             const Icon = item.icon
             return (
-              <div key={item.id} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-                {active && !collapsed && <div style={s.activeMarker} />}
+              <div key={item.id} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+                {active && !isCollapsed && <div style={s.activeMarker} />}
 
                 <button
                   onClick={() => handleNavigation(item.path)}
-                  title={collapsed ? item.label : undefined}
+                  title={isCollapsed ? item.label : undefined}
                   style={{
                     ...s.navItem,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    padding: collapsed ? '8px 10px' : '10px 16px',
-                    width: collapsed ? 48 : '100%',
+                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    padding: isCollapsed ? '8px 10px' : '10px 16px',
+                    width: isCollapsed ? 48 : '100%',
                     borderRadius: '999px',
                   }}
                   className="nav-item-button"
                   onMouseEnter={(event) => {
-                    if (!active && !collapsed) {
+                    if (!active && !isCollapsed) {
                       event.currentTarget.style.backgroundColor = '#e8eee8'
                       event.currentTarget.style.transform = 'scale(1.02)'
                     }
                   }}
                   onMouseLeave={(event) => {
-                    if (!active && !collapsed) {
+                    if (!active && !isCollapsed) {
                       event.currentTarget.style.backgroundColor = 'transparent'
                       event.currentTarget.style.transform = 'scale(1)'
                     }
@@ -158,7 +167,7 @@ export default function BaseSidebar({
                     />
                   </div>
 
-                  {!collapsed && (
+                  {!isCollapsed && (
                     <span style={{ ...s.navLabel, color: active ? '#2d7a33' : '#5a6a5a', fontWeight: active ? 600 : 500 }}>
                       {item.label}
                     </span>
@@ -169,36 +178,36 @@ export default function BaseSidebar({
           })}
         </nav>
 
-        {!collapsed && <p style={s.sectionLabel}>GENERAL</p>}
-        {collapsed && <div style={{ height: 12 }} />}
-        <nav style={{ ...s.nav, alignItems: collapsed ? 'center' : 'stretch' }}>
+        {!isCollapsed && <p style={s.sectionLabel}>GENERAL</p>}
+        {isCollapsed && <div style={{ height: 12 }} />}
+        <nav style={{ ...s.nav, alignItems: isCollapsed ? 'center' : 'stretch' }}>
           {generalItems.map((item) => {
             const active = isPathActive(item.path)
             const Icon = item.icon
             const isLogout = item.isLogout
             return (
-              <div key={item.id} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-                {active && !collapsed && <div style={s.activeMarker} />}
+              <div key={item.id} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+                {active && !isCollapsed && <div style={s.activeMarker} />}
 
                 <button
                   onClick={() => (isLogout ? handleLogout() : handleNavigation(item.path))}
-                  title={collapsed ? item.label : undefined}
+                  title={isCollapsed ? item.label : undefined}
                   style={{
                     ...s.navItem,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    padding: collapsed ? '8px 10px' : '10px 16px',
-                    width: collapsed ? 48 : '100%',
+                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    padding: isCollapsed ? '8px 10px' : '10px 16px',
+                    width: isCollapsed ? 48 : '100%',
                     borderRadius: '999px',
                   }}
                   className="nav-item-button"
                   onMouseEnter={(event) => {
-                    if (!isLogout && !collapsed) {
+                    if (!isLogout && !isCollapsed) {
                       event.currentTarget.style.backgroundColor = '#e8eee8'
                       event.currentTarget.style.transform = 'scale(1.02)'
                     }
                   }}
                   onMouseLeave={(event) => {
-                    if (!isLogout && !collapsed) {
+                    if (!isLogout && !isCollapsed) {
                       event.currentTarget.style.backgroundColor = 'transparent'
                       event.currentTarget.style.transform = 'scale(1)'
                     }
@@ -211,7 +220,7 @@ export default function BaseSidebar({
                       color={isLogout ? '#ef4444' : (active ? '#2d7a33' : '#7a8a7a')}
                     />
                   </div>
-                  {!collapsed && (
+                  {!isCollapsed && (
                     <span style={{ ...s.navLabel, color: isLogout ? '#ef4444' : (active ? '#2d7a33' : '#5a6a5a') }}>
                       {item.label}
                     </span>

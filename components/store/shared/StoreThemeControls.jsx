@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
 function normalizeOptions(options = []) {
@@ -118,12 +119,29 @@ export function StoreThemeDatePicker({
   triggerStyle,
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
   const [tempDate, setTempDate] = useState(value ? new Date(value) : null)
   const [displayValue, setDisplayValue] = useState(value || '')
-  const [calendarPosition, setCalendarPosition] = useState({ top: '100%', left: 0, right: 'auto' })
+  const [calendarPosition, setCalendarPosition] = useState({
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    transform: 'translate(-50%, -50%)',
+    width: 'min(320px, calc(100vw - 28px))',
+    maxWidth: 'calc(100vw - 28px)',
+    maxHeight: 'calc(100vh - 32px)',
+    overflowY: 'auto',
+  })
 
   const buttonRef = useRef(null)
   const containerRef = useRef(null)
+  const pickerRef = useRef(null)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   useEffect(() => {
     setDisplayValue(value || '')
@@ -140,26 +158,45 @@ export function StoreThemeDatePicker({
   const calculatePosition = () => {
     if (!buttonRef.current) return
     const rect = buttonRef.current.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
     const calendarHeight = 320
-    const spaceBelow = viewportHeight - rect.bottom
-    const spaceAbove = rect.top
+    const mobile = viewportWidth <= 640
 
-    if (spaceBelow < calendarHeight && spaceAbove > spaceBelow) {
+    if (mobile) {
       setCalendarPosition({
-        bottom: '100%',
-        top: 'auto',
-        left: alignRight ? 'auto' : 0,
-        right: alignRight ? 0 : 'auto',
-      })
-    } else {
-      setCalendarPosition({
-        top: '100%',
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        right: 'auto',
         bottom: 'auto',
-        left: alignRight ? 'auto' : 0,
-        right: alignRight ? 0 : 'auto',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(320px, calc(100vw - 28px))',
+        maxWidth: 'calc(100vw - 28px)',
+        maxHeight: 'calc(100vh - 32px)',
+        overflowY: 'auto',
       })
+      return
     }
+
+    const calendarWidth = Math.min(320, viewportWidth - 28)
+    const spaceBelow = viewportHeight - rect.bottom
+    const placeAbove = spaceBelow < calendarHeight && rect.top > spaceBelow
+    const desiredLeft = alignRight ? rect.right - calendarWidth : rect.left
+    const clampedLeft = Math.max(14, Math.min(desiredLeft, viewportWidth - calendarWidth - 14))
+
+    setCalendarPosition({
+      position: 'fixed',
+      top: placeAbove ? Math.max(12, rect.top - calendarHeight - 8) : Math.min(viewportHeight - calendarHeight - 12, rect.bottom + 8),
+      left: clampedLeft,
+      right: 'auto',
+      bottom: 'auto',
+      transform: 'none',
+      width: calendarWidth,
+      maxWidth: calendarWidth,
+      maxHeight: 'calc(100vh - 24px)',
+      overflowY: 'auto',
+    })
   }
 
   useEffect(() => {
@@ -175,7 +212,10 @@ export function StoreThemeDatePicker({
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      const target = event.target
+      const clickedTrigger = containerRef.current?.contains(target)
+      const clickedPicker = pickerRef.current?.contains(target)
+      if (!clickedTrigger && !clickedPicker) {
         setIsOpen(false)
       }
     }
@@ -245,6 +285,7 @@ export function StoreThemeDatePicker({
         <button
           key={day}
           type="button"
+          className="store-theme-calendar-day"
           onClick={() => handleDateSelect(day)}
           style={{
             ...styles.calendarDay,
@@ -276,6 +317,38 @@ export function StoreThemeDatePicker({
 
   const triggerBase = variant === 'pill' ? styles.datePickerTriggerPill : styles.datePickerTriggerInput
 
+  const calendarPopup = isOpen ? (
+    <div
+      ref={pickerRef}
+      className="store-theme-calendar-popup"
+      style={{
+        ...styles.calendarContainer,
+        ...calendarPosition,
+      }}
+    >
+      <div style={styles.calendarHeader}>
+        <button type="button" className="store-theme-calendar-nav-btn" onClick={() => changeMonth(-1)} style={styles.calendarNavBtn}>
+          <ChevronLeft size={14} />
+        </button>
+        <span style={styles.calendarMonthYear}>
+          {monthNames[currentMonth]} {currentYear}
+        </span>
+        <button type="button" className="store-theme-calendar-nav-btn" onClick={() => changeMonth(1)} style={styles.calendarNavBtn}>
+          <ChevronRight size={14} />
+        </button>
+      </div>
+      <div style={styles.calendarGrid}>{renderCalendar()}</div>
+      <div style={styles.calendarFooter}>
+        <button type="button" className="store-theme-calendar-footer-btn" onClick={handleToday} style={styles.calendarFooterBtn}>
+          Today
+        </button>
+        <button type="button" className="store-theme-calendar-footer-btn" onClick={handleClear} style={styles.calendarFooterBtn}>
+          Clear
+        </button>
+      </div>
+    </div>
+  ) : null
+
   return (
     <div ref={containerRef} style={styles.dateWrap}>
       <button
@@ -292,41 +365,12 @@ export function StoreThemeDatePicker({
           size={12}
           style={{
             ...styles.dropdownChevronIcon,
-            transform: `translateY(-50%) rotate(${isOpen ? 180 : 0}deg)`,
-          }}
-        />
+          transform: `translateY(-50%) rotate(${isOpen ? 180 : 0}deg)`,
+        }}
+      />
       </button>
 
-      {isOpen ? (
-        <div
-          style={{
-            ...styles.calendarContainer,
-            position: 'absolute',
-            ...calendarPosition,
-          }}
-        >
-          <div style={styles.calendarHeader}>
-            <button type="button" onClick={() => changeMonth(-1)} style={styles.calendarNavBtn}>
-              <ChevronLeft size={14} />
-            </button>
-            <span style={styles.calendarMonthYear}>
-              {monthNames[currentMonth]} {currentYear}
-            </span>
-            <button type="button" onClick={() => changeMonth(1)} style={styles.calendarNavBtn}>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-          <div style={styles.calendarGrid}>{renderCalendar()}</div>
-          <div style={styles.calendarFooter}>
-            <button type="button" onClick={handleToday} style={styles.calendarFooterBtn}>
-              Today
-            </button>
-            <button type="button" onClick={handleClear} style={styles.calendarFooterBtn}>
-              Clear
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {hasMounted && calendarPopup ? createPortal(calendarPopup, document.body) : null}
     </div>
   )
 }
@@ -354,6 +398,7 @@ const styles = {
     minHeight: 38,
     textAlign: 'left',
     boxSizing: 'border-box',
+    lineHeight: 1.25,
   },
   dropdownTriggerInput: {
     width: '100%',
@@ -375,17 +420,22 @@ const styles = {
     position: 'relative',
     cursor: 'pointer',
     textAlign: 'left',
+    lineHeight: 1.3,
   },
   dropdownTriggerCompact: {
     fontWeight: 600,
   },
   dropdownValue: {
+    flex: 1,
+    minWidth: 0,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     color: '#1f2f21',
   },
   dropdownPlaceholder: {
+    flex: 1,
+    minWidth: 0,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -460,6 +510,7 @@ const styles = {
     position: 'relative',
     minHeight: 38,
     boxSizing: 'border-box',
+    lineHeight: 1.25,
   },
   datePickerTriggerInput: {
     width: '100%',
@@ -477,19 +528,24 @@ const styles = {
     position: 'relative',
     minHeight: 40,
     boxSizing: 'border-box',
+    lineHeight: 1.3,
   },
   datePickerValue: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 12.5,
     color: '#1f2f21',
     fontWeight: 600,
   },
   datePickerPlaceholder: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 12.5,
     color: '#7a8a7a',
     fontWeight: 600,
   },
   calendarContainer: {
-    zIndex: 50,
+    zIndex: 2200,
     background: '#fff',
     border: '1px solid #d4dfd4',
     borderRadius: 12,
