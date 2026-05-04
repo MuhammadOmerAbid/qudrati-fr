@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
@@ -19,6 +19,16 @@ export default function UnitsNewPage() {
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [nameError, setNameError] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -51,24 +61,24 @@ export default function UnitsNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 940 }}>
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={s.backBtn} onClick={() => router.push('/settings/units')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Add Unit</h1>
-              <p style={s.pageSubtitle}>Create a new measurement unit</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Add Unit</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Create a new measurement unit</p>
             </div>
           </div>
 
-          <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'Save Unit'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
           {errorMsg ? <div style={s.errorBanner}>{errorMsg}</div> : null}
 
           <div style={s.fieldWrap}>
@@ -87,8 +97,8 @@ export default function UnitsNewPage() {
           </div>
 
           <div style={s.footer}>
-            <button type="button" style={s.cancelBtn} onClick={() => router.push('/settings/units')}>Cancel</button>
-            <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <button type="button" style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/settings/units')}>Cancel</button>
+            <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
               <Save size={15} /> {saving ? 'Saving...' : 'Save Unit'}
             </button>
           </div>

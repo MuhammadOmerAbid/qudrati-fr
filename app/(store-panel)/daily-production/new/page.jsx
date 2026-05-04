@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
@@ -38,6 +38,16 @@ export default function DailyProductionNewPage() {
   const [entries, setEntries] = useState([blankEntry()])
   const [saving, setSaving]   = useState(false)
   const [errors, setErrors]   = useState({})
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const updateEntry = (key, field, value) => {
     setEntries(prev => prev.map(e => e.key === key ? { ...e, [field]: value } : e))
@@ -86,28 +96,28 @@ export default function DailyProductionNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 860 }}>
 
         {/* Page Header */}
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/daily-production')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Add Production Entry</h1>
-              <p style={s.pageSubtitle}>Record daily production activity</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Add Production Entry</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Record daily production activity</p>
             </div>
           </div>
-          <button style={saving ? s.saveBtnDis : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button style={{ ...(saving ? s.saveBtnDis : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
 
           {/* Date — top full width */}
-          <div style={s.dateRow}>
+          <div style={{ ...s.dateRow, maxWidth: isMobile ? '100%' : 280 }}>
             <div style={s.fieldGroup}>
               <label style={s.label}>Date</label>
               <StoreThemeDatePicker value={date} onChange={setDate} placeholder="Select date" variant="input" />
@@ -132,7 +142,7 @@ export default function DailyProductionNewPage() {
                 {/* Entry number tag */}
                 <div style={s.entryTag}>#{idx + 1}</div>
 
-                <div style={s.entryFields}>
+                <div style={{ ...s.entryFields, gridTemplateColumns: isMobile ? '1fr' : s.entryFields.gridTemplateColumns }}>
                   {/* Product - manual text input */}
                   <div style={{ ...s.fieldGroup, gridColumn: '1 / -1' }}>
                     <label style={s.label}>Product Name</label>
@@ -219,8 +229,8 @@ export default function DailyProductionNewPage() {
 
           {/* Footer */}
           <div style={s.formFooter}>
-            <button style={s.cancelBtn} onClick={() => router.push('/daily-production')}>Cancel</button>
-            <button style={saving ? s.saveBtnDis : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <button style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/daily-production')}>Cancel</button>
+            <button style={{ ...(saving ? s.saveBtnDis : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
               <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
             </button>
           </div>
@@ -248,8 +258,8 @@ const s = {
   },
   pageTitle: { fontSize: 30, fontWeight: 800, color: '#1a3d1f', margin: '0 0 4px', display: 'flex', alignItems: 'center', letterSpacing: '-0.6px', lineHeight: 1.2 },
   pageSubtitle: { fontSize: 13.5, color: '#7a8a7a', margin: 0, fontWeight: 500 },
-  saveBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1a3d1f', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer' },
-  saveBtnDis: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#9eb7a1', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
+  saveBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#54B45B', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer' },
+  saveBtnDis: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#b8dcbc', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
   cancelBtn: { border: '1.5px solid #d4dfd4', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 600, color: '#2d7a33', background: '#ffffff', cursor: 'pointer' },
   card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
   dateRow: { marginBottom: 18, maxWidth: 280 },
@@ -272,4 +282,5 @@ const s = {
   noteInput: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#1f2f21', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 },
   formFooter: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid #d4dfd4', flexWrap: 'wrap' },
 }
+
 

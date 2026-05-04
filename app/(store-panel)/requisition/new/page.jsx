@@ -37,6 +37,7 @@ export default function RequisitionNewPage() {
   const [items, setItems]               = useState([blankItem()])
   const [saving, setSaving]             = useState(false)
   const [errors, setErrors]             = useState({})
+  const [isMobile, setIsMobile]         = useState(false)
 
   const COMMENT_LIMIT = 500
 
@@ -60,6 +61,15 @@ export default function RequisitionNewPage() {
     }
     load()
     return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
   const productOptions = useMemo(() => {
@@ -125,31 +135,31 @@ export default function RequisitionNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 960 }}>
 
         {/* Page Header */}
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/requisition')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Add Goods Requisition</h1>
-              <p style={s.pageSubtitle}>Create a new goods requisition entry</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Add Goods Requisition</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Create a new goods requisition entry</p>
             </div>
           </div>
-          <button style={saving ? s.saveBtnDis : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button style={{ ...(saving ? s.saveBtnDis : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
           </button>
         </div>
 
         {/* Form Card */}
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
           {loadWarning ? <div style={s.itemsError}>{loadWarning}</div> : null}
           {errors.form ? <div style={s.itemsError}>{errors.form}</div> : null}
 
           {/* Row 1: Receiver Name + Date */}
-          <div style={s.topRow}>
+          <div style={{ ...s.topRow, gridTemplateColumns: isMobile ? '1fr' : s.topRow.gridTemplateColumns }}>
             <div style={s.fieldGroup}>
               <label style={s.label}>Receiver Name:</label>
               <input
@@ -174,14 +184,14 @@ export default function RequisitionNewPage() {
           {errors.items && <div style={s.itemsError}>{errors.items}</div>}
 
           {/* Column Headers */}
-          <div style={s.colHeaderRow}>
+          {!isMobile ? <div style={s.colHeaderRow}>
             <div style={{ flex: 2 }}><span style={s.subLabel}>Product</span></div>
             <div style={{ flex: 1 }}><span style={s.subLabel}>Sub-Category / Type</span></div>
             <div style={{ flex: 1 }}><span style={s.subLabel}>Category</span></div>
             <div style={{ flex: '0 0 110px' }}><span style={s.subLabel}>Quantity</span></div>
             <div style={{ flex: '0 0 80px' }}><span style={s.subLabel}>Unit</span></div>
             <div style={{ flex: '0 0 36px' }} />
-          </div>
+          </div> : null}
 
           {/* Product Rows */}
           {items.map((item) => {
@@ -191,10 +201,10 @@ export default function RequisitionNewPage() {
             )
 
             return (
-              <div key={item.key} style={s.productRow}>
+              <div key={item.key} style={{ ...s.productRow, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
 
                 {/* Product dropdown */}
-                <div style={{ ...s.itemField, flex: 2 }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : 2 }}>
                   <StoreThemeDropdown
                     value={item.productId}
                     onChange={(nextProductId) => updateItem(item.key, 'productId', String(nextProductId))}
@@ -208,7 +218,7 @@ export default function RequisitionNewPage() {
                 </div>
 
                 {/* Sub-Category / Type (auto from product) */}
-                <div style={{ ...s.itemField, flex: 1 }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : 1 }}>
                   <div style={s.typeDisplay}>
                     {prod
                       ? <span style={s.subCatBadge}>{prod.subCategory}</span>
@@ -217,7 +227,7 @@ export default function RequisitionNewPage() {
                 </div>
 
                 {/* Category (auto from product) */}
-                <div style={{ ...s.itemField, flex: 1 }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : 1 }}>
                   <div style={s.typeDisplay}>
                     {prod
                       ? <span style={s.catBadge}>{prod.category}</span>
@@ -226,7 +236,7 @@ export default function RequisitionNewPage() {
                 </div>
 
                 {/* Quantity */}
-                <div style={{ ...s.itemField, flex: '0 0 110px' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 110px' }}>
                   <input
                     style={s.input}
                     type="number"
@@ -238,12 +248,12 @@ export default function RequisitionNewPage() {
                 </div>
 
                 {/* Unit (read-only from product) */}
-                <div style={{ ...s.itemField, flex: '0 0 80px' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 80px' }}>
                   <div style={s.unitDisplay}>{prod?.unit || '—'}</div>
                 </div>
 
                 {/* Remove Button */}
-                <div style={{ ...s.itemField, flex: '0 0 36px', alignSelf: 'center' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 36px', alignSelf: isMobile ? 'flex-start' : 'center' }}>
                   {items.length > 1 && (
                     <button style={s.removeBtn} onClick={() => removeItem(item.key)} title="Remove">
                       <X size={13} />
@@ -307,8 +317,8 @@ export default function RequisitionNewPage() {
 
           {/* Footer */}
           <div style={s.formFooter}>
-            <button style={s.cancelBtn} onClick={() => router.push('/requisition')}>Cancel</button>
-            <button style={saving ? s.saveBtnDis : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <button style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/requisition')}>Cancel</button>
+            <button style={{ ...(saving ? s.saveBtnDis : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
               <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
             </button>
           </div>
@@ -337,8 +347,8 @@ const s = {
   },
   pageTitle: { fontSize: 30, fontWeight: 800, color: '#1a3d1f', margin: '0 0 4px', display: 'flex', alignItems: 'center', letterSpacing: '-0.6px', lineHeight: 1.2 },
   pageSubtitle: { fontSize: 13.5, color: '#7a8a7a', margin: 0, fontWeight: 500 },
-  saveBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1a3d1f', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer' },
-  saveBtnDis: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#9eb7a1', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
+  saveBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#54B45B', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer' },
+  saveBtnDis: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#b8dcbc', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
   cancelBtn: { border: '1.5px solid #d4dfd4', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 600, color: '#2d7a33', background: '#ffffff', cursor: 'pointer' },
   card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
   topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 },
@@ -389,4 +399,5 @@ const s = {
   limitWarning: { fontSize: 11.5, color: '#b91c1c', marginTop: 4, display: 'block' },
   formFooter: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid #d4dfd4', flexWrap: 'wrap' },
 }
+
 

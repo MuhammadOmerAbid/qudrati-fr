@@ -214,7 +214,22 @@ export default function PanelLayout({
           >
             {!isMobile ? <div style={s.divider} /> : null}
 
-            <div style={s.userPill}>
+            <div
+              style={{
+                ...s.userPill,
+                ...(isMobile
+                  ? {
+                      width: 38,
+                      height: 38,
+                      padding: 0,
+                      borderRadius: '50%',
+                      justifyContent: 'center',
+                      border: 'none',
+                      background: 'transparent',
+                    }
+                  : {}),
+              }}
+            >
               <div style={s.avatar}>{initial}</div>
               {!isMobile ? (
                 <div style={s.userMeta}>

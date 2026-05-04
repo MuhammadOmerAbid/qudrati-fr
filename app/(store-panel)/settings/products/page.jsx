@@ -90,6 +90,7 @@ export default function ProductsPage() {
   const [modal, setModal] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const showToast = (message, type = 'success') => setToast({ message, type })
 
@@ -112,6 +113,15 @@ export default function ProductsPage() {
   }, [filter])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const handleSave = async (form) => {
     try {
@@ -183,23 +193,34 @@ export default function ProductsPage() {
 
   return (
     <DashboardLayout>
-      <div style={pageShell}>
-        <div style={pageHeader}>
-          <div style={headerLeft}>
+      <div
+        style={{
+          ...pageShell,
+          borderRadius: isMobile ? 14 : 20,
+          padding: isMobile ? 12 : 22,
+        }}
+      >
+        <div
+          style={{
+            ...pageHeader,
+            marginBottom: isMobile ? 14 : 20,
+          }}
+        >
+          <div style={{ ...headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={backBtn} onClick={() => router.push('/settings')} title="Back to settings">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={pageTitle}>Products</h1>
-              <p style={pageSubtitle}>Manage your products</p>
+              <h1 style={{ ...pageTitle, fontSize: isMobile ? 18 : 22 }}>Products</h1>
+              <p style={{ ...pageSubtitle, fontSize: isMobile ? 12 : 13 }}>Manage your products</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
             <button onClick={load} style={iconBtn} title="Refresh" type="button">
               <RefreshCw size={16} color={settingsTheme.textMuted} />
             </button>
             {canEdit && (
-              <button onClick={() => router.push('/settings/products/new')} style={addBtn} type="button">
+              <button onClick={() => router.push('/settings/products/new')} style={{ ...addBtn, padding: isMobile ? '10px 16px' : '11px 20px' }} type="button">
                 <Plus size={15} /> Add Product
               </button>
             )}
@@ -207,16 +228,16 @@ export default function ProductsPage() {
         </div>
 
         <div style={filters}>
-          <SettingsSelect value={filter} onChange={(e) => setFilter(e.target.value)} wrapperStyle={{ minWidth: 140 }} selectStyle={selectStyle}>
+          <SettingsSelect value={filter} onChange={(e) => setFilter(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 140, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
             <option value="all">All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </SettingsSelect>
-          <SettingsSelect value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} wrapperStyle={{ minWidth: 170 }} selectStyle={selectStyle}>
+          <SettingsSelect value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 170, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
             <option value="">All Brands</option>
             {brands.map((b) => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
           </SettingsSelect>
-          <SettingsSelect value={catFilter} onChange={(e) => setCatFilter(e.target.value)} wrapperStyle={{ minWidth: 180 }} selectStyle={selectStyle}>
+          <SettingsSelect value={catFilter} onChange={(e) => setCatFilter(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 180, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
             <option value="">All Categories</option>
             {categories.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
           </SettingsSelect>
@@ -380,7 +401,8 @@ const tableShell = {
   background: '#fff',
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 14,
-  overflow: 'hidden',
+  overflowX: 'auto',
+  overflowY: 'hidden',
 }
 
 const overlay = {
@@ -398,7 +420,7 @@ const modal = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 16,
   padding: 28,
-  width: 420,
+  width: 'min(420px, calc(100vw - 24px))',
   boxShadow: '0 20px 40px rgba(0,0,0,0.12)',
 }
 

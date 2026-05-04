@@ -86,7 +86,7 @@ export default function InventoryPage({ isSuperUser = true }) {
       />
 
       <div style={ui.filtersRow}>
-        <div style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
+        <div style={{ minWidth: 0 }}>
           <StoreThemeDropdown
             value={brand}
             onChange={setBrand}
@@ -96,7 +96,7 @@ export default function InventoryPage({ isSuperUser = true }) {
             options={['All Brands', ...BRANDS].map((entry) => ({ value: entry, label: entry }))}
           />
         </div>
-        <div style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
+        <div style={{ minWidth: 0 }}>
           <StoreThemeDropdown
             value={category}
             onChange={setCategory}

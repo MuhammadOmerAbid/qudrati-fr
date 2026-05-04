@@ -27,6 +27,7 @@ export default function RecipePage() {
   const [loading, setLoading] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const showToast = (message, type = 'success') => setToast({ message, type })
 
@@ -45,6 +46,15 @@ export default function RecipePage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const handleDelete = async () => {
     try {
@@ -73,20 +83,26 @@ export default function RecipePage() {
 
   return (
     <DashboardLayout>
-      <div style={pageShell}>
+      <div
+        style={{
+          ...pageShell,
+          borderRadius: isMobile ? 14 : 20,
+          padding: isMobile ? 12 : 22,
+        }}
+      >
         <div>
-          <div style={pageHeader}>
-            <div style={headerLeft}>
+          <div style={{ ...pageHeader, marginBottom: isMobile ? 14 : 18 }}>
+            <div style={{ ...headerLeft, width: isMobile ? '100%' : 'auto' }}>
               <button type="button" style={backBtn} onClick={() => router.push('/settings')} title="Back to settings">
                 <ArrowLeft size={16} />
               </button>
               <div>
-                <h1 style={pageTitle}>Recipe</h1>
-                <p style={pageSubtitle}>Manage your recipes</p>
+                <h1 style={{ ...pageTitle, fontSize: isMobile ? 18 : 22 }}>Recipe</h1>
+                <p style={{ ...pageSubtitle, fontSize: isMobile ? 12 : 13 }}>Manage your recipes</p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
               <button onClick={load} style={iconBtn} type="button" title="Refresh">
                 <RefreshCw size={16} color={settingsTheme.textMuted} />
               </button>
@@ -103,8 +119,8 @@ export default function RecipePage() {
             </div>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <SettingsSelect value={filter} onChange={(e) => setFilter(e.target.value)} wrapperStyle={{ minWidth: 130 }} selectStyle={selectStyle}>
+          <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap' }}>
+            <SettingsSelect value={filter} onChange={(e) => setFilter(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 130, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
               <option value="all">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -115,7 +131,7 @@ export default function RecipePage() {
             {loading ? (
               <div style={{ padding: 40, textAlign: 'center', color: settingsTheme.textSubtle }}>Loading...</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
                 <thead>
                   <tr>
                     {['Recipe Name', 'For Quantity', 'Items', 'Status', 'Actions'].map((header) => (
@@ -227,7 +243,8 @@ const tableShell = {
   background: '#fff',
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 14,
-  overflow: 'hidden',
+  overflowX: 'auto',
+  overflowY: 'hidden',
 }
 
 const tableHead = {

@@ -117,6 +117,7 @@ export default function GateInwardNewPage() {
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [errors, setErrors] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
 
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
@@ -188,6 +189,15 @@ export default function GateInwardNewPage() {
     return () => {
       active = false
     }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
   /* Supplier selected */
@@ -303,21 +313,21 @@ export default function GateInwardNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1100 }}>
 
         {/* Page Header */}
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/gate-inward')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Gate Inward</h1>
-              <p style={s.pageSubtitle}>Add new entry</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Gate Inward</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Add new entry</p>
             </div>
           </div>
           <button
-            style={saving || loadingOptions ? s.saveBtnDisabled : s.saveBtn}
+            style={{ ...(saving || loadingOptions ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }}
             onClick={handleSave}
             disabled={saving || loadingOptions}
           >
@@ -326,13 +336,13 @@ export default function GateInwardNewPage() {
         </div>
 
         {/* Form Card */}
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
 
           {loadError ? <div style={s.itemsError}>{loadError}</div> : null}
           {errors.submit ? <div style={s.itemsError}>{errors.submit}</div> : null}
 
           {/* Top Row: GR, Date, Supplier */}
-          <div style={s.topRow}>
+          <div style={{ ...s.topRow, gridTemplateColumns: isMobile ? '1fr' : s.topRow.gridTemplateColumns }}>
             {/* GR Number (read-only, auto) */}
             <div style={s.fieldGroup}>
               <label style={s.label}>GR Number:</label>
@@ -455,7 +465,7 @@ export default function GateInwardNewPage() {
                 </div>
 
                 {/* Quantity */}
-                <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                   {idx === 0 && <label style={s.label}>Quantity</label>}
                   <input
                     style={s.input}
@@ -468,7 +478,7 @@ export default function GateInwardNewPage() {
                 </div>
 
                 {/* Unit */}
-                <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                   {idx === 0 && <label style={s.label}>Select Unit</label>}
                   <DropdownField
                     value={item.unit}
@@ -480,7 +490,7 @@ export default function GateInwardNewPage() {
                 </div>
 
                 {/* Remove */}
-                <div style={{ ...s.itemField, flex: '0 0 36px', alignSelf: 'flex-end' }}>
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 36px', alignSelf: isMobile ? 'flex-start' : 'flex-end' }}>
                   {items.length > 1 && (
                     <button style={s.removeBtn} onClick={() => removeItem(item.key)} title="Remove item">
                       <X size={14} />
@@ -493,9 +503,9 @@ export default function GateInwardNewPage() {
 
           {/* Bottom Save Button */}
           <div style={s.formFooter}>
-            <button style={s.cancelBtn} onClick={() => router.push('/gate-inward')}>Cancel</button>
+            <button style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/gate-inward')}>Cancel</button>
             <button
-              style={saving || loadingOptions ? s.saveBtnDisabled : s.saveBtn}
+              style={{ ...(saving || loadingOptions ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }}
               onClick={handleSave}
               disabled={saving || loadingOptions}
             >
@@ -529,7 +539,7 @@ const s = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: '#1a3d1f',
+    background: '#54B45B',
     border: 'none',
     borderRadius: 40,
     padding: '11px 20px',
@@ -542,7 +552,7 @@ const s = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: '#9eb7a1',
+    background: '#b8dcbc',
     border: 'none',
     borderRadius: 40,
     padding: '11px 20px',
@@ -664,10 +674,11 @@ const s = {
   errorText: { fontSize: 12, color: '#b91c1c', marginTop: 2 },
   itemsError: { background: '#fff1f2', border: '1px solid #fecaca', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, color: '#b91c1c', marginBottom: 12 },
   itemsHeader: { display: 'flex', justifyContent: 'flex-end', marginBottom: 10 },
-  addItemBtn: { background: '#1a3d1f', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' },
+  addItemBtn: { background: '#54B45B', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' },
   divider: { height: 1, background: '#d4dfd4', marginBottom: 12 },
   itemRow: { display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end', flexWrap: 'wrap', border: '1px solid #d4dfd4', borderRadius: 12, background: '#ffffff', padding: 10 },
   removeBtn: { background: '#fff1f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 8, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },
   formFooter: { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid #d4dfd4', flexWrap: 'wrap' },
 }
+
 

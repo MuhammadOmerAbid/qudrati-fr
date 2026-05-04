@@ -46,6 +46,7 @@ function RecipeNewContent() {
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [errors, setErrors] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
 
   const title = isEdit ? 'Edit Recipe' : 'Add Recipe'
   const subtitle = isEdit ? 'Update recipe details and ingredients' : 'Create a new recipe'
@@ -90,6 +91,15 @@ function RecipeNewContent() {
       active = false
     }
   }, [isEdit, recipeId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const canRemoveItem = useMemo(() => form.items.length > 1, [form.items.length])
 
@@ -183,24 +193,24 @@ function RecipeNewContent() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 960 }}>
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={s.backBtn} onClick={() => router.push('/settings/recipe')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>{title}</h1>
-              <p style={s.pageSubtitle}>{subtitle}</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>{title}</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>{subtitle}</p>
             </div>
           </div>
 
-          <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving || loading}>
+          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving || loading}>
             <Save size={15} /> {saving ? 'Saving...' : isEdit ? 'Update Recipe' : 'Save Recipe'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
           {loading ? (
             <div style={s.loading}>Loading recipe...</div>
           ) : (
@@ -233,7 +243,7 @@ function RecipeNewContent() {
                     {errors.for_quantity ? <span style={s.errorText}>{errors.for_quantity}</span> : null}
                   </div>
 
-                  <div style={{ ...s.fieldGroup, width: 140 }}>
+                  <div style={{ ...s.fieldGroup, width: isMobile ? '100%' : 140 }}>
                     <label style={s.label}>Unit</label>
                     <SettingsSelect
                       value={form.for_unit}
@@ -249,7 +259,7 @@ function RecipeNewContent() {
 
               <div style={s.sectionHeader}>
                 <p style={s.sectionTitle}>Ingredients</p>
-                <button type="button" style={s.addItemBtn} onClick={addItem}>
+                <button type="button" style={{ ...s.addItemBtn, width: isMobile ? '100%' : 'auto', justifyContent: 'center' }} onClick={addItem}>
                   <Plus size={13} /> Add Ingredient
                 </button>
               </div>
@@ -259,7 +269,7 @@ function RecipeNewContent() {
 
               {form.items.map((item, idx) => (
                 <div key={`ingredient-${idx}`} style={s.itemRow}>
-                  <div style={{ ...s.itemField, flex: 2 }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : 2, minWidth: isMobile ? '100%' : 130 }}>
                     <label style={s.subLabel}>Ingredient</label>
                     <input
                       type="text"
@@ -270,7 +280,7 @@ function RecipeNewContent() {
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, width: 130 }}>
+                  <div style={{ ...s.itemField, width: isMobile ? 'calc(50% - 5px)' : 130, minWidth: isMobile ? 'calc(50% - 5px)' : 130 }}>
                     <label style={s.subLabel}>Quantity</label>
                     <input
                       type="number"
@@ -283,7 +293,7 @@ function RecipeNewContent() {
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, width: 130 }}>
+                  <div style={{ ...s.itemField, width: isMobile ? 'calc(50% - 5px)' : 130, minWidth: isMobile ? 'calc(50% - 5px)' : 130 }}>
                     <label style={s.subLabel}>Unit</label>
                     <SettingsSelect
                       value={item.unit}
@@ -295,7 +305,7 @@ function RecipeNewContent() {
                     </SettingsSelect>
                   </div>
 
-                  <div style={{ ...s.itemField, width: 36, justifyContent: 'flex-end' }}>
+                  <div style={{ ...s.itemField, width: isMobile ? '100%' : 36, justifyContent: isMobile ? 'flex-start' : 'flex-end', minWidth: isMobile ? '100%' : 36 }}>
                     {canRemoveItem ? (
                       <button type="button" style={s.removeBtn} onClick={() => removeItem(idx)} title="Remove ingredient">
                         <Trash2 size={14} />
@@ -306,8 +316,8 @@ function RecipeNewContent() {
               ))}
 
               <div style={s.formFooter}>
-                <button type="button" style={s.cancelBtn} onClick={() => router.push('/settings/recipe')}>Cancel</button>
-                <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+                <button type="button" style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/settings/recipe')}>Cancel</button>
+                <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
                   <Save size={15} /> {saving ? 'Saving...' : isEdit ? 'Update Recipe' : 'Save Recipe'}
                 </button>
               </div>

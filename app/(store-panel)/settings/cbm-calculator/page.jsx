@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft } from 'lucide-react'
@@ -56,6 +56,7 @@ export default function CBMCalculatorPage() {
   const router = useRouter()
   const [rows, setRows] = useState([emptyRow()])
   const [containerType, setContainerType] = useState('40ft')
+  const [isMobile, setIsMobile] = useState(false)
 
   const containerCBM = containerType === '40ft' ? 66 : 33
   const containerWeight = containerType === '40ft' ? 26500 : 13500
@@ -79,9 +80,58 @@ export default function CBMCalculatorPage() {
 
   const totalCBMUsed = computed.reduce((sum, row) => sum + row.totalCBM, 0)
   const totalWeightUsed = computed.reduce((sum, row) => sum + row.totalWeight, 0)
+  const hasWeightInput = rows.some((row) => String(row.weightPerCarton || '').trim() !== '')
   const cbmRemaining = containerCBM - totalCBMUsed
   const cbmPct = Math.min((totalCBMUsed / containerCBM) * 100, 100)
   const weightPct = totalWeightUsed > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
+
+  const summaryCards = [
+    {
+      label: 'Total CBM Used',
+      value: totalCBMUsed.toFixed(4),
+      unit: 'm3',
+      color: totalCBMUsed > containerCBM ? settingsTheme.danger : settingsTheme.primarySoft,
+      bg: totalCBMUsed > containerCBM ? '#fff3f3' : '#edf8ef',
+      border: totalCBMUsed > containerCBM ? '#fecaca' : settingsTheme.border,
+    },
+    {
+      label: 'CBM Available',
+      value: cbmRemaining.toFixed(4),
+      unit: 'm3',
+      color: cbmRemaining < 0 ? settingsTheme.danger : settingsTheme.primary,
+      bg: '#f6f9f6',
+      border: settingsTheme.border,
+    },
+    {
+      label: 'Capacity',
+      value: containerCBM.toFixed(2),
+      unit: 'm3',
+      color: settingsTheme.textMuted,
+      bg: '#f6f9f6',
+      border: settingsTheme.border,
+    },
+    ...(isMobile && !hasWeightInput ? [] : [{
+      label: 'Total Weight',
+      value: totalWeightUsed > 0 ? totalWeightUsed.toFixed(2) : '-',
+      unit: totalWeightUsed > 0 ? 'Kg' : '',
+      color: totalWeightUsed > containerWeight ? settingsTheme.danger : settingsTheme.primary,
+      bg: '#f6f9f6',
+      border: settingsTheme.border,
+    }]),
+  ]
+
+  const progressCards = [
+    {
+      label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM} m3`,
+      pct: cbmPct,
+      color: cbmPct > 90 ? settingsTheme.danger : settingsTheme.primarySoft,
+    },
+    ...(hasWeightInput ? [{
+      label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight} Kg` : 'Enter weight per carton'}`,
+      pct: weightPct,
+      color: weightPct > 90 ? settingsTheme.danger : settingsTheme.primary,
+    }] : []),
+  ]
 
   const input = (style = {}) => ({
     borderWidth: '1px',
@@ -102,68 +152,55 @@ export default function CBMCalculatorPage() {
     ...style,
   })
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
   return (
     <DashboardLayout>
-      <div style={pageShell}>
-        <div style={header}>
-          <div style={headerLeft}>
+      <div style={{ ...pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
+        <div style={{ ...header, marginBottom: isMobile ? 14 : 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <div style={{ ...headerLeft, width: isMobile ? '100%' : 'auto', minWidth: 0 }}>
             <button type="button" style={backBtn} onClick={() => router.push('/settings')} title="Back to settings">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={title}>
+              <h1 style={{ ...title, fontSize: isMobile ? 18 : 22 }}>
                 <Calculator size={22} color={settingsTheme.primarySoft} />
                 CBM + Weight Calculator
               </h1>
-              <p style={subtitle}>Calculate cubic meters and shipping weight for container loading.</p>
+              <p style={{ ...subtitle, fontSize: isMobile ? 12 : 13 }}>Calculate cubic meters and shipping weight for container loading.</p>
             </div>
           </div>
           <SettingsSelect
             value={containerType}
             onChange={(e) => setContainerType(e.target.value)}
-            wrapperStyle={{ minWidth: 180 }}
-            selectStyle={{ ...select({ padding: '7px 30px 7px 12px', fontSize: 13, fontWeight: 600 }) }}
+            wrapperStyle={{
+              minWidth: isMobile ? 0 : 180,
+              width: isMobile ? '100%' : 'auto',
+              maxWidth: '100%',
+              flex: isMobile ? '1 1 100%' : '0 0 auto',
+            }}
+            selectStyle={{
+              ...select({ padding: '7px 30px 7px 12px', fontSize: 13, fontWeight: 600 }),
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
-            <option value="40ft">40 Feet Container</option>
-            <option value="20ft">20 Feet Container</option>
+            <option value="40ft">{isMobile ? '40 ft Container' : '40 Feet Container'}</option>
+            <option value="20ft">{isMobile ? '20 ft Container' : '20 Feet Container'}</option>
           </SettingsSelect>
         </div>
 
-        <div style={summaryGrid}>
-          {[
-            {
-              label: 'Total CBM Used',
-              value: totalCBMUsed.toFixed(4),
-              unit: 'm3',
-              color: totalCBMUsed > containerCBM ? settingsTheme.danger : settingsTheme.primarySoft,
-              bg: totalCBMUsed > containerCBM ? '#fff3f3' : '#edf8ef',
-              border: totalCBMUsed > containerCBM ? '#fecaca' : settingsTheme.border,
-            },
-            {
-              label: 'CBM Available',
-              value: cbmRemaining.toFixed(4),
-              unit: 'm3',
-              color: cbmRemaining < 0 ? settingsTheme.danger : settingsTheme.primary,
-              bg: '#f6f9f6',
-              border: settingsTheme.border,
-            },
-            {
-              label: 'Container Capacity',
-              value: containerCBM.toFixed(2),
-              unit: 'm3',
-              color: settingsTheme.textMuted,
-              bg: '#f6f9f6',
-              border: settingsTheme.border,
-            },
-            {
-              label: 'Total Weight',
-              value: totalWeightUsed > 0 ? totalWeightUsed.toFixed(2) : '-',
-              unit: totalWeightUsed > 0 ? 'Kg' : '',
-              color: totalWeightUsed > containerWeight ? settingsTheme.danger : settingsTheme.primary,
-              bg: '#f6f9f6',
-              border: settingsTheme.border,
-            },
-          ].map(({ label, value, unit, color, bg, border }) => (
+        <div style={{ ...summaryGrid, gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : summaryGrid.gridTemplateColumns }}>
+          {summaryCards.map(({ label, value, unit, color, bg, border }) => (
             <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 18px' }}>
               <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: settingsTheme.textMuted }}>{label}</p>
               <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
@@ -173,19 +210,8 @@ export default function CBMCalculatorPage() {
           ))}
         </div>
 
-        <div style={progressGrid}>
-          {[
-            {
-              label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM} m3`,
-              pct: cbmPct,
-              color: cbmPct > 90 ? settingsTheme.danger : settingsTheme.primarySoft,
-            },
-            {
-              label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight} Kg` : 'Enter weight per carton'}`,
-              pct: weightPct,
-              color: weightPct > 90 ? settingsTheme.danger : settingsTheme.primary,
-            },
-          ].map(({ label, pct, color }) => (
+        <div style={{ ...progressGrid, gridTemplateColumns: isMobile ? '1fr' : progressGrid.gridTemplateColumns }}>
+          {progressCards.map(({ label, pct, color }) => (
             <div key={label} style={progressCard}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 12.5, color: settingsTheme.textMuted, fontWeight: 600 }}>{label}</span>
@@ -202,14 +228,103 @@ export default function CBMCalculatorPage() {
           <button onClick={addRow} style={addBtn} type="button">
             <Plus size={14} /> Add Row
           </button>
-          <button onClick={loadSample} style={outlineBtn} type="button">
-            <Package size={14} /> Load Sample Data
-          </button>
+          {!isMobile ? (
+            <button onClick={loadSample} style={outlineBtn} type="button">
+              <Package size={14} /> Load Sample Data
+            </button>
+          ) : null}
           <button onClick={resetRows} style={{ ...outlineBtn, color: settingsTheme.danger, borderColor: '#fecaca' }} type="button">
             <RotateCcw size={14} /> Reset
           </button>
         </div>
 
+        {isMobile ? (
+          <div style={mobileRowsWrap}>
+            {computed.map((row, idx) => (
+              <div key={row.id} style={mobileRowCard}>
+                <div style={mobileRowHead}>
+                  <span style={mobileRowIndex}>Row {idx + 1}</span>
+                  {computed.length > 1 ? (
+                    <button
+                      onClick={() => removeRow(row.id)}
+                      style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      type="button"
+                    >
+                      <Trash2 size={13} color={settingsTheme.danger} />
+                    </button>
+                  ) : null}
+                </div>
+
+                <div style={mobileFieldsGrid}>
+                  <div style={mobileFieldFull}>
+                    <label style={mobileLabel}>Item</label>
+                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                  </div>
+
+                  <div>
+                    <label style={mobileLabel}>Length</label>
+                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input()} />
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Width</label>
+                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input()} />
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Height</label>
+                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input()} />
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Unit</label>
+                    <SettingsSelect
+                      value={row.dimUnit}
+                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                      selectStyle={select({ width: '100%' })}
+                    >
+                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                    </SettingsSelect>
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Quantity</label>
+                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input()} />
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Wt/Carton</label>
+                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="Optional" type="number" style={input()} />
+                  </div>
+                  <div>
+                    <label style={mobileLabel}>Wt Unit</label>
+                    <SettingsSelect
+                      value={row.weightUnit}
+                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                      selectStyle={select({ width: '100%' })}
+                    >
+                      {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                    </SettingsSelect>
+                  </div>
+                </div>
+
+                <div style={mobileStatsGrid}>
+                  <div style={mobileStatBox}>
+                    <span style={mobileStatLabel}>CBM/Carton</span>
+                    <span style={mobileStatValue}>{row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}</span>
+                  </div>
+                  <div style={mobileStatBox}>
+                    <span style={mobileStatLabel}>Total CBM</span>
+                    <span style={{ ...mobileStatValue, color: settingsTheme.primarySoft }}>{row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}</span>
+                  </div>
+                  {hasWeightInput ? (
+                    <div style={mobileStatBox}>
+                      <span style={mobileStatLabel}>Total Wt</span>
+                      <span style={{ ...mobileStatValue, color: settingsTheme.primary }}>{row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div style={tableWrap}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
             <thead>
@@ -335,11 +450,11 @@ export default function CBMCalculatorPage() {
             </tfoot>
           </table>
         </div>
+        )}
 
-        <div style={formulaNote}>
+        <div style={{ ...formulaNote, marginTop: isMobile ? 10 : 14 }}>
           <p style={{ margin: 0, fontSize: 12, color: settingsTheme.textMuted }}>
-            <strong>Formula:</strong> CBM per carton = (L x W x H converted to meters). Supports Inch, CM, and MM inputs.
-            {' '}1 Inch = 2.54 CM. Total CBM = CBM per carton x Quantity. 40ft container is about 66 m3. 20ft container is about 33 m3.
+            <strong>Formula:</strong> CBM/carton = (L x W x H) in meters. {isMobile ? '1 inch = 2.54 cm.' : 'Supports Inch, CM, MM. 1 Inch = 2.54 CM. Total CBM = CBM/carton x Quantity. 40ft is about 66 m3, 20ft is about 33 m3.'}
           </p>
         </div>
       </div>
@@ -425,6 +540,77 @@ const tableWrap = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 12,
   overflow: 'auto',
+}
+
+const mobileRowsWrap = {
+  display: 'grid',
+  gap: 10,
+}
+
+const mobileRowCard = {
+  background: '#fff',
+  border: `1px solid ${settingsTheme.border}`,
+  borderRadius: 12,
+  padding: 10,
+}
+
+const mobileRowHead = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 8,
+}
+
+const mobileRowIndex = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: settingsTheme.textSubtle,
+}
+
+const mobileFieldsGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 8,
+}
+
+const mobileFieldFull = {
+  gridColumn: '1 / -1',
+}
+
+const mobileLabel = {
+  display: 'block',
+  marginBottom: 4,
+  fontSize: 11.5,
+  fontWeight: 700,
+  color: settingsTheme.textMuted,
+}
+
+const mobileStatsGrid = {
+  marginTop: 10,
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 8,
+}
+
+const mobileStatBox = {
+  border: `1px solid ${settingsTheme.borderSoft}`,
+  borderRadius: 10,
+  padding: '8px 10px',
+  background: '#f8faf8',
+}
+
+const mobileStatLabel = {
+  display: 'block',
+  fontSize: 11,
+  color: settingsTheme.textSubtle,
+  marginBottom: 4,
+}
+
+const mobileStatValue = {
+  fontFamily: 'monospace',
+  fontSize: 12.5,
+  fontWeight: 700,
+  color: settingsTheme.text,
 }
 
 const th = {

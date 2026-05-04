@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
@@ -111,6 +111,7 @@ export default function UserNewPage() {
   const [showPerm, setShowPerm] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [errors, setErrors] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
   const [form, setForm] = useState({
     username: '',
     email: '',
@@ -157,6 +158,15 @@ export default function UserNewPage() {
     }
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
   if (!isSuperuser) {
     return (
       <DashboardLayout>
@@ -171,27 +181,27 @@ export default function UserNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 980 }}>
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={s.backBtn} onClick={() => router.push('/settings/users')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Add User</h1>
-              <p style={s.pageSubtitle}>Create a new team account and assign access</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Add User</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Create a new team account and assign access</p>
             </div>
           </div>
 
-          <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'Create User'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
           {errorMsg ? <div style={s.errorBanner}>{errorMsg}</div> : null}
 
-          <div style={s.grid2}>
+          <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : s.grid2.gridTemplateColumns }}>
             <div style={s.fieldWrap}>
               <label style={s.label}>Username *</label>
               <input
@@ -215,7 +225,7 @@ export default function UserNewPage() {
             </div>
           </div>
 
-          <div style={s.grid2}>
+          <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : s.grid2.gridTemplateColumns }}>
             <div style={s.fieldWrap}>
               <label style={s.label}>Password *</label>
               <input
@@ -398,13 +408,15 @@ const s = {
   permWrap: {
     border: `1px solid ${settingsTheme.border}`,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflowX: 'auto',
+    overflowY: 'hidden',
   },
   permHeadGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 80px 80px 80px',
+    gridTemplateColumns: 'minmax(220px, 1fr) 80px 80px 80px',
     background: '#eef2ee',
     borderBottom: `1px solid ${settingsTheme.border}`,
+    minWidth: 460,
   },
   permHeadCell: {
     padding: '9px 12px',
@@ -415,9 +427,10 @@ const s = {
   },
   permRowGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 80px 80px 80px',
+    gridTemplateColumns: 'minmax(220px, 1fr) 80px 80px 80px',
     borderBottom: `1px solid ${settingsTheme.borderSoft}`,
     alignItems: 'center',
+    minWidth: 460,
   },
   permSectionCell: {
     padding: '9px 14px',
@@ -432,13 +445,15 @@ const s = {
   permWrap: {
     border: `1px solid ${settingsTheme.border}`,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflowX: 'auto',
+    overflowY: 'hidden',
   },
   permHeadGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 80px 80px 80px',
+    gridTemplateColumns: 'minmax(220px, 1fr) 80px 80px 80px',
     background: '#eef2ee',
     borderBottom: `1px solid ${settingsTheme.border}`,
+    minWidth: 460,
   },
   permHeadCell: {
     padding: '9px 12px',
@@ -449,9 +464,10 @@ const s = {
   },
   permRowGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 80px 80px 80px',
+    gridTemplateColumns: 'minmax(220px, 1fr) 80px 80px 80px',
     borderBottom: `1px solid ${settingsTheme.borderSoft}`,
     alignItems: 'center',
+    minWidth: 460,
   },
   permSectionCell: {
     padding: '9px 14px',

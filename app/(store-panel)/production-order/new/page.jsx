@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
@@ -20,6 +20,16 @@ export default function ProductionOrderNewPage() {
   const [items, setItems] = useState([blankItem(1)])
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const updateItem = (index, key, value) => {
     setItems((prev) => prev.map((item, idx) => (idx === index ? { ...item, [key]: value } : item)))
@@ -78,23 +88,23 @@ export default function ProductionOrderNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1060 }}>
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={s.backBtn} onClick={() => router.push('/production-order')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}>Create Production Order</h1>
-              <p style={s.pageSubtitle}>Create a production order with one or more line items</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}>Create Production Order</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Create a production order with one or more line items</p>
             </div>
           </div>
-          <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'Save Order'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
           <div style={s.formRow}>
             <div style={s.formCol}>
               <label style={s.label}>Order Name</label>
@@ -105,7 +115,7 @@ export default function ProductionOrderNewPage() {
                 placeholder="Enter order name"
               />
             </div>
-            <div style={{ ...s.formCol, maxWidth: 240 }}>
+            <div style={{ ...s.formCol, maxWidth: isMobile ? '100%' : 240 }}>
               <label style={s.label}>Date</label>
               <StoreThemeDatePicker value={date} onChange={setDate} placeholder="Select date" variant="input" />
             </div>
@@ -160,7 +170,7 @@ export default function ProductionOrderNewPage() {
                     ]}
                   />
                 </div>
-                <div style={{ ...s.formCol, maxWidth: 180 }}>
+                <div style={{ ...s.formCol, maxWidth: isMobile ? '100%' : 180 }}>
                   <label style={s.label}>Cartons</label>
                   <input
                     type="number"
@@ -175,10 +185,10 @@ export default function ProductionOrderNewPage() {
           ))}
 
           <div style={s.footer}>
-            <button type="button" style={s.cancelBtn} onClick={() => router.push('/production-order')}>
+            <button type="button" style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/production-order')}>
               Cancel
             </button>
-            <button type="button" style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
               <Save size={15} /> {saving ? 'Saving...' : 'Save Order'}
             </button>
           </div>
@@ -337,7 +347,7 @@ const s = {
     gap: 6,
     border: 'none',
     borderRadius: 40,
-    background: '#1a3d1f',
+    background: '#54B45B',
     color: '#ffffff',
     fontSize: 13.5,
     fontWeight: 700,
@@ -351,7 +361,7 @@ const s = {
     gap: 6,
     border: 'none',
     borderRadius: 40,
-    background: '#9eb7a1',
+    background: '#b8dcbc',
     color: '#ffffff',
     fontSize: 13.5,
     fontWeight: 700,
@@ -388,4 +398,5 @@ const s = {
     padding: '8px 12px',
   },
 }
+
 

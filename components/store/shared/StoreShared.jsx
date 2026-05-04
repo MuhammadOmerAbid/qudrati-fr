@@ -547,9 +547,9 @@ export const ui = {
     flexWrap: 'wrap',
   },
   filtersRow: {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
     gap: 8,
-    flexWrap: 'wrap',
   },
   card: {
     border: '1px solid #e2e8e2',

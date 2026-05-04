@@ -12,6 +12,7 @@ import { X, Shield, Pencil, Trash2, Plus, ChevronDown, ChevronUp, RefreshCw, Arr
 function UserModal({ open, onClose, onSave, initial }) {
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user', permissions: [] })
   const [showPerm, setShowPerm] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -28,12 +29,21 @@ function UserModal({ open, onClose, onSave, initial }) {
     }
   }, [open, initial])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
   if (!open) return null
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
   return (
     <div style={overlay}>
-      <div style={{ ...modal, maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ ...modal, width: isMobile ? 'calc(100vw - 24px)' : modal.width, padding: isMobile ? 16 : 28, maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={modalHeader}>
           <h3 style={modalTitle}>{initial?.id ? 'Edit User' : 'Add New User'}</h3>
           <button onClick={onClose} style={closeBtn} type="button">
@@ -41,7 +51,7 @@ function UserModal({ open, onClose, onSave, initial }) {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Username *</label>
             <input value={form.username} onChange={(e) => set('username', e.target.value)} placeholder="username" style={inputStyle} />
@@ -52,7 +62,7 @@ function UserModal({ open, onClose, onSave, initial }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>{initial?.id ? 'New Password (optional)' : 'Password *'}</label>
             <input value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="********" type="password" style={inputStyle} />
@@ -122,6 +132,7 @@ export default function UsersPage() {
   const [modal, setModal] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const showToast = (message, type = 'success') => setToast({ message, type })
 
@@ -138,6 +149,15 @@ export default function UsersPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   const handleSave = async (form) => {
     try {
@@ -203,29 +223,29 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
-      <div style={pageShell}>
-        <div style={pageHeader}>
-          <div style={headerLeft}>
+      <div style={{ ...pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
+        <div style={{ ...pageHeader, marginBottom: isMobile ? 14 : 20 }}>
+          <div style={{ ...headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={backBtn} onClick={() => router.push('/settings')} title="Back to settings">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={pageTitle}>Users & Permissions</h1>
-              <p style={pageSubtitle}>Manage team access and roles</p>
+              <h1 style={{ ...pageTitle, fontSize: isMobile ? 18 : 22 }}>Users & Permissions</h1>
+              <p style={{ ...pageSubtitle, fontSize: isMobile ? 12 : 13 }}>Manage team access and roles</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
             <button onClick={load} style={iconBtn} type="button" title="Refresh">
               <RefreshCw size={16} color={settingsTheme.textMuted} />
             </button>
-            <button onClick={() => router.push('/settings/users/new')} style={addBtn} type="button">
+            <button onClick={() => router.push('/settings/users/new')} style={{ ...addBtn, padding: isMobile ? '10px 16px' : '11px 20px' }} type="button">
               <Plus size={15} /> Add User
             </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <SettingsSelect value={filterAccess} onChange={(e) => setFilterAccess(e.target.value)} wrapperStyle={{ minWidth: 170 }} selectStyle={selectStyle}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <SettingsSelect value={filterAccess} onChange={(e) => setFilterAccess(e.target.value)} wrapperStyle={{ minWidth: isMobile ? '100%' : 170, width: isMobile ? '100%' : 'auto' }} selectStyle={selectStyle}>
             <option value="all">All</option>
             <option value="superuser">Super Users</option>
             <option value="user">Regular Users</option>
@@ -236,7 +256,7 @@ export default function UsersPage() {
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: settingsTheme.textSubtle }}>Loading...</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
               <thead>
                 <tr>
                   {['User', 'Access', 'Email', 'Status', 'Actions'].map((head) => (
@@ -474,7 +494,8 @@ const tableWrap = {
   background: '#fff',
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 14,
-  overflow: 'hidden',
+  overflowX: 'auto',
+  overflowY: 'hidden',
 }
 
 const tableHead = {

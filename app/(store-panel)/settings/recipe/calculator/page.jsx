@@ -16,6 +16,7 @@ export default function RecipeCalculatorPage() {
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [toast, setToast] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const selectedRecipe = useMemo(
     () => recipes.find((row) => String(row.id) === String(selectedRecipeId)) || null,
@@ -37,6 +38,15 @@ export default function RecipeCalculatorPage() {
 
   useEffect(() => {
     loadRecipes()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
   const calculateFallback = () => {
@@ -87,23 +97,23 @@ export default function RecipeCalculatorPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.pageShell}>
+      <div style={{ ...s.pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
         <div style={s.header}>
           <div>
-            <h1 style={s.title}>Recipe Calculator</h1>
-            <p style={s.subtitle}>Scale recipe ingredients for a target output quantity.</p>
+            <h1 style={{ ...s.title, fontSize: isMobile ? 18 : 22 }}>Recipe Calculator</h1>
+            <p style={{ ...s.subtitle, fontSize: isMobile ? 12 : 13 }}>Scale recipe ingredients for a target output quantity.</p>
           </div>
-          <div style={s.headerActions}>
+          <div style={{ ...s.headerActions, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
             <button type="button" onClick={loadRecipes} style={s.iconBtn} title="Refresh recipes">
               <RefreshCw size={16} color={settingsTheme.textMuted} />
             </button>
-            <button type="button" onClick={() => router.push('/settings/recipe')} style={s.backBtn}>
+            <button type="button" onClick={() => router.push('/settings/recipe')} style={{ ...s.backBtn, padding: isMobile ? '9px 14px' : '9px 16px' }}>
               <ArrowLeft size={15} /> Back to Recipes
             </button>
           </div>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 12 : 14, padding: isMobile ? 14 : 18 }}>
           <div style={s.cardHead}>
             <Calculator size={20} color={settingsTheme.primarySoft} />
             <h2 style={s.cardTitle}>Calculation Inputs</h2>
@@ -151,7 +161,7 @@ export default function RecipeCalculatorPage() {
           )}
 
           <div style={s.actions}>
-            <button type="button" onClick={handleCalculate} style={s.calcBtn} disabled={calculating || loading}>
+            <button type="button" onClick={handleCalculate} style={{ ...s.calcBtn, width: isMobile ? '100%' : 'auto' }} disabled={calculating || loading}>
               {calculating ? 'Calculating...' : 'Calculate'}
             </button>
           </div>

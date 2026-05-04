@@ -317,6 +317,16 @@ export default function GateInwardPage() {
   const [viewRecord, setViewRecord] = useState(null)
   const [editRecord, setEditRecord] = useState(null)
   const [showReportPanel, setShowReportPanel] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(max-width: 640px)')
+    const sync = () => setIsMobile(mediaQuery.matches)
+    sync()
+    mediaQuery.addEventListener('change', sync)
+    return () => mediaQuery.removeEventListener('change', sync)
+  }, [])
 
   const allBrands = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.brandName)))], [records])
   const allCategories = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.categoryName)))], [records])
@@ -397,48 +407,52 @@ export default function GateInwardPage() {
           </div>
         )}
 
-        <div style={s.controlsCard}>
-          <div style={s.filtersRow}>
-            <div style={s.filterGroup}>
+        <div style={{ ...s.controlsCard, padding: isMobile ? '12px' : s.controlsCard.padding }}>
+          <div style={{ ...s.filtersRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, minmax(150px, 1fr))' }}>
+            <div style={s.filterCell}>
               <DropdownField
                 value={filterStatus}
                 onChange={setFilterStatus}
                 placeholder="All Status"
                 options={['All Status', 'Received', 'Pending'].map((entry) => ({ value: entry, label: entry }))}
                 compact
+                wrapStyle={{ width: '100%', minWidth: 0 }}
               />
+            </div>
+            <div style={s.filterCell}>
               <DropdownField
                 value={filterBrand}
                 onChange={setFilterBrand}
                 placeholder="All Brands"
                 options={['All Brands', ...allBrands].map((entry) => ({ value: entry, label: entry }))}
                 compact
+                wrapStyle={{ width: '100%', minWidth: 0 }}
               />
+            </div>
+            <div style={s.filterCell}>
               <DropdownField
                 value={filterCategory}
                 onChange={setFilterCategory}
                 placeholder="All Categories"
                 options={['All Categories', ...allCategories].map((entry) => ({ value: entry, label: entry }))}
                 compact
+                wrapStyle={{ width: '100%', minWidth: 0 }}
               />
             </div>
-            <div style={s.dateGroup}>
-              <div style={s.dateField}>
-                <DatePicker
-                  value={filterDateFrom}
-                  onChange={setFilterDateFrom}
-                  placeholder="From Date"
-                />
-              </div>
-              <span style={{ color: '#7a8a7a', fontSize: 12 }}>to</span>
-              <div style={s.dateField}>
-                <DatePicker
-                  value={filterDateTo}
-                  onChange={setFilterDateTo}
-                  placeholder="To Date"
-                  alignRight={true}
-                />
-              </div>
+            <div style={s.dateField}>
+              <DatePicker
+                value={filterDateFrom}
+                onChange={setFilterDateFrom}
+                placeholder="From Date"
+              />
+            </div>
+            <div style={s.dateField}>
+              <DatePicker
+                value={filterDateTo}
+                onChange={setFilterDateTo}
+                placeholder="To Date"
+                alignRight={true}
+              />
             </div>
           </div>
 
@@ -764,8 +778,8 @@ const s = {
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
     marginBottom: 14,
   },
-  filtersRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
-  filterGroup: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  filtersRow: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(150px, 1fr))', gap: 10, marginBottom: 12 },
+  filterCell: { minWidth: 0 },
   dropdownWrap: { position: 'relative', minWidth: 160 },
   dropdownTrigger: {
     width: '100%',
@@ -844,8 +858,7 @@ const s = {
     color: '#9aa69a',
     cursor: 'not-allowed',
   },
-  dateGroup: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  dateField: { display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '8px 11px', minWidth: 168, position: 'relative' },
+  dateField: { display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '8px 11px', minWidth: 0, width: '100%', position: 'relative' },
   datePickerTrigger: {
     display: 'flex',
     alignItems: 'center',

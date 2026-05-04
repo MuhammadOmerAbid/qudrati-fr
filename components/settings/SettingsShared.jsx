@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, RefreshCw, Pencil, Trash2, X, Check, ChevronDown, ArrowLeft } from 'lucide-react'
 
@@ -17,6 +17,32 @@ export const settingsTheme = {
   textSubtle: '#7a8a7a',
   danger: '#dc2626',
   dangerBg: '#fff5f5',
+}
+
+function useSettingsViewport() {
+  const [isMobile, setIsMobile] = useState(false)
+  const [isTablet, setIsTablet] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const tabletQuery = window.matchMedia('(max-width: 1024px)')
+
+    const apply = () => {
+      setIsMobile(mobileQuery.matches)
+      setIsTablet(tabletQuery.matches)
+    }
+
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    tabletQuery.addEventListener('change', apply)
+    return () => {
+      mobileQuery.removeEventListener('change', apply)
+      tabletQuery.removeEventListener('change', apply)
+    }
+  }, [])
+
+  return { isMobile, isTablet }
 }
 
 export function Toggle({ checked, onChange, disabled }) {
@@ -73,7 +99,7 @@ export function InlineInput({ value, onChange, onSave, onCancel, placeholder }) 
           padding: '6px 10px',
           fontSize: 13.5,
           outline: 'none',
-          width: 220,
+          width: 'min(220px, 100%)',
           color: settingsTheme.text,
           background: '#fff',
         }}
@@ -151,11 +177,28 @@ export function SettingsPageShell({
   children,
 }) {
   const router = useRouter()
+  const { isMobile, isTablet } = useSettingsViewport()
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
+    <div
+      style={{
+        ...styles.page,
+        borderRadius: isMobile ? 14 : 20,
+        padding: isMobile ? 12 : isTablet ? 16 : 22,
+      }}
+    >
+      <div
+        style={{
+          ...styles.header,
+          marginBottom: isMobile ? 14 : 18,
+        }}
+      >
+        <div
+          style={{
+            ...styles.headerLeft,
+            width: isMobile ? '100%' : 'auto',
+          }}
+        >
           {showBack ? (
             <button
               type="button"
@@ -167,16 +210,28 @@ export function SettingsPageShell({
             </button>
           ) : null}
           <div>
-            <h1 style={styles.title}>{title}</h1>
-            <p style={styles.subtitle}>{subtitle}</p>
+            <h1 style={{ ...styles.title, fontSize: isMobile ? 18 : 22 }}>{title}</h1>
+            <p style={{ ...styles.subtitle, fontSize: isMobile ? 12 : 13 }}>{subtitle}</p>
           </div>
         </div>
-        <div style={styles.headerActions}>
+        <div
+          style={{
+            ...styles.headerActions,
+            width: isMobile ? '100%' : 'auto',
+            justifyContent: isMobile ? 'space-between' : 'flex-start',
+          }}
+        >
           <button onClick={onRefresh} style={styles.iconBtn} title="Refresh">
             <RefreshCw size={16} color={settingsTheme.textMuted} />
           </button>
           {canEdit && (
-            <button onClick={onAdd} style={styles.addBtn}>
+            <button
+              onClick={onAdd}
+              style={{
+                ...styles.addBtn,
+                padding: isMobile ? '10px 16px' : '11px 20px',
+              }}
+            >
               <Plus size={15} />
               {addLabel}
             </button>
@@ -184,8 +239,20 @@ export function SettingsPageShell({
         </div>
       </div>
 
-      <div style={styles.filterBar}>
-        <SettingsSelect value={filterValue} onChange={(e) => onFilterChange(e.target.value)}>
+      <div
+        style={{
+          ...styles.filterBar,
+          flexWrap: 'wrap',
+        }}
+      >
+        <SettingsSelect
+          value={filterValue}
+          onChange={(e) => onFilterChange(e.target.value)}
+          wrapperStyle={{
+            minWidth: isMobile ? '100%' : 150,
+            width: isMobile ? '100%' : 'auto',
+          }}
+        >
           <option value="all">All</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -238,10 +305,17 @@ export function ActionButtons({ onEdit, onDelete, canEdit, canDelete }) {
 }
 
 export function ConfirmDelete({ open, name, onConfirm, onCancel }) {
+  const { isMobile } = useSettingsViewport()
   if (!open) return null
   return (
     <div style={styles.overlay}>
-      <div style={styles.dialog}>
+      <div
+        style={{
+          ...styles.dialog,
+          width: isMobile ? 'calc(100vw - 24px)' : 360,
+          padding: isMobile ? 18 : 26,
+        }}
+      >
         <h3 style={styles.dialogTitle}>Delete Confirmation</h3>
         <p style={styles.dialogText}>
           Are you sure you want to delete <strong>{name}</strong>? This action cannot be undone.
@@ -256,6 +330,7 @@ export function ConfirmDelete({ open, name, onConfirm, onCancel }) {
 }
 
 export function Toast({ message, type = 'success', onClose }) {
+  const { isMobile } = useSettingsViewport()
   useEffect(() => {
     const t = setTimeout(onClose, 2800)
     return () => clearTimeout(t)
@@ -265,6 +340,10 @@ export function Toast({ message, type = 'success', onClose }) {
   return (
     <div style={{
       ...styles.toast,
+      right: isMobile ? 12 : 24,
+      left: isMobile ? 12 : 'auto',
+      bottom: isMobile ? 12 : 24,
+      maxWidth: isMobile ? 'calc(100vw - 24px)' : 420,
       background: isSuccess ? '#edf8ef' : '#fff3f3',
       border: `1px solid ${isSuccess ? '#cce8cf' : '#fecaca'}`,
       color: isSuccess ? '#1f5e25' : settingsTheme.danger,
@@ -389,10 +468,12 @@ const styles = {
     background: '#fff',
     border: `1px solid ${settingsTheme.border}`,
     borderRadius: 14,
-    overflow: 'hidden',
+    overflowX: 'auto',
+    overflowY: 'hidden',
   },
   table: {
     width: '100%',
+    minWidth: 640,
     borderCollapse: 'collapse',
   },
   th: {

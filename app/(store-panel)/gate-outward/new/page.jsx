@@ -226,6 +226,7 @@ export default function GateOutwardNewPage() {
   const [saving, setSaving] = useState(false)
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [loadWarning, setLoadWarning] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
 
   const [customers, setCustomers] = useState(fallbackCustomers)
   const [manualCustomers, setManualCustomers] = useState([])
@@ -248,6 +249,15 @@ export default function GateOutwardNewPage() {
     }
     loadNext()
     return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
   useEffect(() => {
@@ -486,27 +496,27 @@ export default function GateOutwardNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={s.wrapper}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1100 }}>
         <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/gate-outward')}>
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}><ArrowUpFromLine size={20} color="#54B45B" style={{ marginRight: 8 }} />Gate Outward</h1>
-              <p style={s.pageSubtitle}>Add new entry</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 20 : 30 }}><ArrowUpFromLine size={20} color="#54B45B" style={{ marginRight: 8 }} />Gate Outward</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12 : 13.5 }}>Add new entry</p>
             </div>
           </div>
-          <button style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+          <button style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
             <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
           </button>
         </div>
 
-        <div style={s.card}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
           {loadWarning ? <div style={s.warningBanner}>{loadWarning}</div> : null}
           {errors.form ? <div style={s.warningBanner}>{errors.form}</div> : null}
 
-          <div style={s.topRow}>
+          <div style={{ ...s.topRow, gridTemplateColumns: isMobile ? '1fr' : s.topRow.gridTemplateColumns }}>
             <div style={s.fieldGroup}>
               <label style={s.label}>GO Number:</label>
               <div style={s.readonlyInput}>{goNo}</div>
@@ -587,7 +597,7 @@ export default function GateOutwardNewPage() {
             </div>
           </div>
 
-          <div style={s.extraRow}>
+          <div style={{ ...s.extraRow, gridTemplateColumns: isMobile ? '1fr' : s.extraRow.gridTemplateColumns }}>
             <div style={s.fieldGroup}>
               <label style={s.label}>Numbering:</label>
               <textarea style={{ ...s.input, ...s.textareaSmall }} value={numbering} onChange={(e) => setNumbering(e.target.value)} placeholder="Add numbering comment" />
@@ -598,7 +608,7 @@ export default function GateOutwardNewPage() {
             </div>
           </div>
 
-          <div style={s.driverRow}>
+          <div style={{ ...s.driverRow, gridTemplateColumns: isMobile ? '1fr 1fr' : s.driverRow.gridTemplateColumns }}>
             <input style={s.input} placeholder="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} />
             <input style={s.input} placeholder="Driver Name" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
             <input style={s.input} placeholder="Driver Phone" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} />
@@ -665,7 +675,7 @@ export default function GateOutwardNewPage() {
                     </select>
                   </div>
 
-                  <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                     {idx === 0 && <label style={s.label}>Quantity</label>}
                     <input
                       style={s.input}
@@ -677,7 +687,7 @@ export default function GateOutwardNewPage() {
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, flex: '0 0 120px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                     {idx === 0 && <label style={s.label}>Unit</label>}
                     <StoreThemeDropdown
                       value={item.unit}
@@ -687,7 +697,7 @@ export default function GateOutwardNewPage() {
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, flex: '0 0 36px', alignSelf: 'flex-end' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 36px', alignSelf: isMobile ? 'flex-start' : 'flex-end' }}>
                     {items.length > 1 && (
                       <button style={s.removeBtn} onClick={() => removeItem(item.key)} title="Remove item">
                         <X size={14} />
@@ -702,8 +712,8 @@ export default function GateOutwardNewPage() {
           })}
 
           <div style={s.formFooter}>
-            <button style={s.cancelBtn} onClick={() => router.push('/gate-outward')}>Cancel</button>
-            <button style={saving ? s.saveBtnDisabled : s.saveBtn} onClick={handleSave} disabled={saving}>
+            <button style={{ ...s.cancelBtn, width: isMobile ? '100%' : 'auto' }} onClick={() => router.push('/gate-outward')}>Cancel</button>
+            <button style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving}>
               <Save size={15} /> {saving ? 'Saving...' : 'SAVE'}
             </button>
           </div>
@@ -716,17 +726,17 @@ export default function GateOutwardNewPage() {
 const s = {
   wrapper: { maxWidth: 1100, margin: '0 auto' },
 
-  pageHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
-  backBtn: { background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: '#6b7280', display: 'flex' },
-  pageTitle: { fontSize: 22, fontWeight: 800, color: '#1a2e1b', margin: '0 0 2px', display: 'flex', alignItems: 'center' },
-  pageSubtitle: { fontSize: 13, color: '#9ca3af', margin: 0 },
+  backBtn: { width: 42, height: 42, borderRadius: 40, border: '1.5px solid #d4dfd4', background: '#ffffff', color: '#2d7a33', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+  pageTitle: { fontSize: 30, fontWeight: 800, color: '#1a3d1f', margin: '0 0 4px', display: 'flex', alignItems: 'center', letterSpacing: '-0.6px', lineHeight: 1.2 },
+  pageSubtitle: { fontSize: 13.5, color: '#7a8a7a', margin: 0, fontWeight: 500 },
 
-  saveBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#54B45B', border: 'none', borderRadius: 8, padding: '9px 28px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer', letterSpacing: '0.5px' },
-  saveBtnDisabled: { display: 'flex', alignItems: 'center', gap: 6, background: '#a7f3d0', border: 'none', borderRadius: 8, padding: '9px 28px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed', letterSpacing: '0.5px' },
-  cancelBtn: { background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer' },
+  saveBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#54B45B', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'pointer' },
+  saveBtnDisabled: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#b8dcbc', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
+  cancelBtn: { border: '1.5px solid #d4dfd4', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 600, color: '#2d7a33', background: '#ffffff', cursor: 'pointer' },
 
-  card: { background: '#fff', borderRadius: 14, border: '1px solid #e8f5e9', padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
+  card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
   warningBanner: { background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, color: '#c2410c', fontSize: 12.5, padding: '8px 12px', marginBottom: 12 },
 
   topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 },
@@ -738,13 +748,13 @@ const s = {
   itemField: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
 
   label: { fontSize: 13, fontWeight: 600, color: '#374151' },
-  input: { background: '#f0faf4', border: '1px solid #d1fae5', borderRadius: 8, padding: '9px 12px', fontSize: 13.5, color: '#1a2e1b', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  input: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: '#1f2f21', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
   inputError: { borderColor: '#fca5a5', background: '#fff5f5' },
   readonlyInput: { background: '#f0faf4', border: '1px solid #d1fae5', borderRadius: 8, padding: '9px 12px', fontSize: 13.5, color: '#374151', fontWeight: 600 },
 
   manualCustomerRow: { display: 'flex', gap: 8, marginTop: 2 },
-  manualCustomerInput: { flex: 1, border: '1px solid #d1fae5', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#1a2e1b', background: '#ffffff', outline: 'none' },
-  manualCustomerBtn: { border: 'none', borderRadius: 8, background: '#54B45B', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', cursor: 'pointer' },
+  manualCustomerInput: { flex: 1, border: '1px solid #d4dfd4', borderRadius: 10, padding: '7px 10px', fontSize: 12.5, color: '#1f2f21', background: '#ffffff', outline: 'none' },
+  manualCustomerBtn: { border: 'none', borderRadius: 10, background: '#54B45B', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', cursor: 'pointer' },
   manualCustomerBtnDisabled: { border: 'none', borderRadius: 8, background: '#d1d5db', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', cursor: 'not-allowed' },
 
   textarea: { height: 80, resize: 'vertical', fontFamily: 'inherit' },
@@ -765,5 +775,6 @@ const s = {
 
   formFooter: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6' },
 }
+
 
 
