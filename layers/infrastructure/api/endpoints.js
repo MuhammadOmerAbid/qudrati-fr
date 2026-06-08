@@ -2,7 +2,7 @@ import { get, post, patch, put, del, download } from './client'
 
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
-  login: (username, password) => post('/auth/login/', { username, password }),
+  login: (username, password) => post('/auth/login/', { email: username, password }),
   me: () => get('/auth/me/'),
 }
 
@@ -167,5 +167,4 @@ export const dashboardApi = {
 export const accountingStateApi = {
   getState: () => get('/accounting/state/'),
   updateSegments: (segments) => patch('/accounting/state/', { segments }),
-  resetState: () => post('/accounting/state/reset/', {}),
-}
+  resetState: () => post('/accounting/state/reset/', {}
