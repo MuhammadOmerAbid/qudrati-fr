@@ -2,7 +2,7 @@ import { get, post, patch, put, del, download } from './client'
 
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
-  login: (username, password) => post('/auth/login/', { email: username, password }),
+  login: (username, password) => post('/auth/login/', { username, password }),
   me: () => get('/auth/me/'),
 }
 
