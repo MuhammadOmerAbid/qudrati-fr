@@ -167,4 +167,5 @@ export const dashboardApi = {
 export const accountingStateApi = {
   getState: () => get('/accounting/state/'),
   updateSegments: (segments) => patch('/accounting/state/', { segments }),
-  resetState: () => post('/accounting/state/reset/', {}
+  resetState: () => post('/accounting/state/reset/', {}),
+}
