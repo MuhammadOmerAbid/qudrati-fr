@@ -42,8 +42,8 @@ const SETTING_CARDS = [
   },
   {
     id: 'packaging',
-    label: 'Packaging',
-    description: 'Manage packaging types (Box, Bag, Carton…)',
+    label: 'Packing',
+    description: 'Manage packing types (Box, Bag, Carton…)',
     icon: Box,
     path: '/settings/packaging',
     color: '#2d7a33',
@@ -486,15 +486,4 @@ const styles = {
     padding: '8px 12px',
   },
   denied: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 80,
-    gap: 12,
-    textAlign: 'center',
-  },
-  deniedTitle: { margin: 0, fontSize: 20, fontWeight: 700, color: settingsTheme.text },
-  deniedText: { margin: 0, fontSize: 14, color: settingsTheme.textMuted },
-}
-
+    display

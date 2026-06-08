@@ -52,11 +52,28 @@ const SAMPLE_ROWS = [
   { id: 7, item: 'Milky Jar', length: '12.1', width: '9.0', height: '5.7', dimUnit: 'Inch', quantity: '80', weightPerCarton: '', weightUnit: 'Kg' },
 ]
 
+const CBM_STORAGE_KEY = 'qf-cbm-rows'
+
 export default function CBMCalculatorPage() {
   const router = useRouter()
-  const [rows, setRows] = useState([emptyRow()])
+  const [rows, setRows] = useState(() => {
+    if (typeof window === 'undefined') return [emptyRow()]
+    try {
+      const saved = localStorage.getItem(CBM_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {}
+    return [emptyRow()]
+  })
   const [containerType, setContainerType] = useState('40ft')
   const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try { localStorage.setItem(CBM_STORAGE_KEY, JSON.stringify(rows)) } catch {}
+  }, [rows])
 
   const containerCBM = containerType === '40ft' ? 66 : 33
   const containerWeight = containerType === '40ft' ? 26500 : 13500
@@ -644,45 +661,3 @@ const primaryBtn = {
   color: '#fff',
   border: 'none',
   borderRadius: 10,
-  padding: '8px 14px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-}
-
-const addBtn = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '11px 20px',
-  borderRadius: 40,
-  border: 'none',
-  background: 'linear-gradient(90deg, #1B5E20 0%, #2E7D32 45%, #4CAF50 100%)',
-  color: '#fff',
-  fontSize: 13.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
-const outlineBtn = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  background: '#fff',
-  color: '#425343',
-  border: `1px solid ${settingsTheme.border}`,
-  borderRadius: 10,
-  padding: '8px 14px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-}
-
-const formulaNote = {
-  marginTop: 14,
-  padding: '10px 16px',
-  background: '#f6f9f6',
-  border: `1px solid ${settingsTheme.border}`,
-  borderRadius: 10,
-}
-

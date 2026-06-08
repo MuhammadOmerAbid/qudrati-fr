@@ -142,10 +142,11 @@ const fallbackFinishedGoodsProducts = uniqueProducts(
 
 const blankItem = () => ({
   key: Date.now() + Math.random(),
-  source: '',
   productId: '',
   quantity: '',
   unit: 'Unit',
+  numbering: '',
+  batchNumber: '',
   error: '',
 })
 
@@ -218,8 +219,7 @@ export default function GateOutwardNewPage() {
   const [driverCnic, setDriverCnic] = useState('')
 
   const [note, setNote] = useState('')
-  const [numbering, setNumbering] = useState('')
-  const [batchNumber, setBatchNumber] = useState('')
+  const [source, setSource] = useState('')
 
   const [items, setItems] = useState([blankItem()])
   const [errors, setErrors] = useState({})
@@ -377,14 +377,8 @@ export default function GateOutwardNewPage() {
         if (row.key !== key) return row
         const updated = { ...row, [field]: value, error: '' }
 
-        if (field === 'source') {
-          updated.productId = ''
-          updated.quantity = ''
-          updated.unit = unitOptions[0] || 'Unit'
-        }
-
         if (field === 'productId') {
-          const product = getProduct(updated.source, value)
+          const product = getProduct(source, value)
           updated.unit = product?.unit || row.unit
           if (updated.quantity && product && hasStockLimit(product) && Number(updated.quantity) > product.available) {
             updated.quantity = String(product.available)
@@ -393,7 +387,7 @@ export default function GateOutwardNewPage() {
         }
 
         if (field === 'quantity') {
-          const product = getProduct(updated.source, updated.productId)
+          const product = getProduct(source, updated.productId)
           if (product && hasStockLimit(product) && Number(value) > product.available) {
             updated.quantity = String(product.available)
             updated.error = `Quantity cannot be over ${product.available} ${product.unit}`
@@ -416,35 +410,34 @@ export default function GateOutwardNewPage() {
     if (!date) nextErrors.date = 'Please select a date'
     if (!customerId) nextErrors.customer = 'Please select a customer'
 
-    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0)
-    if (missing) nextErrors.items = 'Please complete source, product, and quantity for all rows'
+    if (!source) nextErrors.source = 'Please select a source'
+
+    const missing = items.some((row) => !row.productId || !row.quantity || Number(row.quantity) <= 0)
+    if (missing) nextErrors.items = 'Please complete product and quantity for all rows'
 
     const overLimitRow = items.find((row) => {
-      const product = getProduct(row.source, row.productId)
+      const product = getProduct(source, row.productId)
       if (!product || !hasStockLimit(product)) return false
       return Number(row.quantity) > product.available
     })
 
     if (overLimitRow) nextErrors.items = 'Quantity cannot be over available stock'
 
-    const totalBySourceAndProduct = items.reduce((acc, row) => {
-      if (!row.source || !row.productId) return acc
-      const key = `${row.source}::${row.productId}`
-      acc[key] = (acc[key] || 0) + Number(row.quantity || 0)
+    const totalByProduct = items.reduce((acc, row) => {
+      if (!row.productId) return acc
+      acc[row.productId] = (acc[row.productId] || 0) + Number(row.quantity || 0)
       return acc
     }, {})
 
-    const productOverTotal = Object.entries(totalBySourceAndProduct).find(([key, total]) => {
-      const [source, productId] = key.split('::')
+    const productOverTotal = Object.entries(totalByProduct).find(([productId, total]) => {
       const product = getProduct(source, productId)
       return product && hasStockLimit(product) && total > product.available
     })
 
     if (productOverTotal) {
-      const [source, productId] = productOverTotal[0].split('::')
-      const product = getProduct(source, productId)
+      const product = getProduct(source, productOverTotal[0])
       const sourceName = SOURCE_OPTIONS.find((entry) => entry.value === source)?.label || source
-      nextErrors.items = `${product.name} (${sourceName}): total quantity cannot be over ${product.available} ${product.unit}`
+      if (product) nextErrors.items = `${product.name} (${sourceName}): total quantity cannot be over ${product.available} ${product.unit}`
     }
 
     setErrors(nextErrors)
@@ -468,19 +461,21 @@ export default function GateOutwardNewPage() {
         customer_name: customer?.name || '',
         address,
         note,
-        numbering,
-        batch_number: batchNumber,
+        source: SOURCE_OPTIONS.find((entry) => entry.value === source)?.label || source,
+        sourceType: source,
         status: 'Dispatched',
         items: items.map((row) => {
-          const product = getProduct(row.source, row.productId)
+          const product = getProduct(source, row.productId)
           return {
-            source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
-            sourceType: row.source,
+            source: SOURCE_OPTIONS.find((entry) => entry.value === source)?.label || source,
+            sourceType: source,
             productId: product?.id ?? row.productId,
             productName: product?.name || '',
             brand: product?.brand || '',
             quantity: Number(row.quantity),
             unit: row.unit || product?.unit || 'Unit',
+            numbering: row.numbering || '',
+            batch_number: row.batchNumber || '',
           }
         }),
       }
@@ -597,15 +592,22 @@ export default function GateOutwardNewPage() {
             </div>
           </div>
 
-          <div style={{ ...s.extraRow, gridTemplateColumns: isMobile ? '1fr' : s.extraRow.gridTemplateColumns }}>
-            <div style={s.fieldGroup}>
-              <label style={s.label}>Numbering:</label>
-              <textarea style={{ ...s.input, ...s.textareaSmall }} value={numbering} onChange={(e) => setNumbering(e.target.value)} placeholder="Add numbering comment" />
-            </div>
-            <div style={s.fieldGroup}>
-              <label style={s.label}>Batch Number:</label>
-              <textarea style={{ ...s.input, ...s.textareaSmall }} value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Add batch number comment" />
-            </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={s.label}>Source:</label>
+            <StoreThemeDropdown
+              value={source}
+              onChange={(nextSource) => {
+                setSource(nextSource)
+                setItems((prev) => prev.map((row) => ({ ...row, productId: '', quantity: '', unit: unitOptions[0] || 'Unit', error: '' })))
+              }}
+              variant="input"
+              placeholder="Select Source"
+              options={[
+                { value: '', label: 'Select Source' },
+                ...SOURCE_OPTIONS.map((entry) => ({ value: entry.value, label: entry.label })),
+              ]}
+            />
+            {errors.source && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.source}</p>}
           </div>
 
           <div style={{ ...s.driverRow, gridTemplateColumns: isMobile ? '1fr 1fr' : s.driverRow.gridTemplateColumns }}>
@@ -626,12 +628,12 @@ export default function GateOutwardNewPage() {
           {errors.items && <div style={s.itemsError}>{errors.items}</div>}
 
           {items.map((item, idx) => {
-            const productsForSource = getProductsForSource(item.source)
-            const product = getProduct(item.source, item.productId)
+            const productsForSource = getProductsForSource(source)
+            const product = getProduct(source, item.productId)
 
-            let availableText = 'Select source first'
-            if (item.source && productsForSource.length === 0) availableText = 'No products available for selected source'
-            if (item.source && productsForSource.length > 0) availableText = 'Select product to view available stock'
+            let availableText = 'Select source above first'
+            if (source && productsForSource.length === 0) availableText = 'No products available for selected source'
+            if (source && productsForSource.length > 0) availableText = 'Select product to view available stock'
             if (product && hasStockLimit(product)) availableText = `Available: ${product.available} ${product.unit}`
             if (product && !hasStockLimit(product)) availableText = `Unit: ${product.unit}`
 
@@ -639,29 +641,15 @@ export default function GateOutwardNewPage() {
               <div key={item.key} style={s.itemBlock}>
                 <div style={s.itemRow}>
                   <div style={s.itemField}>
-                    {idx === 0 && <label style={s.label}>Source</label>}
-                    <StoreThemeDropdown
-                      value={item.source}
-                      onChange={(nextSource) => updateItem(item.key, 'source', nextSource)}
-                      variant="input"
-                      placeholder="Source"
-                      options={[
-                        { value: '', label: 'Source' },
-                        ...SOURCE_OPTIONS.map((entry) => ({ value: entry.value, label: entry.label })),
-                      ]}
-                    />
-                  </div>
-
-                  <div style={s.itemField}>
                     {idx === 0 && <label style={s.label}>Select Product</label>}
                     <select
                       style={s.input}
                       value={item.productId}
                       onChange={(e) => updateItem(item.key, 'productId', e.target.value)}
-                      disabled={!item.source}
+                      disabled={!source}
                     >
                       <option value="">
-                        {!item.source
+                        {!source
                           ? 'Select source first'
                           : productsForSource.length === 0
                             ? 'No products found'
@@ -694,6 +682,26 @@ export default function GateOutwardNewPage() {
                       onChange={(nextUnit) => updateItem(item.key, 'unit', nextUnit)}
                       variant="input"
                       options={UNITS.map((u) => ({ value: u, label: u }))}
+                    />
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
+                    {idx === 0 && <label style={s.label}>Numbering</label>}
+                    <input
+                      style={s.input}
+                      placeholder="Numbering"
+                      value={item.numbering}
+                      onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
+                    {idx === 0 && <label style={s.label}>Batch No.</label>}
+                    <input
+                      style={s.input}
+                      placeholder="Batch No."
+                      value={item.batchNumber}
+                      onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
                     />
                   </div>
 
@@ -771,10 +779,4 @@ const s = {
   itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end' },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
 
-  removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },
-
-  formFooter: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6' },
-}
-
-
-
+  removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, pa
