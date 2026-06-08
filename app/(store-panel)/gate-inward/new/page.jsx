@@ -414,7 +414,7 @@ export default function GateInwardNewPage() {
           {errors.items && <div style={s.itemsError}>{errors.items}</div>}
 
           {items.map((item, idx) => {
-            const brandCats = categories.filter((entry) => String(entry.brandId) === String(item.brandId))
+                      const brandCats = categories.filter((entry) => !entry.brandId || String(entry.brandId) === String(item.brandId))
             const catProds = products.filter((entry) => String(entry.categoryId) === String(item.categoryId))
 
             return (
