@@ -112,6 +112,13 @@ export const inventoryApi = {
   report: (params, filename) => download('/inventory/report/', params, filename),
 }
 
+export const cbmProductsApi = {
+  list: () => get('/cbm-products/'),
+  create: (data) => post('/cbm-products/', data),
+  update: (id, data) => patch(`/cbm-products/${id}/`, data),
+  delete: (id) => del(`/cbm-products/${id}/`),
+}
+
 // ── Requisition ──────────────────────────────────────────────
 export const requisitionApi = {
   list: (params) => get('/requisitions/', params),
