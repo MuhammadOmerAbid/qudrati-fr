@@ -144,6 +144,8 @@ const blankItem = () => ({
   key: Date.now() + Math.random(),
   source: '',
   productId: '',
+  numbering: '',
+  batchNumber: '',
   quantity: '',
   unit: 'Unit',
   error: '',
@@ -218,9 +220,6 @@ export default function GateOutwardNewPage() {
   const [driverCnic, setDriverCnic] = useState('')
 
   const [note, setNote] = useState('')
-  const [numbering, setNumbering] = useState('')
-  const [batchNumber, setBatchNumber] = useState('')
-
   const [items, setItems] = useState([blankItem()])
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -468,8 +467,8 @@ export default function GateOutwardNewPage() {
         customer_name: customer?.name || '',
         address,
         note,
-        numbering,
-        batch_number: batchNumber,
+        numbering: '',
+        batch_number: '',
         status: 'Dispatched',
         items: items.map((row) => {
           const product = getProduct(row.source, row.productId)
@@ -479,6 +478,9 @@ export default function GateOutwardNewPage() {
             productId: product?.id ?? row.productId,
             productName: product?.name || '',
             brand: product?.brand || '',
+            numbering: row.numbering || '',
+            batchNumber: row.batchNumber || '',
+            batch_number: row.batchNumber || '',
             quantity: Number(row.quantity),
             unit: row.unit || product?.unit || 'Unit',
           }
@@ -597,17 +599,6 @@ export default function GateOutwardNewPage() {
             </div>
           </div>
 
-          <div style={{ ...s.extraRow, gridTemplateColumns: isMobile ? '1fr' : s.extraRow.gridTemplateColumns }}>
-            <div style={s.fieldGroup}>
-              <label style={s.label}>Numbering:</label>
-              <textarea style={{ ...s.input, ...s.textareaSmall }} value={numbering} onChange={(e) => setNumbering(e.target.value)} placeholder="Add numbering comment" />
-            </div>
-            <div style={s.fieldGroup}>
-              <label style={s.label}>Batch Number:</label>
-              <textarea style={{ ...s.input, ...s.textareaSmall }} value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Add batch number comment" />
-            </div>
-          </div>
-
           <div style={{ ...s.driverRow, gridTemplateColumns: isMobile ? '1fr 1fr' : s.driverRow.gridTemplateColumns }}>
             <input style={s.input} placeholder="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} />
             <input style={s.input} placeholder="Driver Name" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
@@ -673,6 +664,26 @@ export default function GateOutwardNewPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
+                    {idx === 0 && <label style={s.label}>Numbering</label>}
+                    <input
+                      style={s.input}
+                      placeholder="Numbering"
+                      value={item.numbering}
+                      onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
+                    {idx === 0 && <label style={s.label}>Batch No</label>}
+                    <input
+                      style={s.input}
+                      placeholder="Batch No"
+                      value={item.batchNumber}
+                      onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
+                    />
                   </div>
 
                   <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
@@ -741,7 +752,6 @@ const s = {
 
   topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 },
   midRow: { display: 'flex', gap: 20, marginBottom: 14 },
-  extraRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 14 },
   driverRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 },
 
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
@@ -768,7 +778,7 @@ const s = {
 
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
   itemBlock: { marginBottom: 10 },
-  itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end' },
+  itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
 
   removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },
