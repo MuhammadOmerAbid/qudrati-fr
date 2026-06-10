@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { categoriesApi } from '@/infrastructure/api/endpoints'
 import {
   ArrowDownToLine, Plus, Eye, Trash2, RotateCcw,
   FileText, Download, Search, Calendar,
@@ -368,6 +369,7 @@ export default function GateInwardPage() {
   const [editRecord, setEditRecord] = useState(null)
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [categoryOptions, setCategoryOptions] = useState([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -379,7 +381,25 @@ export default function GateInwardPage() {
   }, [])
 
   const allBrands = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.brandName)))], [records])
-  const allCategories = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.categoryName)))], [records])
+  const allCategories = useMemo(() => {
+    const fromRecords = records.flatMap(r => r.items.map(i => i.categoryName))
+    const fromSettings = categoryOptions.map((entry) => entry.name)
+    return [...new Set([...fromSettings, ...fromRecords].filter(Boolean))]
+  }, [categoryOptions, records])
+
+  useEffect(() => {
+    let active = true
+    categoriesApi.list()
+      .then((data) => {
+        if (!active) return
+        const list = Array.isArray(data) ? data : []
+        setCategoryOptions(list.filter((entry) => entry.status !== false))
+      })
+      .catch(() => {
+        if (active) setCategoryOptions([])
+      })
+    return () => { active = false }
+  }, [])
 
   const parseDate = (str) => {
     if (!str) return null
