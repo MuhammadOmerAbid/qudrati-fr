@@ -5,18 +5,9 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { recipesApi } from '@/infrastructure/api/endpoints'
 import { SettingsSelect, settingsTheme, Toast } from '@/components/settings/SettingsShared'
-import { ArrowLeft, Calculator, RefreshCw, Printer } from 'lucide-react'
-
-const PRINT_STYLE = `
-@media print {
-  body > * { display: none !important; }
-  #print-result { display: block !important; position: static !important; border: none !important; box-shadow: none !important; }
-  .print-hide { display: none !important; }
-}
-`
+import { ArrowLeft, Calculator, Printer, RefreshCw } from 'lucide-react'
 
 export default function RecipeCalculatorPage() {
-
   const router = useRouter()
   const [recipes, setRecipes] = useState([])
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
@@ -104,9 +95,83 @@ export default function RecipeCalculatorPage() {
     }
   }
 
+  const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+  const handlePrintReport = () => {
+    if (!result) return
+    const reportWindow = window.open('', '_blank', 'width=1000,height=800')
+    if (!reportWindow) {
+      setToast({ type: 'error', message: 'Please allow popups to print the report.' })
+      return
+    }
+
+    const items = result.items || []
+    const rows = items.map((item) => `
+      <tr>
+        <td>${escapeHtml(item.ingredient || '-')}</td>
+        <td>${escapeHtml(item.scaled_qty || '0')} ${escapeHtml(item.unit || '')}</td>
+      </tr>
+    `).join('')
+
+    reportWindow.document.open()
+    reportWindow.document.write(`
+      <html>
+        <head>
+          <title>Recipe Calculator Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #1f2937; padding: 28px; font-size: 13px; }
+            .head { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #bbf7d0; padding-bottom: 14px; margin-bottom: 18px; }
+            h1 { margin: 0; color: #1B5E20; font-size: 22px; }
+            .meta { color: #6b7280; margin: 4px 0 0; }
+            .summary { background: #edf8ef; border: 1px solid #bbf7d0; padding: 12px 14px; margin-bottom: 18px; }
+            .summary p { margin: 3px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th { background: #f0fdf4; color: #1a2e1b; text-align: left; padding: 10px; border-bottom: 2px solid #bbf7d0; }
+            td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+            @media print { body { padding: 18px; } }
+          </style>
+        </head>
+        <body>
+          <div class="head">
+            <div>
+              <h1>Recipe Calculator Report</h1>
+              <p class="meta">Generated: ${escapeHtml(new Date().toLocaleString('en-PK'))}</p>
+            </div>
+          </div>
+          <div class="summary">
+            <p><strong>Recipe:</strong> ${escapeHtml(result.name || selectedRecipe?.name || '-')}</p>
+            <p><strong>Desired Quantity:</strong> ${escapeHtml(result.desired_quantity || desiredQuantity)} ${escapeHtml(result.for_unit || selectedRecipe?.for_unit || '')}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Ingredient</th>
+                <th>Required Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="2">No ingredients available.</td></tr>'}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function () {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `)
+    reportWindow.document.close()
+  }
+
   return (
     <DashboardLayout>
-      <style>{PRINT_STYLE}</style>
       <div style={{ ...s.pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
         <div style={s.header}>
           <div>
@@ -178,18 +243,13 @@ export default function RecipeCalculatorPage() {
         </div>
 
         {result ? (
-          <div style={s.resultCard} id="print-result">
-            <div style={s.resultHeader}>
+          <div style={s.resultCard}>
+            <div style={s.resultHead}>
               <h3 style={s.resultTitle}>
                 Ingredients for {result.desired_quantity} {result.for_unit}
               </h3>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={s.printBtn}
-                title="Print Report"
-              >
-                <Printer size={15} /> Print Report
+              <button type="button" onClick={handlePrintReport} style={s.printBtn}>
+                <Printer size={14} /> Print Report
               </button>
             </div>
             <div style={s.resultTableWrap}>
@@ -353,4 +413,57 @@ const s = {
     borderRadius: 14,
     overflow: 'hidden',
   },
-  resultHeader: {
+  resultHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+    padding: '14px 18px',
+    background: '#edf8ef',
+    borderBottom: `1px solid ${settingsTheme.border}`,
+  },
+  resultTitle: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 800,
+    color: settingsTheme.primary,
+  },
+  printBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    border: `1px solid ${settingsTheme.border}`,
+    borderRadius: 40,
+    background: '#fff',
+    color: settingsTheme.primary,
+    fontSize: 12.5,
+    fontWeight: 700,
+    padding: '8px 12px',
+    cursor: 'pointer',
+  },
+  resultTableWrap: {
+    overflowX: 'auto',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+  },
+  th: {
+    textAlign: 'left',
+    padding: '11px 16px',
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: settingsTheme.textMuted,
+    borderBottom: `1px solid ${settingsTheme.border}`,
+  },
+  tr: {
+    borderBottom: `1px solid ${settingsTheme.borderSoft}`,
+  },
+  td: {
+    padding: '11px 16px',
+    fontSize: 13.5,
+    color: settingsTheme.text,
+  },
+}
+

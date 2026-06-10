@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
+import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { cbmProductsApi } from '@/infrastructure/api/endpoints'
 import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 
@@ -31,7 +33,7 @@ function toKg(value, unit) {
 }
 
 const emptyRow = () => ({
-  id: Date.now() + Math.random(),
+  id: `local-${Date.now()}-${Math.random()}`,
   item: '',
   length: '',
   width: '',
@@ -52,40 +54,112 @@ const SAMPLE_ROWS = [
   { id: 7, item: 'Milky Jar', length: '12.1', width: '9.0', height: '5.7', dimUnit: 'Inch', quantity: '80', weightPerCarton: '', weightUnit: 'Kg' },
 ]
 
-const CBM_STORAGE_KEY = 'qf-cbm-rows'
+const isLocalRow = (id) => String(id || '').startsWith('local-')
+const cleanNumber = (value) => {
+  const text = String(value ?? '').trim()
+  return text === '' ? null : text
+}
+
+const normalizeRow = (row) => ({
+  ...emptyRow(),
+  ...row,
+  item: row.item || '',
+  length: row.length ?? '',
+  width: row.width ?? '',
+  height: row.height ?? '',
+  dimUnit: row.dimUnit || row.dim_unit || 'Inch',
+  quantity: row.quantity ?? '',
+  weightPerCarton: row.weightPerCarton ?? row.weight_per_carton ?? '',
+  weightUnit: row.weightUnit || row.weight_unit || 'Kg',
+})
+
+const rowPayload = (row) => {
+  const item = String(row.item || '').trim()
+  if (!item) return null
+  return {
+    item,
+    length: cleanNumber(row.length),
+    width: cleanNumber(row.width),
+    height: cleanNumber(row.height),
+    dimUnit: row.dimUnit || 'Inch',
+    quantity: cleanNumber(row.quantity),
+    weightPerCarton: cleanNumber(row.weightPerCarton),
+    weightUnit: row.weightUnit || 'Kg',
+  }
+}
 
 export default function CBMCalculatorPage() {
   const router = useRouter()
-  const [rows, setRows] = useState(() => {
-    if (typeof window === 'undefined') return [emptyRow()]
-    try {
-      const saved = localStorage.getItem(CBM_STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch {}
-    return [emptyRow()]
-  })
+  const { user } = useAuthStore()
+  const isSuperuser = user?.role === 'superuser'
+  const [rows, setRows] = useState([emptyRow()])
   const [containerType, setContainerType] = useState('40ft')
   const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try { localStorage.setItem(CBM_STORAGE_KEY, JSON.stringify(rows)) } catch {}
-  }, [rows])
+  const [loadingRows, setLoadingRows] = useState(false)
 
   const containerCBM = containerType === '40ft' ? 66 : 33
   const containerWeight = containerType === '40ft' ? 26500 : 13500
 
-  const updateRow = (id, field, value) => {
-    setRows((prev) => prev.map((row) => row.id === id ? { ...row, [field]: value } : row))
+  const saveRow = async (id, rowOverride = null) => {
+    const target = rowOverride || rows.find((row) => row.id === id)
+    const payload = target ? rowPayload(target) : null
+    if (!payload) return
+
+    try {
+      const saved = isLocalRow(id)
+        ? await cbmProductsApi.create(payload)
+        : await cbmProductsApi.update(id, payload)
+      setRows((prev) => prev.map((row) => row.id === id ? normalizeRow(saved) : row))
+    } catch {
+      // Keep the local row editable if the network/API call fails.
+    }
+  }
+  const updateRow = (id, field, value, shouldSave = false) => {
+    let nextTarget = null
+    setRows((prev) => prev.map((row) => {
+      if (row.id !== id) return row
+      nextTarget = { ...row, [field]: value }
+      return nextTarget
+    }))
+    if (shouldSave && nextTarget) {
+      window.setTimeout(() => saveRow(id, nextTarget), 0)
+    }
   }
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()])
-  const removeRow = (id) => setRows((prev) => prev.filter((row) => row.id !== id))
-  const resetRows = () => setRows([emptyRow()])
-  const loadSample = () => setRows(SAMPLE_ROWS.map((row) => ({ ...row, id: Date.now() + Math.random() })))
+  const removeRow = async (id) => {
+    if (!isSuperuser) return
+    if (!isLocalRow(id)) {
+      try {
+        await cbmProductsApi.delete(id)
+      } catch {
+        return
+      }
+    }
+    setRows((prev) => prev.length > 1 ? prev.filter((row) => row.id !== id) : prev)
+  }
+  const resetRows = async () => {
+    if (!isSuperuser) return
+    const persistedRows = rows.filter((row) => !isLocalRow(row.id))
+    try {
+      await Promise.all(persistedRows.map((row) => cbmProductsApi.delete(row.id)))
+    } catch {
+      return
+    }
+    setRows([emptyRow()])
+  }
+  const loadSample = async () => {
+    const existingItems = new Set(rows.map((row) => String(row.item || '').trim().toLowerCase()).filter(Boolean))
+    const nextSamples = SAMPLE_ROWS.filter((row) => !existingItems.has(String(row.item || '').trim().toLowerCase()))
+    if (!nextSamples.length) return
+
+    try {
+      const savedRows = await Promise.all(nextSamples.map((row) => cbmProductsApi.create(rowPayload(row))))
+      setRows((prev) => [...prev, ...savedRows.map(normalizeRow)])
+    } catch {
+      setRows((prev) => [...prev, ...nextSamples.map((row) => ({ ...row, id: `local-${Date.now()}-${Math.random()}` }))])
+    }
+  }
 
   const computed = rows.map((row) => {
     const qty = parseFloat(row.quantity) || 0
@@ -178,6 +252,24 @@ export default function CBMCalculatorPage() {
     return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    const loadRows = async () => {
+      setLoadingRows(true)
+      try {
+        const data = await cbmProductsApi.list()
+        const savedRows = Array.isArray(data) ? data : data?.results || []
+        if (active) setRows(savedRows.length ? savedRows.map(normalizeRow) : [emptyRow()])
+      } catch {
+        if (active) setRows([emptyRow()])
+      } finally {
+        if (active) setLoadingRows(false)
+      }
+    }
+    loadRows()
+    return () => { active = false }
+  }, [])
+
   return (
     <DashboardLayout>
       <div style={{ ...pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
@@ -250,10 +342,17 @@ export default function CBMCalculatorPage() {
               <Package size={14} /> Load Sample Data
             </button>
           ) : null}
-          <button onClick={resetRows} style={{ ...outlineBtn, color: settingsTheme.danger, borderColor: '#fecaca' }} type="button">
-            <RotateCcw size={14} /> Reset
-          </button>
+          {isSuperuser ? (
+            <button onClick={resetRows} style={{ ...outlineBtn, color: settingsTheme.danger, borderColor: '#fecaca' }} type="button">
+              <RotateCcw size={14} /> Reset
+            </button>
+          ) : null}
         </div>
+        {loadingRows ? (
+          <div style={{ marginBottom: 12, fontSize: 12.5, fontWeight: 600, color: settingsTheme.textMuted }}>
+            Loading CBM products...
+          </div>
+        ) : null}
 
         {isMobile ? (
           <div style={mobileRowsWrap}>
@@ -261,7 +360,7 @@ export default function CBMCalculatorPage() {
               <div key={row.id} style={mobileRowCard}>
                 <div style={mobileRowHead}>
                   <span style={mobileRowIndex}>Row {idx + 1}</span>
-                  {computed.length > 1 ? (
+                  {isSuperuser && computed.length > 1 ? (
                     <button
                       onClick={() => removeRow(row.id)}
                       style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
@@ -275,26 +374,26 @@ export default function CBMCalculatorPage() {
                 <div style={mobileFieldsGrid}>
                   <div style={mobileFieldFull}>
                     <label style={mobileLabel}>Item</label>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
                   </div>
 
                   <div>
                     <label style={mobileLabel}>Length</label>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input()} />
+                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input()} />
                   </div>
                   <div>
                     <label style={mobileLabel}>Width</label>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input()} />
+                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input()} />
                   </div>
                   <div>
                     <label style={mobileLabel}>Height</label>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input()} />
+                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input()} />
                   </div>
                   <div>
                     <label style={mobileLabel}>Unit</label>
                     <SettingsSelect
                       value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
                       wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
                       selectStyle={select({ width: '100%' })}
                     >
@@ -303,17 +402,17 @@ export default function CBMCalculatorPage() {
                   </div>
                   <div>
                     <label style={mobileLabel}>Quantity</label>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input()} />
+                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input()} />
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt/Carton</label>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="Optional" type="number" style={input()} />
+                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Optional" type="number" style={input()} />
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt Unit</label>
                     <SettingsSelect
                       value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
                       wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
                       selectStyle={select({ width: '100%' })}
                     >
@@ -382,21 +481,21 @@ export default function CBMCalculatorPage() {
                 >
                   <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ ...td, minWidth: 160 }}>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
                   </td>
                   <td style={td}>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input({ width: 68 })} />
+                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input({ width: 68 })} />
                   </td>
                   <td style={td}>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input({ width: 68 })} />
+                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input({ width: 68 })} />
                   </td>
                   <td style={td}>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input({ width: 68 })} />
+                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input({ width: 68 })} />
                   </td>
                   <td style={td}>
                     <SettingsSelect
                       value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
                       wrapperStyle={{ width: 72 }}
                       selectStyle={select({ width: '100%' })}
                     >
@@ -404,15 +503,15 @@ export default function CBMCalculatorPage() {
                     </SettingsSelect>
                   </td>
                   <td style={td}>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} />
+                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
                   </td>
                   <td style={td}>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} />
+                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
                   </td>
                   <td style={td}>
                     <SettingsSelect
                       value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
                       wrapperStyle={{ width: 72 }}
                       selectStyle={select({ width: '100%' })}
                     >
@@ -429,7 +528,7 @@ export default function CBMCalculatorPage() {
                     {row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}
                   </td>
                   <td style={td}>
-                    {computed.length > 1 && (
+                    {isSuperuser && computed.length > 1 && (
                       <button
                         onClick={() => removeRow(row.id)}
                         style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
@@ -661,3 +760,45 @@ const primaryBtn = {
   color: '#fff',
   border: 'none',
   borderRadius: 10,
+  padding: '8px 14px',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
+}
+
+const addBtn = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '11px 20px',
+  borderRadius: 40,
+  border: 'none',
+  background: 'linear-gradient(90deg, #1B5E20 0%, #2E7D32 45%, #4CAF50 100%)',
+  color: '#fff',
+  fontSize: 13.5,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const outlineBtn = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  background: '#fff',
+  color: '#425343',
+  border: `1px solid ${settingsTheme.border}`,
+  borderRadius: 10,
+  padding: '8px 14px',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
+}
+
+const formulaNote = {
+  marginTop: 14,
+  padding: '10px 16px',
+  background: '#f6f9f6',
+  border: `1px solid ${settingsTheme.border}`,
+  borderRadius: 10,
+}
+
