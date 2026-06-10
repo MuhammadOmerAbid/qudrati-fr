@@ -27,6 +27,8 @@ function normalizeItem(raw = {}) {
   return {
     productName: String(raw.productName || raw.product_name || '').trim(),
     brand: String(raw.brand || '').trim(),
+    numbering: String(raw.numbering || '').trim(),
+    batchNumber: String(raw.batchNumber || raw.batch_number || '').trim(),
     quantity: Number(raw.quantity) || 0,
     unit: String(raw.unit || 'Unit').trim() || 'Unit',
     source: String(raw.source || '').trim(),
@@ -34,9 +36,18 @@ function normalizeItem(raw = {}) {
 }
 
 function normalizeGateOutwardRecord(raw = {}) {
-  const items = Array.isArray(raw.items) ? raw.items.map(normalizeItem).filter((x) => x.productName || x.quantity) : []
+  const items = Array.isArray(raw.items) ? raw.items.map((item) => {
+    const normalized = normalizeItem(item)
+    return {
+      ...normalized,
+      numbering: normalized.numbering || raw.numbering || '',
+      batchNumber: normalized.batchNumber || raw.batch_number || '',
+    }
+  }).filter((x) => x.productName || x.quantity) : []
   const fallback = normalizeItem({
     productName: raw.product_name,
+    numbering: raw.numbering,
+    batchNumber: raw.batch_number,
     quantity: raw.quantity,
     unit: raw.unit,
   })
@@ -99,7 +110,7 @@ export default function GateOutwardPage() {
         r.note,
         r.numbering,
         r.batchNumber,
-        ...r.items.flatMap((it) => [it.productName, it.brand, String(it.quantity), it.unit, it.source]),
+        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, String(it.quantity), it.unit, it.source]),
       ]
         .join(' ')
         .toLowerCase()
@@ -123,13 +134,15 @@ export default function GateOutwardPage() {
   const exportRows = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
 
   const exportCSV = (rows) => {
-    const headers = ['GO No', 'Date', 'Product', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Customer', 'Address', 'Source', 'Numbering', 'Batch Number', 'Note']
+    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
       r.items.map((item) =>
         [
           r.goNo,
           r.date,
           item.productName,
+          item.numbering || '-',
+          item.batchNumber || '-',
           item.brand,
           `${item.quantity} ${item.unit}`,
           r.vehicleNo,
@@ -137,8 +150,6 @@ export default function GateOutwardPage() {
           r.customerName,
           r.address,
           item.source,
-          r.numbering || '-',
-          r.batchNumber || '-',
           r.note || '-',
         ]
           .map((v) => `"${v}"`)
@@ -173,7 +184,7 @@ export default function GateOutwardPage() {
           <p>Generated: ${new Date().toLocaleDateString('en-PK')}</p>
           <table>
             <tr>
-              <th>GO No</th><th>Date</th><th>Product</th><th>Brand</th><th>Qty</th><th>Vehicle</th><th>Driver</th><th>Customer</th><th>Address</th>
+              <th>GO No</th><th>Date</th><th>Product</th><th>Numbering</th><th>Batch No</th><th>Brand</th><th>Qty</th><th>Vehicle</th><th>Driver</th><th>Customer</th><th>Address</th>
             </tr>
             ${rows
               .flatMap((r) =>
@@ -182,6 +193,8 @@ export default function GateOutwardPage() {
                     <td>${r.goNo}</td>
                     <td>${r.date}</td>
                     <td>${item.productName}</td>
+                    <td>${item.numbering || '-'}</td>
+                    <td>${item.batchNumber || '-'}</td>
                     <td>${item.brand}</td>
                     <td>${item.quantity} ${item.unit}</td>
                     <td>${r.vehicleNo || '-'}</td>
@@ -255,6 +268,8 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Go No</th>
                 <th style={s.th}>Date</th>
                 <th style={s.th}>Product</th>
+                <th style={s.th}>Numbering</th>
+                <th style={s.th}>Batch No</th>
                 <th style={s.th}>Brand</th>
                 <th style={s.th}>Qty</th>
                 <th style={s.th}>Vehicle</th>
@@ -265,7 +280,7 @@ export default function GateOutwardPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={10} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={12} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -288,6 +303,8 @@ export default function GateOutwardPage() {
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.date}</td>}
 
                       <td style={s.td}>{item.productName}</td>
+                      <td style={s.td}>{item.numbering || '-'}</td>
+                      <td style={s.td}>{item.batchNumber || '-'}</td>
                       <td style={s.td}>{item.brand}</td>
                       <td style={s.td}>{item.quantity} {item.unit}</td>
 

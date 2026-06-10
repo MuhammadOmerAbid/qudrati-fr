@@ -6,7 +6,7 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowLeft, Save, Plus, X } from 'lucide-react'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { productsApi, requisitionApi } from '@/infrastructure/api/endpoints'
+import { inventoryApi, requisitionApi } from '@/infrastructure/api/endpoints'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
 /* ─── Mock Data — replace with real API calls ─── */
@@ -47,13 +47,13 @@ export default function RequisitionNewPage() {
       setLoadingProducts(true)
       setLoadWarning('')
       try {
-        const res = await productsApi.list()
+        const res = await inventoryApi.list()
         const rows = toList(res)
         if (active) setProducts(rows)
       } catch {
         if (active) {
           setProducts([])
-          setLoadWarning('Unable to load Products from backend. Showing fallback options.')
+          setLoadWarning('Unable to load Inventory from backend. Showing fallback options.')
         }
       } finally {
         if (active) setLoadingProducts(false)
@@ -75,10 +75,11 @@ export default function RequisitionNewPage() {
   const productOptions = useMemo(() => {
     const apiOptions = products.map((p) => ({
       id: p.id,
-      name: p.name,
-      category: p.category_name || '',
-      subCategory: p.brand_name || '',
-      unit: 'Unit',
+      name: p.product || p.name,
+      category: p.category || p.category_name || '',
+      subCategory: p.subcategory || p.subCategory || p.brand || p.brand_name || '',
+      unit: p.unit || 'Unit',
+      available: Number(p.quantity),
     }))
     return apiOptions.length ? apiOptions : FALLBACK_PRODUCTS
   }, [products])
@@ -98,6 +99,30 @@ export default function RequisitionNewPage() {
     if (!receiverName.trim()) e.receiverName = 'Receiver name is required'
     const incomplete = items.some(i => !i.productId || !i.quantity || Number(i.quantity) <= 0)
     if (incomplete) e.items = 'Please complete all product rows'
+
+    const overAvailable = items.find((item) => {
+      const prod = getProduct(item.productId)
+      return prod && Number.isFinite(prod.available) && Number(item.quantity || 0) > prod.available
+    })
+    if (overAvailable) {
+      const prod = getProduct(overAvailable.productId)
+      e.items = `${prod.name}: quantity cannot be more than available stock (${prod.available} ${prod.unit})`
+    }
+
+    const totals = items.reduce((acc, item) => {
+      if (!item.productId) return acc
+      acc[item.productId] = (acc[item.productId] || 0) + Number(item.quantity || 0)
+      return acc
+    }, {})
+    const duplicateOverAvailable = Object.entries(totals).find(([productId, total]) => {
+      const prod = getProduct(productId)
+      return prod && Number.isFinite(prod.available) && total > prod.available
+    })
+    if (duplicateOverAvailable) {
+      const prod = getProduct(duplicateOverAvailable[0])
+      e.items = `${prod.name}: total requested quantity cannot be more than available stock (${prod.available} ${prod.unit})`
+    }
+
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -241,10 +266,14 @@ export default function RequisitionNewPage() {
                     style={s.input}
                     type="number"
                     min="1"
+                    max={Number.isFinite(prod?.available) ? prod.available : undefined}
                     placeholder="Qty"
                     value={item.quantity}
                     onChange={e => updateItem(item.key, 'quantity', e.target.value)}
                   />
+                  {prod && Number.isFinite(prod.available) ? (
+                    <span style={s.stockHint}>Available: {prod.available} {prod.unit}</span>
+                  ) : null}
                 </div>
 
                 {/* Unit (read-only from product) */}
@@ -381,6 +410,7 @@ const s = {
   catBadge: { display: 'inline-block', background: '#e8f0e8', border: '1px solid #d4dfd4', color: '#1f7a2b', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 700 },
   typePlaceholder: { color: '#b2c0b3', fontSize: 13 },
   unitDisplay: { height: 40, display: 'flex', alignItems: 'center', fontSize: 12.5, color: '#607062', fontWeight: 600, paddingLeft: 4 },
+  stockHint: { marginTop: 4, fontSize: 11.5, color: '#607062', fontWeight: 600 },
   removeBtn: { background: '#fff1f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 8, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 38 },
   selectedSection: { background: '#ffffff', borderRadius: 12, border: '1px solid #d4dfd4', padding: '14px 16px', margin: '18px 0 12px' },
   selectedTitle: { fontSize: 13, fontWeight: 700, color: '#1f2f21', margin: '0 0 10px' },
