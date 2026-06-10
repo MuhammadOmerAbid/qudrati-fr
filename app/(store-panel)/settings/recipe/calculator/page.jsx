@@ -170,6 +170,74 @@ export default function RecipeCalculatorPage() {
     reportWindow.document.close()
   }
 
+  const handlePrintRecipe = () => {
+    if (!selectedRecipe) return
+    const reportWindow = window.open('', '_blank', 'width=1000,height=800')
+    if (!reportWindow) {
+      setToast({ type: 'error', message: 'Please allow popups to print the recipe.' })
+      return
+    }
+
+    const items = selectedRecipe.items || []
+    const rows = items.map((item) => `
+      <tr>
+        <td>${escapeHtml(item.ingredient || '-')}</td>
+        <td>${escapeHtml(item.quantity || '0')} ${escapeHtml(item.unit || '')}</td>
+      </tr>
+    `).join('')
+
+    reportWindow.document.open()
+    reportWindow.document.write(`
+      <html>
+        <head>
+          <title>Recipe Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #1f2937; padding: 28px; font-size: 13px; }
+            .head { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #bbf7d0; padding-bottom: 14px; margin-bottom: 18px; }
+            h1 { margin: 0; color: #1B5E20; font-size: 22px; }
+            .meta { color: #6b7280; margin: 4px 0 0; }
+            .summary { background: #edf8ef; border: 1px solid #bbf7d0; padding: 12px 14px; margin-bottom: 18px; }
+            .summary p { margin: 3px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th { background: #f0fdf4; color: #1a2e1b; text-align: left; padding: 10px; border-bottom: 2px solid #bbf7d0; }
+            td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+            @media print { body { padding: 18px; } }
+          </style>
+        </head>
+        <body>
+          <div class="head">
+            <div>
+              <h1>Recipe Report</h1>
+              <p class="meta">Generated: ${escapeHtml(new Date().toLocaleString('en-PK'))}</p>
+            </div>
+          </div>
+          <div class="summary">
+            <p><strong>Recipe:</strong> ${escapeHtml(selectedRecipe.name || '-')}</p>
+            <p><strong>For Quantity:</strong> ${escapeHtml(selectedRecipe.for_quantity || '1')} ${escapeHtml(selectedRecipe.for_unit || '')}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Ingredient</th>
+                <th>Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="2">No ingredients available.</td></tr>'}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function () {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `)
+    reportWindow.document.close()
+  }
+
   return (
     <DashboardLayout>
       <div style={{ ...s.pageShell, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 12 : 22 }}>
@@ -238,6 +306,22 @@ export default function RecipeCalculatorPage() {
           <div style={s.actions}>
             <button type="button" onClick={handleCalculate} style={{ ...s.calcBtn, width: isMobile ? '100%' : 'auto' }} disabled={calculating || loading}>
               {calculating ? 'Calculating...' : 'Calculate'}
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintReport}
+              style={{ ...s.printActionBtn, width: isMobile ? '100%' : 'auto', ...(!result ? s.disabledBtn : {}) }}
+              disabled={!result}
+            >
+              <Printer size={14} /> Print Calculation
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintRecipe}
+              style={{ ...s.printActionBtn, width: isMobile ? '100%' : 'auto', ...(!selectedRecipe ? s.disabledBtn : {}) }}
+              disabled={!selectedRecipe}
+            >
+              <Printer size={14} /> Print Recipe
             </button>
           </div>
         </div>
@@ -396,6 +480,8 @@ const s = {
     marginTop: 14,
     display: 'flex',
     justifyContent: 'flex-end',
+    gap: 10,
+    flexWrap: 'wrap',
   },
   calcBtn: {
     border: 'none',
@@ -406,6 +492,24 @@ const s = {
     fontWeight: 700,
     padding: '10px 22px',
     cursor: 'pointer',
+  },
+  printActionBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    border: `1px solid ${settingsTheme.border}`,
+    borderRadius: 40,
+    background: '#fff',
+    color: settingsTheme.primary,
+    fontSize: 13.5,
+    fontWeight: 700,
+    padding: '10px 18px',
+    cursor: 'pointer',
+  },
+  disabledBtn: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
   },
   resultCard: {
     background: '#fff',
