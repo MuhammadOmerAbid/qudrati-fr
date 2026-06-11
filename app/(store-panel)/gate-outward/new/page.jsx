@@ -55,6 +55,8 @@ const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
     source: SOURCE_INVENTORY,
     name,
     brand: String(entry?.brand || entry?.brand_name || '').trim(),
+    category: String(entry?.category || entry?.category_name || '').trim(),
+    subCategory: String(entry?.subcategory || entry?.subCategory || entry?.sub_category || '').trim(),
     unit: String(entry?.unit || 'Unit').trim() || 'Unit',
     available: toNumberOrNull(entry?.quantity ?? entry?.available),
   }
@@ -80,6 +82,8 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg') => {
     source: SOURCE_FINISHED_GOODS,
     name,
     brand: String(firstMeta?.code || '').trim(),
+    category: String(entry?.category || firstMeta?.category || '').trim(),
+    subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
     unit: String(entry?.unit || firstMeta?.packing || 'Unit').trim() || 'Unit',
     available: toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity),
   }
@@ -478,6 +482,10 @@ export default function GateOutwardNewPage() {
             productId: product?.id ?? row.productId,
             productName: product?.name || '',
             brand: product?.brand || '',
+            category: product?.category || '',
+            categoryName: product?.category || '',
+            subCategory: product?.subCategory || '',
+            subcategory: product?.subCategory || '',
             numbering: row.numbering || '',
             batchNumber: row.batchNumber || '',
             batch_number: row.batchNumber || '',
