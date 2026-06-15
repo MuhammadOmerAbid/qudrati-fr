@@ -147,10 +147,10 @@ export default function RequisitionPage() {
       const updated = await requisitionApi.returnGoods({ record_id: recordId, item_idx: itemIdx, return_qty: returnQty })
       const normalized = normalizeRecord(updated)
       setRecords(prev => prev.map(r => (r.id === normalized.id ? normalized : r)))
+      setLoadError('')
       setReturnModal(null)
     } catch (err) {
-      setLoadError(err?.message || 'Unable to record return')
-      setReturnModal(null)
+      throw new Error(err?.message || 'Unable to record return')
     }
   }
   const exportRows = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
@@ -466,14 +466,23 @@ function ViewModal({ record, onClose }) {
 function ReturnModal({ record, itemIdx, onClose, onReturn }) {
   const item = record.items[itemIdx]
   const maxReturn = item.quantity - item.returned
-  const [qty, setQty]     = useState('')
-  const [error, setError] = useState('')
+  const [qty, setQty]             = useState('')
+  const [error, setError]         = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const n = Number(qty)
     if (!qty || isNaN(n) || n <= 0) { setError('Enter a valid quantity'); return }
     if (n > maxReturn) { setError(`Max returnable: ${maxReturn} ${item.unit}`); return }
-    onReturn(record.id, itemIdx, n)
+    setSubmitting(true)
+    setError('')
+    try {
+      await onReturn(record.id, itemIdx, n)
+    } catch (err) {
+      setError(err?.message || 'Unable to record return')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -507,9 +516,13 @@ function ReturnModal({ record, itemIdx, onClose, onReturn }) {
             Returning will add goods back to stock and reduce the net consumed quantity.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-            <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button style={s.confirmReturnBtn} onClick={handleSubmit}>
-              <CornerUpLeft size={14} /> Confirm Return
+            <button style={s.cancelBtn} onClick={onClose} disabled={submitting}>Cancel</button>
+            <button
+              style={{ ...s.confirmReturnBtn, ...(submitting ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              <CornerUpLeft size={14} /> {submitting ? 'Returning...' : 'Confirm Return'}
             </button>
           </div>
         </div>
