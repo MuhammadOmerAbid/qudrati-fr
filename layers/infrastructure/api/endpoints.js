@@ -108,6 +108,7 @@ export const gateOutwardApi = {
 export const inventoryApi = {
   list: (params) => get('/inventory/', params),
   updateComment: (id, comment) => patch(`/inventory/${id}/`, { comment }),
+  delete: (id) => del(`/inventory/${id}/`),
   history: (params) => get('/inventory/history/', params),
   report: (params, filename) => download('/inventory/report/', params, filename),
 }
