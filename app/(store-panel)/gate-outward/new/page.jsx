@@ -65,31 +65,42 @@ const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
   }
 }
 
-const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg') => {
-  const firstMeta = Array.isArray(entry?.products)
+const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta = null) => {
+  const firstMeta = productMeta || (Array.isArray(entry?.products)
     ? (entry.products[0] || {})
-    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
+    : (entry?.products && typeof entry.products === 'object' ? entry.products : {}))
 
   const name = String(
-    entry?.brand
-    || entry?.product_name
-    || firstMeta?.product
+    firstMeta?.product
     || firstMeta?.name
+    || entry?.product_name
     || firstMeta?.description
+    || entry?.brand
     || ''
   ).trim()
   if (!name) return null
 
   return {
-    id: `${prefix}-${entry?.id ?? idx}`,
+    id: `${prefix}-${entry?.id ?? idx}-${idx}`,
     source: SOURCE_FINISHED_GOODS,
     name,
-    brand: String(firstMeta?.code || '').trim(),
+    brand: String(entry?.brand || firstMeta?.code || '').trim(),
     category: String(entry?.category || firstMeta?.category || '').trim(),
     subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
-    unit: String(entry?.unit || firstMeta?.packing || 'Unit').trim() || 'Unit',
+    unit: String(entry?.unit || firstMeta?.packing || 'Carton').trim() || 'Carton',
     available: toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity),
   }
+}
+
+const normalizeFinishedGoodEntryProducts = (entry, idx = 0, prefix = 'fg') => {
+  if (Array.isArray(entry?.products) && entry.products.length) {
+    return entry.products
+      .map((product, productIdx) => normalizeFinishedGoodProduct(entry, `${idx}-${productIdx}`, prefix, product))
+      .filter((product) => product && (product.available == null || product.available > 0))
+  }
+
+  const product = normalizeFinishedGoodProduct(entry, idx, prefix)
+  return product && (product.available == null || product.available > 0) ? [product] : []
 }
 
 const mergeCustomers = (...groups) => {
@@ -140,11 +151,11 @@ const fallbackInventoryProducts = uniqueProducts(
 )
 
 const fallbackFinishedGoodsProducts = uniqueProducts(
-  PRODUCTS.map((entry, idx) => normalizeFinishedGoodProduct(
+  PRODUCTS.flatMap((entry, idx) => normalizeFinishedGoodEntryProducts(
     { id: entry.id, brand: entry.name, unit: entry.unit, quantity: entry.available, products: [{ code: entry.brand }] },
     idx,
     'mock-fg'
-  )).filter(Boolean)
+  ))
 )
 
 const blankItem = () => ({
@@ -296,8 +307,7 @@ export default function GateOutwardNewPage() {
         )
         const finishedGoodsProducts = uniqueProducts(
           toList(finishedGoodsRes)
-            .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx, 'fg'))
-            .filter(Boolean)
+            .flatMap((entry, idx) => normalizeFinishedGoodEntryProducts(entry, idx, 'fg'))
         )
 
         setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)

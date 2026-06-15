@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
+import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import {
   BRANDS,
   CATEGORIES,
@@ -13,8 +14,6 @@ import {
   getWordCount,
 } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-
-const FINISHED_GOODS_DRAFT_KEY = 'store.finishedGoodsDrafts'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
@@ -64,10 +63,12 @@ export default function FinishedGoodsNewPage() {
 
     setSaving(true)
     try {
-      const payload = { id: Date.now(), brand, date, products: cleanItems }
-      const raw = window.sessionStorage.getItem(FINISHED_GOODS_DRAFT_KEY)
-      const existing = raw ? JSON.parse(raw) : []
-      window.sessionStorage.setItem(FINISHED_GOODS_DRAFT_KEY, JSON.stringify([payload, ...existing]))
+      await finishedGoodsApi.create({
+        brand,
+        date,
+        status: 'Completed',
+        products: cleanItems,
+      })
       incrementStoreEntries('finished-goods')
       router.push('/finished-goods')
     } catch {
