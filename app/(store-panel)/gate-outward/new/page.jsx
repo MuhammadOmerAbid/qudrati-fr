@@ -459,7 +459,6 @@ export default function GateOutwardNewPage() {
     setSaving(true)
 
     try {
-      const customerPk = Number(customer?.id)
       const payload = {
         go_no: goNo,
         dispatch_date: date,
@@ -467,7 +466,6 @@ export default function GateOutwardNewPage() {
         driver_name: driverName,
         driver_phone: driverPhone,
         driver_cnic: driverCnic,
-        customer: Number.isFinite(customerPk) ? customerPk : null,
         customer_name: customer?.name || '',
         address,
         note,
@@ -498,8 +496,11 @@ export default function GateOutwardNewPage() {
       await gateOutwardApi.create(payload)
       incrementStoreEntries('gate-outward')
       router.push('/gate-outward')
-    } catch {
-      setErrors((prev) => ({ ...prev, form: 'Unable to save gate outward entry. Please check backend connection.' }))
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        form: err?.message || 'Unable to save gate outward entry. Please check backend connection.',
+      }))
       setSaving(false)
     }
   }
@@ -712,7 +713,7 @@ export default function GateOutwardNewPage() {
                       value={item.unit}
                       onChange={(nextUnit) => updateItem(item.key, 'unit', nextUnit)}
                       variant="input"
-                      options={UNITS.map((u) => ({ value: u, label: u }))}
+                      options={unitOptions.map((u) => ({ value: u, label: u }))}
                     />
                   </div>
 

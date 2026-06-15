@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { cbmProductsApi } from '@/infrastructure/api/endpoints'
-import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Edit2, Save, X } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 
 const UNITS = ['Inch', 'CM', 'MM']
@@ -96,6 +96,7 @@ export default function CBMCalculatorPage() {
   const [containerType, setContainerType] = useState('40ft')
   const [isMobile, setIsMobile] = useState(false)
   const [loadingRows, setLoadingRows] = useState(false)
+  const [editingRows, setEditingRows] = useState([])
 
   const containerCBM = containerType === '40ft' ? 66 : 33
   const containerWeight = containerType === '40ft' ? 26500 : 13500
@@ -103,16 +104,25 @@ export default function CBMCalculatorPage() {
   const saveRow = async (id, rowOverride = null) => {
     const target = rowOverride || rows.find((row) => row.id === id)
     const payload = target ? rowPayload(target) : null
-    if (!payload) return
+    if (!payload) return null
 
     try {
       const saved = isLocalRow(id)
         ? await cbmProductsApi.create(payload)
         : await cbmProductsApi.update(id, payload)
       setRows((prev) => prev.map((row) => row.id === id ? normalizeRow(saved) : row))
+      setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
+      return saved
     } catch {
       // Keep the local row editable if the network/API call fails.
+      return null
     }
+  }
+  const isEditing = (id) => isLocalRow(id) || editingRows.includes(id)
+  const startEdit = (id) => setEditingRows((prev) => prev.includes(id) ? prev : [...prev, id])
+  const stopEdit = (id) => {
+    if (isLocalRow(id)) return
+    setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
   }
   const updateRow = (id, field, value, shouldSave = false) => {
     let nextTarget = null
@@ -126,7 +136,11 @@ export default function CBMCalculatorPage() {
     }
   }
 
-  const addRow = () => setRows((prev) => [...prev, emptyRow()])
+  const addRow = () => {
+    const row = emptyRow()
+    setRows((prev) => [...prev, row])
+    setEditingRows((prev) => [...prev, row.id])
+  }
   const removeRow = async (id) => {
     if (!isSuperuser) return
     if (!isLocalRow(id)) {
@@ -137,6 +151,7 @@ export default function CBMCalculatorPage() {
       }
     }
     setRows((prev) => prev.length > 1 ? prev.filter((row) => row.id !== id) : prev)
+    setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
   }
   const resetRows = async () => {
     if (!isSuperuser) return
@@ -147,6 +162,7 @@ export default function CBMCalculatorPage() {
       return
     }
     setRows([emptyRow()])
+    setEditingRows([])
   }
   const loadSample = async () => {
     const existingItems = new Set(rows.map((row) => String(row.item || '').trim().toLowerCase()).filter(Boolean))
@@ -474,72 +490,106 @@ export default function CBMCalculatorPage() {
               </tr>
             </thead>
             <tbody>
-              {computed.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  style={{ borderBottom: `1px solid ${settingsTheme.borderSoft}` }}
-                >
-                  <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
-                  <td style={{ ...td, minWidth: 160 }}>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <SettingsSelect
-                      value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
-                      wrapperStyle={{ width: 72 }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
-                  </td>
-                  <td style={td}>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
-                  </td>
-                  <td style={td}>
-                    <SettingsSelect
-                      value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
-                      wrapperStyle={{ width: 72 }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
-                  </td>
-                  <td style={{ ...td, color: settingsTheme.textMuted, fontFamily: 'monospace', fontSize: 12 }}>
-                    {row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}
-                  </td>
-                  <td style={{ ...td, fontWeight: 700, color: settingsTheme.primarySoft, fontFamily: 'monospace' }}>
-                    {row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}
-                  </td>
-                  <td style={{ ...td, fontWeight: 700, color: settingsTheme.primary, fontFamily: 'monospace' }}>
-                    {row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}
-                  </td>
-                  <td style={td}>
-                    {isSuperuser && computed.length > 1 && (
-                      <button
-                        onClick={() => removeRow(row.id)}
-                        style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        type="button"
-                      >
-                        <Trash2 size={13} color={settingsTheme.danger} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {computed.map((row, idx) => {
+                const editing = isEditing(row.id)
+                return (
+                  <tr
+                    key={row.id}
+                    style={{ borderBottom: `1px solid ${settingsTheme.borderSoft}` }}
+                  >
+                    <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
+                    <td style={{ ...td, minWidth: 180, textAlign: 'left' }}>
+                      {editing ? (
+                        <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                      ) : (
+                        <span style={readCell}>{row.item || '-'}</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.length || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.width || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.height || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? (
+                        <SettingsSelect
+                          value={row.dimUnit}
+                          onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                          wrapperStyle={{ width: 72 }}
+                          selectStyle={select({ width: '100%' })}
+                        >
+                          {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                        </SettingsSelect>
+                      ) : (
+                        <span style={readCell}>{row.dimUnit}</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} /> : <span style={readCell}>{row.quantity || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} /> : <span style={readCell}>{row.weightPerCarton || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? (
+                        <SettingsSelect
+                          value={row.weightUnit}
+                          onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                          wrapperStyle={{ width: 72 }}
+                          selectStyle={select({ width: '100%' })}
+                        >
+                          {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                        </SettingsSelect>
+                      ) : (
+                        <span style={readCell}>{row.weightUnit}</span>
+                      )}
+                    </td>
+                    <td style={{ ...td, color: settingsTheme.textMuted, fontFamily: 'monospace', fontSize: 12 }}>
+                      {row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}
+                    </td>
+                    <td style={{ ...td, fontWeight: 700, color: settingsTheme.primarySoft, fontFamily: 'monospace' }}>
+                      {row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}
+                    </td>
+                    <td style={{ ...td, fontWeight: 700, color: settingsTheme.primary, fontFamily: 'monospace' }}>
+                      {row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}
+                    </td>
+                    <td style={td}>
+                      <div style={actionGroup}>
+                        {editing ? (
+                          <>
+                            <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                              <Save size={13} />
+                            </button>
+                            {!isLocalRow(row.id) ? (
+                              <button onClick={() => stopEdit(row.id)} style={neutralIconBtn} type="button" title="Cancel">
+                                <X size={13} />
+                              </button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <button onClick={() => startEdit(row.id)} style={editIconBtn} type="button" title="Edit">
+                            <Edit2 size={13} />
+                          </button>
+                        )}
+                        {isSuperuser && computed.length > 1 && (
+                          <button
+                            onClick={() => removeRow(row.id)}
+                            style={deleteIconBtn}
+                            type="button"
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr style={{ background: '#edf8ef', borderTop: `2px solid ${settingsTheme.border}` }}>
@@ -750,6 +800,59 @@ const td = {
   padding: '8px 10px',
   textAlign: 'center',
   verticalAlign: 'middle',
+}
+
+const readCell = {
+  display: 'inline-block',
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: settingsTheme.text,
+  lineHeight: 1.4,
+}
+
+const actionGroup = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+}
+
+const iconBtnBase = {
+  borderRadius: 8,
+  width: 28,
+  height: 28,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
+const editIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #bfdbfe',
+  background: '#eff6ff',
+  color: '#2563eb',
+}
+
+const saveIconBtn = {
+  ...iconBtnBase,
+  border: `1px solid ${settingsTheme.border}`,
+  background: '#edf8ef',
+  color: settingsTheme.primarySoft,
+}
+
+const neutralIconBtn = {
+  ...iconBtnBase,
+  border: `1px solid ${settingsTheme.border}`,
+  background: '#fff',
+  color: settingsTheme.textMuted,
+}
+
+const deleteIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #fecaca',
+  background: settingsTheme.dangerBg,
+  color: settingsTheme.danger,
 }
 
 const primaryBtn = {
