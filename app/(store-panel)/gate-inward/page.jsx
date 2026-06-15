@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { categoriesApi } from '@/infrastructure/api/endpoints'
+import { categoriesApi, gateInwardApi } from '@/infrastructure/api/endpoints'
 import {
   ArrowDownToLine, Plus, Eye, Trash2, RotateCcw,
   FileText, Download, Search, Calendar,
@@ -38,14 +38,41 @@ const MOCK_PRODUCTS = [
 ]
 const MOCK_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
 
-const INITIAL_RECORDS = [
-  { id: 1, grNo: 'QUD1', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: 'First delivery', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 12000, unit: 'Unit' }] },
-  { id: 2, grNo: 'QUD2', supplierId: 2, supplierName: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi', note: '', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 9800, unit: 'Unit' }, { brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 10500, unit: 'Unit' }] },
-  { id: 3, grNo: 'QUD3', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: 'Urgent order', receiveDate: '27/05/2025', status: 'Pending', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 1300, unit: 'Unit' }] },
-  { id: 4, grNo: 'QUD4', supplierId: 3, supplierName: 'Hassan & Sons', address: 'Block C, Gulberg III, Lahore', note: '', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 1200, unit: 'Unit' }] },
-  { id: 5, grNo: 'QUD5', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: '', receiveDate: '03/06/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 1230, unit: 'Unit' }] },
-  { id: 6, grNo: 'QUD6', supplierId: 2, supplierName: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi', note: 'Old stock', receiveDate: '08/06/1999', status: 'Pending', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 33, unit: 'Bags' }] },
-]
+function toDMY(isoDate) {
+  if (!isoDate) return ''
+  const [y, m, d] = String(isoDate).slice(0, 10).split('-')
+  if (!y || !m || !d) return String(isoDate)
+  return `${d}/${m}/${y}`
+}
+
+function normalizeGateInwardItem(raw = {}) {
+  return {
+    brandId: raw.brandId ?? raw.brand_id ?? raw.brand ?? '',
+    brandName: raw.brandName || raw.brand_name || '',
+    categoryId: raw.categoryId ?? raw.category_id ?? raw.category ?? '',
+    categoryName: raw.categoryName || raw.category_name || '',
+    productId: raw.productId ?? raw.product_id ?? raw.product ?? '',
+    productName: raw.productName || raw.product_name || '',
+    quantity: raw.quantity ?? '',
+    unit: raw.unit || 'Unit',
+  }
+}
+
+function normalizeGateInwardRecord(raw = {}) {
+  const items = Array.isArray(raw.items) ? raw.items.map(normalizeGateInwardItem) : []
+
+  return {
+    id: raw.id,
+    grNo: raw.grNo || raw.gr_no || `GI-${raw.id}`,
+    supplierId: raw.supplierId ?? raw.supplier ?? '',
+    supplierName: raw.supplierName || raw.supplier_name || '',
+    address: raw.address || '',
+    note: raw.note || '',
+    receiveDate: raw.receiveDate || toDMY(raw.receive_date),
+    status: raw.status || 'Received',
+    items,
+  }
+}
 
 function fmtItems(items, field) { return items.map(i => i[field]).join(', ') }
 function fmtQty(items) { return items.map(i => `${i.quantity} ${i.unit}`).join(', ') }
@@ -357,7 +384,7 @@ export default function GateInwardPage() {
   const { user } = useAuthStore()
   const isSuperUser = user?.role === 'superuser'
 
-  const [records, setRecords] = useState(INITIAL_RECORDS)
+  const [records, setRecords] = useState([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('All Status')
   const [filterBrand, setFilterBrand] = useState('All Brands')
@@ -370,6 +397,8 @@ export default function GateInwardPage() {
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [categoryOptions, setCategoryOptions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -389,15 +418,32 @@ export default function GateInwardPage() {
 
   useEffect(() => {
     let active = true
-    categoriesApi.list()
-      .then((data) => {
+    const load = async () => {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const [recordsRes, categoriesRes] = await Promise.all([
+          gateInwardApi.list(),
+          categoriesApi.list(),
+        ])
         if (!active) return
-        const list = Array.isArray(data) ? data : []
-        setCategoryOptions(list.filter((entry) => entry.status !== false))
-      })
-      .catch(() => {
-        if (active) setCategoryOptions([])
-      })
+
+        const recordsList = Array.isArray(recordsRes) ? recordsRes : (recordsRes?.results || [])
+        const categoriesList = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.results || [])
+
+        setRecords(recordsList.map(normalizeGateInwardRecord).filter((row) => row.id != null))
+        setCategoryOptions(categoriesList.filter((entry) => entry.status !== false))
+      } catch (err) {
+        if (active) {
+          setRecords([])
+          setCategoryOptions([])
+          setLoadError(err?.message || 'Unable to load gate inward records')
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    load()
     return () => { active = false }
   }, [])
 
@@ -545,7 +591,11 @@ export default function GateInwardPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#d1d5db" /><p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>Loading records...</p></div></td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#ef4444" /><p style={{ margin: '8px 0 0', color: '#b91c1c', fontSize: 14 }}>{loadError}</p></div></td></tr>
+              ) : filtered.length === 0 ? (
                 <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#d1d5db" /><p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>No records found</p></div></td></tr>
               ) : filtered.map(r => (
                 <tr key={r.id} style={{ ...s.tr, backgroundColor: selected.includes(r.id) ? '#e8f0e8' : '#fff' }}
