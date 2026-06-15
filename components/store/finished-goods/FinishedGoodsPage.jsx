@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw } from 'lucide-react'
+import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import {
-  FINISHED_INITIAL,
   formatDate,
   Checkbox,
   AppButton,
@@ -15,33 +15,41 @@ import {
   ui,
 } from '@/components/store/shared/StoreShared'
 
-const FINISHED_GOODS_DRAFT_KEY = 'store.finishedGoodsDrafts'
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+const normalizeEntry = (entry = {}) => ({
+  id: entry.id,
+  brand: entry.brand || '',
+  date: entry.date || '',
+  products: Array.isArray(entry.products) ? entry.products : [],
+})
 
 export default function FinishedGoodsPage({ isSuperUser = true }) {
   const router = useRouter()
-  const [entries, setEntries] = useState(FINISHED_INITIAL)
+  const [entries, setEntries] = useState([])
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState([])
   const [expanded, setExpanded] = useState({})
   const [showReport, setShowReport] = useState(false)
   const [commentEdit, setCommentEdit] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
+  const loadEntries = async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const data = await finishedGoodsApi.list()
+      setEntries(toList(data).map(normalizeEntry).filter((entry) => entry.products.length > 0))
+    } catch (err) {
+      setEntries([])
+      setLoadError(err?.message || 'Unable to load finished goods')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const raw = window.sessionStorage.getItem(FINISHED_GOODS_DRAFT_KEY)
-      if (!raw) return
-
-      const drafts = JSON.parse(raw)
-      if (!Array.isArray(drafts) || drafts.length === 0) return
-
-      setEntries((prev) => [...drafts, ...prev])
-    } catch {
-      // Ignore malformed session data.
-    } finally {
-      window.sessionStorage.removeItem(FINISHED_GOODS_DRAFT_KEY)
-    }
+    loadEntries()
   }, [])
 
   const filtered = useMemo(() => {
@@ -80,7 +88,7 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
         subtitle="Manage finished goods entries and carton totals"
         actions={(
           <>
-            <AppButton onClick={() => setEntries([...FINISHED_INITIAL])}>
+            <AppButton onClick={loadEntries}>
               <RefreshCw size={14} />
             </AppButton>
             <AppButton onClick={() => setShowReport(true)}>
@@ -96,6 +104,8 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
           </>
         )}
       />
+
+      {loadError ? <div style={errorBanner}>{loadError}</div> : null}
 
       <div style={ui.searchWrap}>
         <Search size={15} color="#7a8a7a" />
@@ -132,7 +142,7 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
           { key: 'action', label: 'Actions', align: 'right' },
         ]}
         emptyColSpan={filtered.length === 0 ? 9 : null}
-        emptyText="No finished goods found"
+        emptyText={loading ? 'Loading finished goods...' : 'No finished goods found'}
       >
         {filtered.flatMap((entry) => {
           const rows = []
@@ -174,7 +184,15 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
                   <button
                     type="button"
                     style={ui.iconDangerButton}
-                    onClick={() => setEntries((prev) => prev.filter((item) => item.id !== entry.id))}
+                    onClick={async () => {
+                      if (!window.confirm('Delete this finished goods entry?')) return
+                      try {
+                        await finishedGoodsApi.delete(entry.id)
+                        setEntries((prev) => prev.filter((item) => item.id !== entry.id))
+                      } catch (err) {
+                        setLoadError(err?.message || 'Unable to delete finished goods entry')
+                      }
+                    }}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -226,20 +244,19 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
         <CommentEditorModal
           value={commentEdit.comment}
           onCancel={() => setCommentEdit(null)}
-          onSave={(comment) => {
-            setEntries((prev) =>
-              prev.map((entry) =>
-                entry.id === commentEdit.id
-                  ? {
-                      ...entry,
-                      products: entry.products.map((product, index) =>
-                        index === commentEdit.pidx ? { ...product, comment } : product
-                      ),
-                    }
-                  : entry
-              )
+          onSave={async (comment) => {
+            const entry = entries.find((item) => item.id === commentEdit.id)
+            if (!entry) return
+            const nextProducts = entry.products.map((product, index) =>
+              index === commentEdit.pidx ? { ...product, comment } : product
             )
-            setCommentEdit(null)
+            try {
+              const saved = await finishedGoodsApi.update(entry.id, { products: nextProducts })
+              setEntries((prev) => prev.map((item) => item.id === entry.id ? normalizeEntry(saved) : item))
+              setCommentEdit(null)
+            } catch (err) {
+              setLoadError(err?.message || 'Unable to update comment')
+            }
           }}
         />
       ) : null}
@@ -262,4 +279,14 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
       ) : null}
     </div>
   )
+}
+
+const errorBanner = {
+  background: '#fff1f2',
+  border: '1px solid #fecaca',
+  borderRadius: 10,
+  padding: '9px 12px',
+  color: '#b91c1c',
+  fontSize: 13,
+  fontWeight: 600,
 }

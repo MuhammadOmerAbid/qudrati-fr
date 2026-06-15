@@ -101,6 +101,18 @@ const isAuthPath = (url = '') => {
   return normalized.includes('/auth/login/') || normalized.includes('/auth/token/refresh/')
 }
 
+const responseErrorMessage = (err) => {
+  const data = err?.response?.data
+  if (typeof data === 'string') {
+    if (data.trim().startsWith('<')) return err?.response?.status ? `Server error (${err.response.status})` : 'Server error'
+    return data
+  }
+  return data?.detail
+    || Object.values(data || {}).flat().join(', ')
+    || err.message
+    || 'Request failed'
+}
+
 export const api = axios.create({
   baseURL: explicitBase || '',
   headers: { 'Content-Type': 'application/json' },
@@ -173,11 +185,7 @@ api.interceptors.response.use(
     }
 
     if (isAuthPath(requestUrl)) {
-      const msg = err.response?.data?.detail
-        || Object.values(err.response?.data || {}).flat().join(', ')
-        || err.message
-        || 'Request failed'
-      return Promise.reject(new Error(msg))
+      return Promise.reject(new Error(responseErrorMessage(err)))
     }
 
     if (err.response?.status === 401 && !orig._retry) {
@@ -214,11 +222,7 @@ api.interceptors.response.use(
         return Promise.reject(new Error('Session expired. Please sign in again.'))
       }
     }
-    const msg = err.response?.data?.detail
-      || Object.values(err.response?.data || {}).flat().join(', ')
-      || err.message
-      || 'Request failed'
-    return Promise.reject(new Error(msg))
+    return Promise.reject(new Error(responseErrorMessage(err)))
   }
 )
 

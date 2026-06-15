@@ -140,6 +140,8 @@ export default function RequisitionNewPage() {
           const prod = getProduct(row.productId)
           return {
             productId: prod?.id ?? row.productId,
+            inventoryItemId: prod?.id ?? row.productId,
+            inventory_item_id: prod?.id ?? row.productId,
             productName: prod?.name || '',
             subCategory: prod?.subCategory || '',
             category: prod?.category || '',
