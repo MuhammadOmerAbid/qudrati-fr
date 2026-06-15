@@ -64,6 +64,16 @@ export default function CBMCalculatorListPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mobileQuery = window.matchMedia('(max-width: 760px)')
+    const apply = () => setIsMobile(mobileQuery.matches)
+    apply()
+    mobileQuery.addEventListener('change', apply)
+    return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -121,22 +131,22 @@ export default function CBMCalculatorListPage() {
   return (
     <DashboardLayout>
       <div style={s.wrapper}>
-        <div style={s.pageHeader}>
-          <div style={s.headerLeft}>
+        <div style={{ ...s.pageHeader, alignItems: isMobile ? 'stretch' : 'flex-end' }}>
+          <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button type="button" style={s.backBtn} onClick={() => router.push('/settings')} title="Back to settings">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={s.pageTitle}><Calculator size={22} color={settingsTheme.primarySoft} /> CBM Calculator</h1>
-              <p style={s.pageSubtitle}>View saved carton dimensions, CBM, and weight calculations.</p>
+              <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 22 : 30 }}><Calculator size={22} color={settingsTheme.primarySoft} /> CBM Calculator</h1>
+              <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 12.5 : 13.5 }}>View saved carton dimensions, CBM, and weight calculations.</p>
             </div>
           </div>
-          <button type="button" style={s.addBtn} onClick={() => router.push('/settings/cbm-calculator/new')}>
+          <button type="button" style={{ ...s.addBtn, width: isMobile ? '100%' : 'auto', justifyContent: 'center' }} onClick={() => router.push('/settings/cbm-calculator/new')}>
             <Plus size={16} /> New Entry
           </button>
         </div>
 
-        <div style={s.summaryGrid}>
+        <div style={{ ...s.summaryGrid, gridTemplateColumns: isMobile ? '1fr' : s.summaryGrid.gridTemplateColumns }}>
           <div style={s.summaryCard}>
             <span style={s.summaryLabel}>Entries</span>
             <strong style={s.summaryValue}>{filtered.length}</strong>
@@ -165,6 +175,42 @@ export default function CBMCalculatorListPage() {
 
         {loadError ? <div style={s.errorBanner}>{loadError}</div> : null}
 
+        {isMobile ? (
+          <div style={s.mobileList}>
+            {loading ? (
+              <div style={s.mobileEmpty}>Loading CBM entries...</div>
+            ) : filtered.length === 0 ? (
+              <div style={s.mobileEmpty}>No CBM entries found.</div>
+            ) : filtered.map((row, index) => (
+              <div key={row.id} style={s.mobileCard}>
+                <div style={s.mobileCardHead}>
+                  <div>
+                    <span style={s.mobileIndex}>#{index + 1}</span>
+                    <h2 style={s.mobileTitle}>{row.item || '-'}</h2>
+                  </div>
+                  <div style={s.actionBtns}>
+                    <button type="button" style={s.editBtn} title="Edit entries" onClick={() => router.push('/settings/cbm-calculator/new')}>
+                      <Edit2 size={14} />
+                    </button>
+                    {isSuperuser ? (
+                      <button type="button" style={s.deleteBtn} title="Delete" onClick={() => handleDelete(row.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div style={s.mobileGrid}>
+                  <div style={s.mobileStat}><span>Dimensions</span><strong>{row.length || '-'} x {row.width || '-'} x {row.height || '-'} {row.dimUnit}</strong></div>
+                  <div style={s.mobileStat}><span>Quantity</span><strong>{row.quantity || '-'}</strong></div>
+                  <div style={s.mobileStat}><span>Wt/Carton</span><strong>{row.weightPerCarton ? `${row.weightPerCarton} ${row.weightUnit}` : '-'}</strong></div>
+                  <div style={s.mobileStat}><span>CBM/Carton</span><strong>{row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}</strong></div>
+                  <div style={s.mobileStat}><span>Total CBM</span><strong style={{ color: settingsTheme.primarySoft }}>{row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}</strong></div>
+                  <div style={s.mobileStat}><span>Total Wt</span><strong>{row.totalWeight > 0 ? `${row.totalWeight.toFixed(2)} Kg` : '-'}</strong></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
@@ -228,6 +274,7 @@ export default function CBMCalculatorListPage() {
             </tfoot>
           </table>
         </div>
+        )}
       </div>
     </DashboardLayout>
   )
@@ -236,7 +283,7 @@ export default function CBMCalculatorListPage() {
 const RADIUS = 20
 
 const s = {
-  wrapper: { width: '100%' },
+  wrapper: { width: '100%', minWidth: 0 },
   pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   backBtn: { width: 42, height: 42, borderRadius: 40, border: '1.5px solid #d4dfd4', background: '#fff', color: '#2d7a33', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 },
@@ -246,20 +293,20 @@ const s = {
   summaryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 },
   summaryCard: { background: '#f2f4f2', border: '1px solid #e2e8e2', borderRadius: RADIUS, padding: '14px 16px' },
   summaryLabel: { display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 700, color: '#607062' },
-  summaryValue: { fontSize: 20, color: '#1a3d1f' },
+  summaryValue: { fontSize: 20, color: '#1a3d1f', overflowWrap: 'anywhere' },
   controlsCard: { background: '#f2f4f2', borderRadius: RADIUS, padding: '14px 16px', border: '1px solid #e2e8e2', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)', marginBottom: 14 },
   searchWrap: { display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '10px 14px' },
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
   errorBanner: { background: '#fff1f2', border: '1px solid #fecaca', borderRadius: 10, padding: '9px 12px', marginBottom: 12, color: '#b91c1c', fontSize: 13, fontWeight: 600 },
-  tableWrap: { background: '#f2f4f2', borderRadius: RADIUS, border: '1px solid #e2e8e2', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)' },
-  table: { width: '100%', minWidth: 1180, borderCollapse: 'collapse' },
+  tableWrap: { background: '#f2f4f2', borderRadius: RADIUS, border: '1px solid #e2e8e2', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)', maxWidth: '100%' },
+  table: { width: '100%', minWidth: 1040, borderCollapse: 'collapse' },
   thead: { background: '#e8eee8' },
-  th: { padding: '12px 12px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'center', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap' },
-  thLeft: { padding: '12px 12px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap' },
+  th: { padding: '10px 9px', fontSize: 11.5, fontWeight: 700, color: '#29472d', textAlign: 'center', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap' },
+  thLeft: { padding: '10px 9px', fontSize: 11.5, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap' },
   tr: { background: '#fff' },
-  td: { padding: '11px 12px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', textAlign: 'center' },
-  tdLeft: { padding: '11px 12px', fontSize: 13, color: '#1f2f21', fontWeight: 700, borderBottom: '1px solid #e2e8e2', textAlign: 'left' },
-  monoTd: { padding: '11px 12px', fontSize: 12.5, color: '#607062', borderBottom: '1px solid #e2e8e2', textAlign: 'center', fontFamily: 'monospace' },
+  td: { padding: '10px 9px', fontSize: 12.5, color: '#415443', borderBottom: '1px solid #e2e8e2', textAlign: 'center' },
+  tdLeft: { padding: '10px 9px', fontSize: 12.5, color: '#1f2f21', fontWeight: 700, borderBottom: '1px solid #e2e8e2', textAlign: 'left', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  monoTd: { padding: '10px 9px', fontSize: 12, color: '#607062', borderBottom: '1px solid #e2e8e2', textAlign: 'center', fontFamily: 'monospace' },
   emptyCell: { textAlign: 'center', padding: '52px 0', background: '#fff', color: '#9ca3af', fontSize: 14 },
   actionBtns: { display: 'flex', gap: 6, justifyContent: 'flex-end' },
   editBtn: { background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex' },
@@ -267,4 +314,12 @@ const s = {
   tfoot: { background: '#edf8ef', borderTop: '2px solid #d4dfd4' },
   totalLabel: { padding: '12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#1a3d1f' },
   totalValue: { padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#1a3d1f', fontFamily: 'monospace' },
+  mobileList: { display: 'grid', gap: 10 },
+  mobileEmpty: { background: '#fff', border: '1px solid #e2e8e2', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9ca3af', fontSize: 13.5 },
+  mobileCard: { background: '#fff', border: '1px solid #e2e8e2', borderRadius: 12, padding: 12 },
+  mobileCardHead: { display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', marginBottom: 10 },
+  mobileIndex: { display: 'block', fontSize: 11, fontWeight: 700, color: '#7a8a7a', marginBottom: 3 },
+  mobileTitle: { margin: 0, fontSize: 14, fontWeight: 800, color: '#1a3d1f', lineHeight: 1.3, overflowWrap: 'anywhere' },
+  mobileGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 },
+  mobileStat: { border: '1px solid #e2e8e2', borderRadius: 10, background: '#f8faf8', padding: '8px 10px', minWidth: 0 },
 }

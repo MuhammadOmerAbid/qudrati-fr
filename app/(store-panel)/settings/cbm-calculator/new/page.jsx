@@ -326,9 +326,9 @@ export default function CBMCalculatorPage() {
 
         <div style={{ ...summaryGrid, gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : summaryGrid.gridTemplateColumns }}>
           {summaryCards.map(({ label, value, unit, color, bg, border }) => (
-            <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 18px' }}>
+            <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: isMobile ? '12px 10px' : '14px 18px', minWidth: 0 }}>
               <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: settingsTheme.textMuted }}>{label}</p>
-              <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
+              <p style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 800, color, overflowWrap: 'anywhere' }}>
                 {value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unit}</span>
               </p>
             </div>
@@ -458,7 +458,7 @@ export default function CBMCalculatorPage() {
           </div>
         ) : (
         <div style={tableWrap}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1040 }}>
             <thead>
               <tr style={{ background: '#eef2ee', borderBottom: `1px solid ${settingsTheme.border}` }}>
                 <th style={th}>SR.NO</th>
@@ -498,7 +498,7 @@ export default function CBMCalculatorPage() {
                     style={{ borderBottom: `1px solid ${settingsTheme.borderSoft}` }}
                   >
                     <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
-                    <td style={{ ...td, minWidth: 180, textAlign: 'left' }}>
+                    <td style={{ ...td, minWidth: 150, maxWidth: 220, textAlign: 'left' }}>
                       {editing ? (
                         <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
                       ) : (
@@ -634,6 +634,8 @@ const pageShell = {
   borderRadius: 20,
   padding: 22,
   boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+  minWidth: 0,
+  maxWidth: '100%',
 }
 
 const header = {
@@ -672,6 +674,7 @@ const title = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+  lineHeight: 1.25,
 }
 
 const subtitle = {
@@ -706,6 +709,7 @@ const tableWrap = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 12,
   overflow: 'auto',
+  maxWidth: '100%',
 }
 
 const mobileRowsWrap = {
@@ -780,8 +784,8 @@ const mobileStatValue = {
 }
 
 const th = {
-  padding: '11px 10px',
-  fontSize: 12,
+  padding: '10px 8px',
+  fontSize: 11.5,
   fontWeight: 700,
   color: '#455645',
   textAlign: 'center',
@@ -797,7 +801,7 @@ const subTh = {
 }
 
 const td = {
-  padding: '8px 10px',
+  padding: '8px 8px',
   textAlign: 'center',
   verticalAlign: 'middle',
 }
