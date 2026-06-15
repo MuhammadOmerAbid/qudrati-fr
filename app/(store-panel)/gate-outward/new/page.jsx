@@ -50,8 +50,11 @@ const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
   const name = String(entry?.product || entry?.name || '').trim()
   if (!name) return null
 
+  const rawId = entry?.id ?? idx
+
   return {
-    id: `${prefix}-${entry?.id ?? idx}`,
+    id: `${prefix}-${rawId}`,
+    inventoryItemId: entry?.id ?? null,
     source: SOURCE_INVENTORY,
     name,
     brand: String(entry?.brand || entry?.brand_name || '').trim(),
@@ -478,6 +481,8 @@ export default function GateOutwardNewPage() {
             source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
             sourceType: row.source,
             productId: product?.id ?? row.productId,
+            inventoryItemId: product?.inventoryItemId ?? null,
+            inventory_item_id: product?.inventoryItemId ?? null,
             productName: product?.name || '',
             brand: product?.brand || '',
             category: product?.category || '',

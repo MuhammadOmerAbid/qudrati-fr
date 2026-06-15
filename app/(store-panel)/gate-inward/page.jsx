@@ -45,6 +45,17 @@ function toDMY(isoDate) {
   return `${d}/${m}/${y}`
 }
 
+function toISODate(value) {
+  if (!value) return ''
+  const text = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  if (text.includes('/')) {
+    const [d, m, y] = text.split('/')
+    if (d && m && y) return `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return text
+}
+
 function normalizeGateInwardItem(raw = {}) {
   return {
     brandId: raw.brandId ?? raw.brand_id ?? raw.brand ?? '',
@@ -470,12 +481,58 @@ export default function GateInwardPage() {
 
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll = () => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
-  const handleDelete = (id) => { if (window.confirm('Delete this record?')) setRecords(r => r.filter(x => x.id !== id)) }
-  const handleBulkDelete = () => {
-    if (!selected.length) return
-    if (window.confirm(`Delete ${selected.length} selected records?`)) { setRecords(r => r.filter(x => !selected.includes(x.id))); setSelected([]) }
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this record?')) return
+    try {
+      await gateInwardApi.delete(id)
+      setRecords(r => r.filter(x => x.id !== id))
+      setSelected(s => s.filter(x => x !== id))
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to delete gate inward record')
+    }
   }
-  const handleSaveEdit = (updated) => { setRecords(r => r.map(x => x.id === updated.id ? updated : x)); setEditRecord(null) }
+  const handleBulkDelete = async () => {
+    if (!selected.length) return
+    if (!window.confirm(`Delete ${selected.length} selected records?`)) return
+    try {
+      await Promise.all(selected.map((id) => gateInwardApi.delete(id)))
+      setRecords(r => r.filter(x => !selected.includes(x.id)))
+      setSelected([])
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to delete selected gate inward records')
+    }
+  }
+  const handleSaveEdit = async (updated) => {
+    const payload = {
+      gr_no: updated.grNo,
+      supplier: Number.isFinite(Number(updated.supplierId)) ? Number(updated.supplierId) : null,
+      supplier_name: updated.supplierName || '',
+      address: updated.address || '',
+      note: updated.note || '',
+      receive_date: toISODate(updated.receiveDate),
+      status: updated.status || 'Received',
+      items: (updated.items || []).map((item) => ({
+        brandId: Number(item.brandId) || null,
+        brandName: item.brandName || '',
+        categoryId: Number(item.categoryId) || null,
+        categoryName: item.categoryName || '',
+        productId: Number(item.productId) || null,
+        productName: item.productName || '',
+        quantity: Number(item.quantity) || 0,
+        unit: item.unit || 'Unit',
+      })),
+    }
+    try {
+      const saved = await gateInwardApi.update(updated.id, payload)
+      setRecords(r => r.map(x => x.id === updated.id ? normalizeGateInwardRecord(saved) : x))
+      setEditRecord(null)
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to update gate inward record')
+    }
+  }
 
   const exportRows = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
 
