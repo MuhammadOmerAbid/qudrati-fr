@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Search, FileText, Pencil, Trash2, RefreshCw, X, History } from 'lucide-react'
-import { inventoryApi } from '@/infrastructure/api/endpoints'
+import { categoriesApi, inventoryApi } from '@/infrastructure/api/endpoints'
 import {
   BRANDS,
   MONTHLY_HISTORY,
@@ -20,7 +20,7 @@ const toList = (value) => (Array.isArray(value) ? value : (value?.results || [])
 const normalizeInventoryRow = (row = {}) => ({
   id: row.id,
   brand: row.brand || '',
-  category: row.category || '',
+  category: row.category_name || row.categoryName || row.category || '',
   product: row.product || '',
   subcategory: row.subcategory || row.subCategory || row.sub_category || '',
   quantity: Number(row.quantity || 0),
@@ -39,13 +39,23 @@ export default function InventoryPage({ isSuperUser = true }) {
   const [commentEdit, setCommentEdit] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [categoryItems, setCategoryItems] = useState([])
 
   const loadInventory = async () => {
     setLoading(true)
     setLoadError('')
     try {
-      const data = await inventoryApi.list()
-      setItems(toList(data).map(normalizeInventoryRow))
+      const [inventoryResult, categoryResult] = await Promise.allSettled([
+        inventoryApi.list(),
+        categoriesApi.list(),
+      ])
+
+      if (inventoryResult.status === 'rejected') throw inventoryResult.reason
+
+      setItems(toList(inventoryResult.value).map(normalizeInventoryRow))
+      if (categoryResult.status === 'fulfilled') {
+        setCategoryItems(toList(categoryResult.value))
+      }
     } catch (err) {
       setItems([])
       setLoadError(err?.message || 'Unable to load inventory records')
@@ -66,7 +76,7 @@ export default function InventoryPage({ isSuperUser = true }) {
 
     if (search.trim()) {
       const q = search.toLowerCase()
-      rows = rows.filter((row) => [row.brand, row.category, row.product, row.subcategory].join(' ').toLowerCase().includes(q))
+      rows = rows.filter((row) => [row.brand, row.category, row.product].join(' ').toLowerCase().includes(q))
     }
 
     return rows
@@ -79,8 +89,18 @@ export default function InventoryPage({ isSuperUser = true }) {
 
   const categoryOptions = useMemo(() => {
     const fromApi = items.map((item) => item.category).filter(Boolean)
-    return ['All Categories', ...new Set(['Seal', 'Bottle', 'Sticker', 'Jar', 'Label', ...fromApi])]
-  }, [items])
+    const fromSettings = categoryItems
+      .filter((item) => item.status !== false && item.status !== 'inactive')
+      .map((item) => item.name)
+      .filter(Boolean)
+    return ['All Categories', ...new Set([...fromSettings, ...fromApi])]
+  }, [categoryItems, items])
+
+  useEffect(() => {
+    if (category !== 'All Categories' && !categoryOptions.includes(category)) {
+      setCategory('All Categories')
+    }
+  }, [category, categoryOptions])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -173,12 +193,11 @@ export default function InventoryPage({ isSuperUser = true }) {
           { key: 'brand', label: 'Brand' },
           { key: 'category', label: 'Category' },
           { key: 'product', label: 'Product' },
-          { key: 'subcategory', label: 'Sub-Category' },
           { key: 'quantity', label: 'Quantity' },
           { key: 'comment', label: 'Comment' },
           { key: 'action', label: 'Actions', align: 'right' },
         ]}
-        emptyColSpan={filtered.length === 0 ? 8 : null}
+        emptyColSpan={filtered.length === 0 ? 7 : null}
         emptyText={loading ? 'Loading inventory records...' : 'No inventory records found'}
       >
         {Object.entries(grouped).flatMap(([brandName, rows]) =>
@@ -188,7 +207,6 @@ export default function InventoryPage({ isSuperUser = true }) {
               <td style={{ ...ui.td, ...(idx === 0 ? ui.brandPrimary : ui.brandMuted) }}>{idx === 0 ? brandName : ''}</td>
               <td style={ui.td}>{item.category}</td>
               <td style={ui.td}>{item.product}</td>
-              <td style={ui.td}>{item.subcategory || '-'}</td>
               <td style={{ ...ui.td, fontWeight: 700 }}>{item.quantity.toLocaleString()} {item.unit}</td>
               <td style={ui.td}>
                 <div style={ui.inlineActionsLeft}>
@@ -289,7 +307,6 @@ export default function InventoryPage({ isSuperUser = true }) {
             { key: 'brand', label: 'Brand' },
             { key: 'category', label: 'Category' },
             { key: 'product', label: 'Product' },
-            { key: 'subcategory', label: 'Sub-Category' },
             { key: 'quantity', label: 'Quantity' },
             { key: 'unit', label: 'Unit' },
             { key: 'comment', label: 'Comment' },
