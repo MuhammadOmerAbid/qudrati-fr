@@ -376,64 +376,110 @@ export default function CBMCalculatorPage() {
               <div key={row.id} style={mobileRowCard}>
                 <div style={mobileRowHead}>
                   <span style={mobileRowIndex}>Row {idx + 1}</span>
-                  {isSuperuser && computed.length > 1 ? (
-                    <button
-                      onClick={() => removeRow(row.id)}
-                      style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      type="button"
-                    >
-                      <Trash2 size={13} color={settingsTheme.danger} />
-                    </button>
-                  ) : null}
+                  <div style={actionGroup}>
+                    {isEditing(row.id) ? (
+                      <>
+                        <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                          <Save size={13} />
+                        </button>
+                        {!isLocalRow(row.id) ? (
+                          <button onClick={() => stopEdit(row.id)} style={neutralIconBtn} type="button" title="Cancel">
+                            <X size={13} />
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <button onClick={() => startEdit(row.id)} style={editIconBtn} type="button" title="Edit">
+                        <Edit2 size={13} />
+                      </button>
+                    )}
+                    {isSuperuser && computed.length > 1 ? (
+                      <button onClick={() => removeRow(row.id)} style={deleteIconBtn} type="button" title="Delete">
+                        <Trash2 size={13} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div style={mobileFieldsGrid}>
                   <div style={mobileFieldFull}>
                     <label style={mobileLabel}>Item</label>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.item || '-'}</span>
+                    )}
                   </div>
 
                   <div>
                     <label style={mobileLabel}>Length</label>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.length || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Width</label>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.width || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Height</label>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.height || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Unit</label>
-                    <SettingsSelect
-                      value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
-                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
+                    {isEditing(row.id) ? (
+                      <SettingsSelect
+                        value={row.dimUnit}
+                        onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                        wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                        selectStyle={select({ width: '100%' })}
+                      >
+                        {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      </SettingsSelect>
+                    ) : (
+                      <span style={mobileReadCell}>{row.dimUnit}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Quantity</label>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.quantity || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt/Carton</label>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Optional" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="Optional" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.weightPerCarton || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt Unit</label>
-                    <SettingsSelect
-                      value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
-                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
+                    {isEditing(row.id) ? (
+                      <SettingsSelect
+                        value={row.weightUnit}
+                        onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                        wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                        selectStyle={select({ width: '100%' })}
+                      >
+                        {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      </SettingsSelect>
+                    ) : (
+                      <span style={mobileReadCell}>{row.weightUnit}</span>
+                    )}
                   </div>
                 </div>
 
@@ -749,6 +795,21 @@ const mobileLabel = {
   fontSize: 11.5,
   fontWeight: 700,
   color: settingsTheme.textMuted,
+}
+
+const mobileReadCell = {
+  display: 'flex',
+  minHeight: 33,
+  alignItems: 'center',
+  border: `1px solid ${settingsTheme.borderSoft}`,
+  borderRadius: 8,
+  background: '#f8faf8',
+  padding: '6px 8px',
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: settingsTheme.text,
+  boxSizing: 'border-box',
+  overflowWrap: 'anywhere',
 }
 
 const mobileStatsGrid = {
