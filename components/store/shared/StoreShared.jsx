@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, Download, X, History, Printer } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { StoreThemeDatePicker } from '@/components/store/shared/StoreThemeControls'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 export const BRANDS = ['Soghaat', 'Raja', 'Handi', 'Qudarti', 'General']
 
@@ -218,13 +218,42 @@ export function CommentEditorModal({ value, title = 'Edit Comment', onCancel, on
   )
 }
 
-export function ReportModal({ title, data, columns, dateKey, onClose }) {
+export function ReportModal({ title, data, columns, dateKey, selectFilters = [], onClose }) {
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [selectedFilters, setSelectedFilters] = useState(() =>
+    Object.fromEntries(selectFilters.map((filter) => [filter.key, filter.initialValue ?? filter.allValue ?? '']))
+  )
+
+  useEffect(() => {
+    setSelectedFilters((prev) => {
+      const next = { ...prev }
+      selectFilters.forEach((filter) => {
+        const current = next[filter.key]
+        const values = (filter.options || []).map((option) => (
+          typeof option === 'object' && option !== null ? option.value : option
+        ))
+        if (current === undefined) {
+          next[filter.key] = filter.initialValue ?? filter.allValue ?? ''
+        } else if (!values.some((value) => String(value ?? '') === String(current ?? ''))) {
+          next[filter.key] = filter.allValue ?? ''
+        }
+      })
+      return next
+    })
+  }, [selectFilters])
 
   const rows = useMemo(() => {
     let filtered = [...data]
+
+    selectFilters.forEach((filter) => {
+      const selected = selectedFilters[filter.key]
+      const allValue = filter.allValue ?? ''
+      if (selected !== undefined && String(selected) !== String(allValue)) {
+        filtered = filtered.filter((row) => String(row[filter.key] ?? '') === String(selected))
+      }
+    })
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -249,7 +278,21 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
     }
 
     return filtered
-  }, [data, dateKey, fromDate, search, toDate])
+  }, [data, dateKey, fromDate, search, selectFilters, selectedFilters, toDate])
+
+  const selectedFilterLabels = useMemo(() => selectFilters
+    .map((filter) => {
+      const selected = selectedFilters[filter.key]
+      const allValue = filter.allValue ?? ''
+      if (selected === undefined || String(selected) === String(allValue)) return ''
+      const option = (filter.options || []).find((entry) => {
+        const value = typeof entry === 'object' && entry !== null ? entry.value : entry
+        return String(value ?? '') === String(selected ?? '')
+      })
+      const label = typeof option === 'object' && option !== null ? option.label : option
+      return `${filter.label}: ${label || selected}`
+    })
+    .filter(Boolean), [selectFilters, selectedFilters])
 
   const printReportPdf = () => {
     const reportWindow = window.open('', '_blank', 'width=1200,height=800')
@@ -281,6 +324,7 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
       : `<tr><td colspan="${columns.length}" style="text-align:center;color:#64748b;padding:20px;">No records found</td></tr>`
 
     const appliedFilters = [
+      ...selectedFilterLabels,
       search.trim() ? `Keyword: ${search.trim()}` : '',
       fromDate ? `From: ${formatDate(fromDate)}` : '',
       toDate ? `To: ${formatDate(toDate)}` : '',
@@ -350,6 +394,7 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
     doc.setFontSize(10)
 
     const filters = [
+      ...selectedFilterLabels,
       search.trim() ? `Keyword: ${search.trim()}` : '',
       fromDate ? `From: ${formatDate(fromDate)}` : '',
       toDate ? `To: ${formatDate(toDate)}` : '',
@@ -408,6 +453,19 @@ export function ReportModal({ title, data, columns, dateKey, onClose }) {
         </div>
 
         <div style={ui.reportToolbar}>
+          {selectFilters.map((filter) => (
+            <div key={filter.key} style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
+              <StoreThemeDropdown
+                value={selectedFilters[filter.key] ?? filter.allValue ?? ''}
+                onChange={(next) => setSelectedFilters((prev) => ({ ...prev, [filter.key]: next }))}
+                compact
+                variant="pill"
+                placeholder={filter.placeholder || filter.label}
+                options={filter.options || []}
+              />
+            </div>
+          ))}
+
           <div style={ui.searchWrapSmall}>
             <Search size={14} color="#7a8a7a" />
             <input

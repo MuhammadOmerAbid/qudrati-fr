@@ -303,6 +303,24 @@ export default function InventoryPage({ isSuperUser = true }) {
         <ReportModal
           title="Inventory"
           data={items}
+          selectFilters={[
+            {
+              key: 'brand',
+              label: 'Brand',
+              allValue: 'All Brands',
+              initialValue: brand,
+              placeholder: 'All Brands',
+              options: brandOptions.map((entry) => ({ value: entry, label: entry })),
+            },
+            {
+              key: 'category',
+              label: 'Category',
+              allValue: 'All Categories',
+              initialValue: category,
+              placeholder: 'All Categories',
+              options: categoryOptions.map((entry) => ({ value: entry, label: entry })),
+            },
+          ]}
           columns={[
             { key: 'brand', label: 'Brand' },
             { key: 'category', label: 'Category' },
