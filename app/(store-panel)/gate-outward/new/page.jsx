@@ -158,9 +158,9 @@ const fallbackFinishedGoodsProducts = uniqueProducts(
   ))
 )
 
-const blankItem = () => ({
+const blankItem = (source = '') => ({
   key: Date.now() + Math.random(),
-  source: '',
+  source,
   productId: '',
   numbering: '',
   batchNumber: '',
@@ -423,7 +423,10 @@ export default function GateOutwardNewPage() {
     setErrors((prev) => ({ ...prev, items: undefined }))
   }
 
-  const addItem = () => setItems((prev) => [...prev, blankItem()])
+  const addItem = () => setItems((prev) => {
+    const inheritedSource = [...prev].reverse().find((row) => row.source)?.source || ''
+    return [...prev, blankItem(inheritedSource)]
+  })
   const removeItem = (key) => setItems((prev) => (prev.length > 1 ? prev.filter((x) => x.key !== key) : prev))
 
   const validate = () => {
