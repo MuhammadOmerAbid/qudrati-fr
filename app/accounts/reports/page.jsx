@@ -2060,8 +2060,8 @@ const s = {
     gap: 12,
   },
   printLogoFrame: {
-    width: 72,
-    height: 72,
+    width: 82,
+    height: 70,
     borderRadius: 12,
     background: '#ffffff',
     padding: 7,
@@ -2070,8 +2070,11 @@ const s = {
     justifyContent: 'center',
   },
   printLogo: {
-    width: '100%',
-    height: '100%',
+    display: 'block',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    width: 'auto',
+    height: 'auto',
     objectFit: 'contain',
   },
   printBrand: {

@@ -514,7 +514,7 @@ export default function GateInwardPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset filters" onClick={resetFilters}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReportPanel(true)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReportPanel(true)}><FileText size={14} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/gate-inward/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>

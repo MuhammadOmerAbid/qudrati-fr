@@ -168,7 +168,7 @@ export default function DailyProductionPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReport(true)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReport(true)}><FileText size={14} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/daily-production/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>

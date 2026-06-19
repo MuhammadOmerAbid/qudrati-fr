@@ -201,7 +201,7 @@ export default function RequisitionPage() {
               <RotateCcw size={16} />
             </button>
             <button style={s.reportBtn} onClick={() => setShowReport(true)}>
-              <Eye size={15} /> View Report
+              <FileText size={14} /> View Report
             </button>
             <button style={s.addBtn} onClick={() => router.push('/requisition/new')}>
               <Plus size={16} /> Add New Entry
