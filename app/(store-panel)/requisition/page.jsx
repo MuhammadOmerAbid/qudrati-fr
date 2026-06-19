@@ -174,6 +174,7 @@ export default function RequisitionPage() {
 
   const exportPDF = (rows) => {
     const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+      _groupId: r.id,
       receiver: r.receiverName,
       entryBy: r.entryBy,
       date: r.entryDate,
@@ -189,15 +190,15 @@ export default function RequisitionPage() {
       subtitle: 'Issued, returned, and net goods movement',
       filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
       columns: [
-        { key: 'receiver', label: 'Receiver' },
-        { key: 'entryBy', label: 'Entry By' },
-        { key: 'date', label: 'Date' },
+        { key: 'receiver', label: 'Receiver', rowSpan: true },
+        { key: 'entryBy', label: 'Entry By', rowSpan: true },
+        { key: 'date', label: 'Date', rowSpan: true },
         { key: 'product', label: 'Product' },
         { key: 'category', label: 'Category' },
         { key: 'issued', label: 'Issued' },
         { key: 'returned', label: 'Returned' },
         { key: 'net', label: 'Net' },
-        { key: 'comment', label: 'Comment' },
+        { key: 'comment', label: 'Comment', rowSpan: true },
       ],
       rows: reportRows,
     })

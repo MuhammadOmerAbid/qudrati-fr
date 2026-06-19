@@ -284,6 +284,23 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
     return filtered
   }, [data, dateKey, fromDate, search, selectFilters, selectedFilters, toDate])
 
+  const groupState = useMemo(() => {
+    const sizes = {}
+    const firstIndexes = {}
+    rows.forEach((row, index) => {
+      if (row?._groupId == null) return
+      const key = String(row._groupId)
+      sizes[key] = (sizes[key] || 0) + 1
+      if (firstIndexes[key] == null) firstIndexes[key] = index
+    })
+    return { sizes, firstIndexes }
+  }, [rows])
+
+  const isFirstGroupRow = (row, rowIndex) => {
+    if (row?._groupId == null) return true
+    return groupState.firstIndexes[String(row._groupId)] === rowIndex
+  }
+
   const selectedFilterLabels = useMemo(() => selectFilters
     .map((filter) => {
       const selected = selectedFilters[filter.key]
@@ -340,8 +357,9 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
 
     const head = [columns.map((col) => col.label)]
     const body = rows.length
-      ? rows.map((row) =>
+      ? rows.map((row, rowIndex) =>
           columns.map((col) => {
+            if (col.rowSpan && !isFirstGroupRow(row, rowIndex)) return ''
             const raw = row[col.key]
             const value = col.key === dateKey ? formatDate(raw) : raw
             return value || value === 0 ? String(value) : '-'
@@ -469,19 +487,34 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
                   <td colSpan={columns.length} style={ui.emptyCell}>No records found</td>
                 </tr>
               ) : (
-                rows.map((row, rowIndex) => (
+                rows.map((row, rowIndex) => {
+                  const groupKey = row?._groupId == null ? '' : String(row._groupId)
+                  const firstInGroup = isFirstGroupRow(row, rowIndex)
+                  return (
                   <tr key={`report-${rowIndex}`}>
                     {columns.map((col) => {
+                      if (col.rowSpan && !isFirstGroupRow(row, rowIndex)) return null
                       const raw = row[col.key]
                       const value = col.key === dateKey ? formatDate(raw) : raw
+                      const span = col.rowSpan && groupKey ? groupState.sizes[groupKey] : 1
+                      const entryCell = col.rowSpan && groupKey
                       return (
-                        <td key={col.key} style={ui.td}>
+                        <td
+                          key={col.key}
+                          style={{
+                            ...ui.td,
+                            ...(groupKey && firstInGroup ? ui.reportGroupStartTd : {}),
+                            ...(entryCell ? ui.reportEntryCell : {}),
+                          }}
+                          rowSpan={span > 1 ? span : undefined}
+                        >
                           {value || value === 0 ? value : '-'}
                         </td>
                       )
                     })}
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -577,6 +610,15 @@ export const ui = {
     padding: '11px 14px',
     verticalAlign: 'middle',
     background: '#ffffff',
+  },
+  reportGroupStartTd: {
+    borderTop: '2px solid #2d7a33',
+  },
+  reportEntryCell: {
+    borderLeft: '4px solid #2d7a33',
+    background: '#f2f8f3',
+    color: '#123416',
+    fontWeight: 700,
   },
   emptyCell: {
     textAlign: 'center',
