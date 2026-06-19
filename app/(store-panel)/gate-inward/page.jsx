@@ -491,6 +491,7 @@ export default function GateInwardPage() {
 
   const exportPDF = (rows) => {
     const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+      _groupId: r.id,
       grNo: r.grNo,
       supplier: r.supplierName,
       brand: item.brandName,
@@ -511,14 +512,14 @@ export default function GateInwardPage() {
         filterDateTo ? `To: ${filterDateTo}` : '',
       ],
       columns: [
-        { key: 'grNo', label: 'GR No' },
-        { key: 'supplier', label: 'Supplier' },
+        { key: 'grNo', label: 'GR No', rowSpan: true },
+        { key: 'supplier', label: 'Supplier', rowSpan: true },
         { key: 'brand', label: 'Brand' },
         { key: 'category', label: 'Category' },
         { key: 'product', label: 'Product' },
         { key: 'quantity', label: 'Quantity' },
-        { key: 'date', label: 'Date' },
-        { key: 'status', label: 'Status' },
+        { key: 'date', label: 'Date', rowSpan: true },
+        { key: 'status', label: 'Status', rowSpan: true },
       ],
       rows: reportRows,
     })

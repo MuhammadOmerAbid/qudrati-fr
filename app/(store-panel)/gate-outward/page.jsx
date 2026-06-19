@@ -168,6 +168,7 @@ export default function GateOutwardPage() {
   const exportPDF = (rows) => {
     const reportRows = rows.flatMap((r) =>
       r.items.map((item) => ({
+        _groupId: r.id,
         goNo: r.goNo,
         date: r.date,
         product: item.productName,
@@ -187,17 +188,17 @@ export default function GateOutwardPage() {
       subtitle: 'Outward material movement report',
       filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
       columns: [
-        { key: 'goNo', label: 'GO No' },
-        { key: 'date', label: 'Date' },
+        { key: 'goNo', label: 'GO No', rowSpan: true },
+        { key: 'date', label: 'Date', rowSpan: true },
         { key: 'product', label: 'Product' },
         { key: 'numbering', label: 'Numbering' },
         { key: 'batchNumber', label: 'Batch No' },
         { key: 'brand', label: 'Brand' },
         { key: 'quantity', label: 'Qty' },
-        { key: 'vehicle', label: 'Vehicle' },
-        { key: 'driver', label: 'Driver' },
-        { key: 'customer', label: 'Customer' },
-        { key: 'source', label: 'Source' },
+        { key: 'vehicle', label: 'Vehicle', rowSpan: true },
+        { key: 'driver', label: 'Driver', rowSpan: true },
+        { key: 'customer', label: 'Customer', rowSpan: true },
+        { key: 'source', label: 'Source', rowSpan: true },
       ],
       rows: reportRows,
     })

@@ -67,6 +67,7 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
     () =>
       entries.flatMap((entry) =>
         entry.products.map((product) => ({
+          _groupId: entry.id,
           brand: entry.brand,
           date: entry.date,
           product: product.product,
@@ -267,8 +268,8 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
           data={reportRows}
           dateKey="date"
           columns={[
-            { key: 'brand', label: 'Brand' },
-            { key: 'date', label: 'Date' },
+            { key: 'brand', label: 'Brand', rowSpan: true },
+            { key: 'date', label: 'Date', rowSpan: true },
             { key: 'product', label: 'Product' },
             { key: 'packing', label: 'Packing' },
             { key: 'cartons', label: 'Cartons' },

@@ -86,6 +86,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     () =>
       orders.flatMap((order) =>
         order.items.map((item) => ({
+          _groupId: order.id,
           date: order.date,
           orderName: order.name,
           serialNo: order.serialNo,
@@ -417,9 +418,9 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           data={reportRows}
           dateKey="date"
           columns={[
-            { key: 'orderName', label: 'Order Name' },
-            { key: 'serialNo', label: 'P.Sr' },
-            { key: 'date', label: 'Date' },
+            { key: 'orderName', label: 'Order Name', rowSpan: true },
+            { key: 'serialNo', label: 'P.Sr', rowSpan: true },
+            { key: 'date', label: 'Date', rowSpan: true },
             { key: 'goods', label: 'Goods' },
             { key: 'packing', label: 'Packing' },
             { key: 'qty', label: 'Qty of Cartons' },
