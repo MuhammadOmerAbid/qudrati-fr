@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { gateInwardApi, suppliersApi, brandsApi, categoriesApi, productsApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { Plus, X, ArrowLeft, Save, ChevronDown } from 'lucide-react'
-import { StoreThemeDatePicker } from '@/components/store/shared/StoreThemeControls'
+import { Plus, X, ArrowLeft, Save } from 'lucide-react'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 const DEFAULT_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
 
@@ -33,74 +33,16 @@ function DropdownField({
   disabled = false,
   hasError = false,
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-
-  const selected = useMemo(
-    () => options.find((opt) => String(opt.value) === String(value)),
-    [options, value]
-  )
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false)
-    }
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [])
-
   return (
-    <div ref={rootRef} style={s.dropdownWrap} className="store-theme-dropdown">
-      <button
-        type="button"
-        className="store-theme-dropdown-trigger"
-        style={{
-          ...s.dropdownTrigger,
-          ...(disabled ? s.dropdownDisabled : {}),
-          ...(hasError ? s.inputError : {}),
-        }}
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-      >
-        <span style={selected ? s.dropdownValue : s.dropdownPlaceholder}>
-          {selected?.label || placeholder}
-        </span>
-        <ChevronDown
-          size={14}
-          style={{ ...s.dropdownChevron, transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
-      </button>
-
-      {open && !disabled ? (
-        <div style={s.dropdownMenu} className="store-theme-dropdown-menu">
-          {options.map((option) => {
-            const active = String(option.value) === String(value)
-            return (
-              <button
-                key={String(option.value)}
-                type="button"
-                className={`store-theme-dropdown-item${active ? ' store-theme-dropdown-item-active' : ''}`}
-                style={{ ...s.dropdownItem, ...(active ? s.dropdownItemActive : {}) }}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
+    <StoreThemeDropdown
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      hasError={hasError}
+      variant="input"
+    />
   )
 }
 

@@ -672,25 +672,33 @@ export default function GateOutwardNewPage() {
 
                   <div style={s.itemField}>
                     {idx === 0 && <label style={s.label}>Select Product</label>}
-                    <select
-                      style={s.input}
+                    <StoreThemeDropdown
                       value={item.productId}
-                      onChange={(e) => updateItem(item.key, 'productId', e.target.value)}
+                      onChange={(nextProductId) => updateItem(item.key, 'productId', nextProductId)}
                       disabled={!item.source}
-                    >
-                      <option value="">
-                        {!item.source
+                      variant="input"
+                      placeholder={
+                        !item.source
                           ? 'Select source first'
                           : productsForSource.length === 0
                             ? 'No products found'
-                            : 'Select Product'}
-                      </option>
-                      {productsForSource.map((entry) => (
-                        <option key={`${item.source}-${entry.id}`} value={entry.id}>
-                          {entry.name}{entry.brand ? ` (${entry.brand})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                            : 'Select Product'
+                      }
+                      options={[
+                        {
+                          value: '',
+                          label: !item.source
+                            ? 'Select source first'
+                            : productsForSource.length === 0
+                              ? 'No products found'
+                              : 'Select Product',
+                        },
+                        ...productsForSource.map((entry) => ({
+                          value: entry.id,
+                          label: `${entry.name}${entry.brand ? ` (${entry.brand})` : ''}`,
+                        })),
+                      ]}
+                    />
                   </div>
 
                   <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
