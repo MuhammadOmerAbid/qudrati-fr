@@ -64,7 +64,7 @@ export default function DailyProductionPage() {
     endTime: String(entry?.endTime || entry?.end_time || '').trim(),
     noOfLabour: Number(entry?.noOfLabour || entry?.no_of_labour) || 0,
     date: toDMY(parent.date),
-    note: String(parent.note || '').trim(),
+    note: String(entry?.note || parent.note || '').trim(),
   })
 
   const loadFromApi = async () => {
