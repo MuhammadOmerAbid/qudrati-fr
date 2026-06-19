@@ -360,14 +360,16 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         fontSize: 8.5,
         cellPadding: 5,
         overflow: 'linebreak',
-        textColor: [30, 41, 59],
+        textColor: [31, 47, 33],
+        lineColor: [225, 233, 225],
+        lineWidth: 0.5,
       },
       headStyles: {
-        fillColor: [232, 240, 232],
-        textColor: [23, 60, 27],
+        fillColor: [27, 94, 32],
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
       },
-      alternateRowStyles: { fillColor: [250, 252, 250] },
+      alternateRowStyles: { fillColor: [248, 251, 248] },
     })
 
     const safeName = `${title.toLowerCase().replace(/\s+/g, '-')}-report.pdf`

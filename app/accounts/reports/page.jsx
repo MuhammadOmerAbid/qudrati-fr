@@ -27,6 +27,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react'
+import { addPdfReportHeader, loadImageDataUrl } from '@/lib/reportDesign'
 
 const REPORT_TYPES = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -145,35 +146,6 @@ function downloadBlob(fileName, text, mimeType) {
   anchor.click()
   document.body.removeChild(anchor)
   URL.revokeObjectURL(url)
-}
-
-function loadImageDataUrl(src) {
-  if (typeof window === 'undefined') return Promise.resolve(null)
-  return new Promise((resolve) => {
-    const image = new Image()
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = image.naturalWidth
-        canvas.height = image.naturalHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          resolve(null)
-          return
-        }
-        ctx.drawImage(image, 0, 0)
-        resolve({
-          dataUrl: canvas.toDataURL('image/png'),
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-        })
-      } catch {
-        resolve(null)
-      }
-    }
-    image.onerror = () => resolve(null)
-    image.src = src
-  })
 }
 
 function classifyCashFlowBucket(voucherRows, accountByCode, cashAccountCodes) {
@@ -1182,46 +1154,18 @@ export default function ReportsPage() {
         format: 'a4',
       })
       const pageWidth = doc.internal.pageSize.getWidth()
-      const centerX = pageWidth / 2
-      const logoTopY = 18
-      let logoBottomY = logoTopY
-      let tableStartY = 140
-
-      if (logoImage?.dataUrl) {
-        // Keep logo natural proportions and fit into a header-safe box.
-        const maxLogoWidth = 156
-        const maxLogoHeight = 50
-        const naturalWidth = Number(logoImage.width) || maxLogoWidth
-        const naturalHeight = Number(logoImage.height) || maxLogoHeight
-        const ratio = Math.min(maxLogoWidth / naturalWidth, maxLogoHeight / naturalHeight)
-        const logoWidth = Math.max(24, naturalWidth * ratio)
-        const logoHeight = Math.max(12, naturalHeight * ratio)
-        const logoX = centerX - (logoWidth / 2)
-        doc.addImage(logoImage.dataUrl, 'PNG', logoX, logoTopY, logoWidth, logoHeight)
-        logoBottomY = logoTopY + logoHeight
-      }
-
-      const brandY = logoBottomY + 16
-      const reportTitleY = brandY + 17
-      const periodY = reportTitleY + 14
-      const generatedY = periodY + 12
-      tableStartY = generatedY + 16
-
-      doc.setFontSize(17)
-      doc.setTextColor(17, 24, 39)
-      doc.text('Qudarti Food', centerX, brandY, { align: 'center' })
-
-      doc.setFontSize(12.5)
-      doc.setTextColor(30, 41, 59)
-      doc.text(reportLabel, centerX, reportTitleY, { align: 'center' })
-
-      doc.setFontSize(10)
-      doc.setTextColor(71, 85, 105)
-      doc.text(`Period: ${fromDate || '-'} to ${toDate || '-'}`, centerX, periodY, { align: 'center' })
-      doc.text(`Generated: ${new Date().toLocaleString()}`, centerX, generatedY, { align: 'center' })
-      doc.setDrawColor(203, 213, 225)
-      doc.setLineWidth(0.8)
-      doc.line(32, tableStartY - 8, pageWidth - 32, tableStartY - 8)
+      const accountFilter = activeReport === 'general-ledger' && reportData.generalLedger.selected
+        ? `Ledger: ${reportData.generalLedger.selected.code} - ${reportData.generalLedger.selected.name}`
+        : ''
+      const tableStartY = addPdfReportHeader(doc, {
+        title: reportLabel,
+        subtitle: `Financial report | Period: ${fromDate || '-'} to ${toDate || '-'}`,
+        filters: [
+          `Period: ${fromDate || '-'} to ${toDate || '-'}`,
+          accountFilter,
+        ].filter(Boolean),
+        logoImage,
+      })
 
       const head = [exportPattern.columns.map((column) => column.label)]
       const bodyRows = exportPattern.rows.length > 0
@@ -1256,16 +1200,16 @@ export default function ReportsPage() {
         head,
         body,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 4, lineColor: [226, 232, 240], lineWidth: 0.5 },
-        headStyles: { fillColor: [34, 84, 61] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 8, cellPadding: 4, textColor: [31, 47, 33], lineColor: [225, 233, 225], lineWidth: 0.5 },
+        headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 251, 248] },
         columnStyles,
         didParseCell: (data) => {
           if (data.section !== 'body') return
           const rowRef = bodyRows[data.row.index]
           if (rowRef?._summary) {
-            data.cell.styles.fillColor = [240, 253, 244]
-            data.cell.styles.textColor = [17, 24, 39]
+            data.cell.styles.fillColor = [232, 243, 233]
+            data.cell.styles.textColor = [18, 52, 22]
             data.cell.styles.fontStyle = 'bold'
             return
           }
@@ -1281,8 +1225,8 @@ export default function ReportsPage() {
           const pageWidth = doc.internal.pageSize.getWidth()
           const pageHeight = doc.internal.pageSize.getHeight()
           doc.setFontSize(9)
-          doc.setTextColor(107, 114, 128)
-          doc.text(`Generated ${new Date().toLocaleString()}`, 32, pageHeight - 18, { align: 'left' })
+          doc.setTextColor(100, 116, 100)
+          doc.text('Qudarti Food Processors | System generated report', 32, pageHeight - 18, { align: 'left' })
           doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - 32, pageHeight - 18, { align: 'right' })
         },
       })
@@ -1375,16 +1319,35 @@ export default function ReportsPage() {
 
         <section style={s.reportCard}>
           <div className="print-only" style={s.printHead}>
-            <img src="/qudartinew.png" alt="Qudarti Food Logo" style={s.printLogo} />
-            <p style={s.printBrand}>Qudarti Food</p>
-            <p style={s.printTitle}>{reportLabel}</p>
-            <p style={s.printMeta}>Period: {fromDate || '-'} to {toDate || '-'}</p>
+            <div style={s.printBrandRow}>
+              <div style={s.printLogoFrame}>
+                <img src="/qudartinew.png" alt="Qudarti Food Logo" style={s.printLogo} />
+              </div>
+              <div>
+                <p style={s.printBrand}>Qudarti Food Processors</p>
+                <p style={s.printCompanySuffix}>(SMC-PVT) LTD.</p>
+              </div>
+            </div>
+            <div style={s.printTitleBlock}>
+              <p style={s.printEyebrow}>Financial Report</p>
+              <p style={s.printTitle}>{reportLabel}</p>
+            </div>
+          </div>
+          <div className="print-only" style={s.printMetaGrid}>
+            <div style={s.printMetaBox}>
+              <span style={s.printMetaLabel}>Period</span>
+              <span style={s.printMetaValue}>{fromDate || '-'} to {toDate || '-'}</span>
+            </div>
             {activeReport === 'general-ledger' && reportData.generalLedger.selected ? (
-              <p style={s.printMeta}>
-                Ledger Account: {reportData.generalLedger.selected.code} - {reportData.generalLedger.selected.name}
-              </p>
+              <div style={s.printMetaBox}>
+                <span style={s.printMetaLabel}>Ledger Account</span>
+                <span style={s.printMetaValue}>{reportData.generalLedger.selected.code} - {reportData.generalLedger.selected.name}</span>
+              </div>
             ) : null}
-            <p style={s.printMeta}>Generated: {new Date().toLocaleString()}</p>
+            <div style={s.printMetaBox}>
+              <span style={s.printMetaLabel}>Generated</span>
+              <span style={s.printMetaValue}>{new Date().toLocaleString()}</span>
+            </div>
           </div>
 
           <div className="print-only" style={s.printTableWrap}>
@@ -2083,32 +2046,90 @@ const s = {
     gap: 12,
   },
   printHead: {
-    borderBottom: '1px solid #cbd5e1',
-    paddingBottom: 10,
+    background: 'linear-gradient(135deg, #123416 0%, #1b5e20 58%, #2d7a33 100%)',
+    color: '#ffffff',
+    padding: '18px 20px',
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
-    textAlign: 'center',
-    gap: 3,
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  printBrandRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  printLogoFrame: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    background: '#ffffff',
+    padding: 7,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   printLogo: {
-    width: 'auto',
-    maxWidth: 156,
-    height: 48,
+    width: '100%',
+    height: '100%',
     objectFit: 'contain',
-    marginBottom: 3,
   },
   printBrand: {
     margin: 0,
-    fontSize: 18,
+    fontSize: 21,
     fontWeight: 800,
-    color: '#0f172a',
+    color: '#ffffff',
+  },
+  printCompanySuffix: {
+    margin: '4px 0 0',
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: 0.8,
+    color: 'rgba(255,255,255,0.82)',
+  },
+  printTitleBlock: {
+    textAlign: 'right',
+  },
+  printEyebrow: {
+    margin: '0 0 5px',
+    color: 'rgba(255,255,255,0.76)',
+    fontSize: 10,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
   },
   printTitle: {
     margin: 0,
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#1e293b',
+    fontSize: 22,
+    fontWeight: 800,
+    color: '#ffffff',
+  },
+  printMetaGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 8,
+    marginTop: 12,
+  },
+  printMetaBox: {
+    border: '1px solid #cfe0d0',
+    borderLeft: '4px solid #2d7a33',
+    background: '#f8fbf8',
+    padding: '8px 10px',
+  },
+  printMetaLabel: {
+    display: 'block',
+    color: '#637463',
+    fontSize: 9.5,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  printMetaValue: {
+    display: 'block',
+    marginTop: 4,
+    color: '#1e2d20',
+    fontSize: 11.5,
+    fontWeight: 800,
   },
   printMeta: {
     margin: '3px 0 0',
@@ -2117,15 +2138,15 @@ const s = {
     fontWeight: 500,
   },
   printTableWrap: {
-    border: '1px solid #e5e7eb',
-    borderRadius: 10,
+    border: '1px solid #cfe0d0',
+    borderRadius: 0,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 12,
   },
   printSummaryTd: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#111827',
+    color: '#123416',
     verticalAlign: 'top',
     fontWeight: 800,
   },
@@ -2193,7 +2214,7 @@ const s = {
   },
   tableWrap: {
     overflow: 'auto',
-    border: '1px solid #e5e7eb',
+    border: '1px solid #cfe0d0',
     borderRadius: 12,
   },
   table: {
@@ -2202,8 +2223,8 @@ const s = {
     minWidth: 840,
   },
   th: {
-    background: '#f1f5f9',
-    color: '#475569',
+    background: '#1b5e20',
+    color: '#ffffff',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: '0.4px',
@@ -2211,14 +2232,14 @@ const s = {
     textAlign: 'left',
     padding: '10px 10px',
   },
-  tr: { borderTop: '1px solid #e5e7eb' },
+  tr: { borderTop: '1px solid #e1e9e1' },
   td: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#111827',
+    color: '#1f2f21',
     verticalAlign: 'top',
   },
-  tFoot: { background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 800 },
+  tFoot: { background: '#e8f3e9', borderTop: '2px solid #2d7a33', fontWeight: 800 },
   emptyCell: {
     padding: '16px 10px',
     textAlign: 'center',
