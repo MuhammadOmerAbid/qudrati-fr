@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight, Edit2, X, CheckSquare, Square, FileSpreadsheet
 } from 'lucide-react'
 import { openReportWindow } from '@/lib/reportDesign'
+import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 const MOCK_SUPPLIERS = [
   { id: 1, name: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore' },
@@ -98,73 +99,17 @@ function DropdownField({
   compact = false,
   wrapStyle = {},
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-
-  const selected = useMemo(
-    () => options.find((opt) => String(opt.value) === String(value)),
-    [options, value]
-  )
-
-  useEffect(() => {
-    const onOutside = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false)
-    }
-    const onEsc = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onOutside)
-    document.addEventListener('keydown', onEsc)
-    return () => {
-      document.removeEventListener('mousedown', onOutside)
-      document.removeEventListener('keydown', onEsc)
-    }
-  }, [])
-
   return (
-    <div ref={rootRef} style={{ ...s.dropdownWrap, ...wrapStyle }} className="store-theme-dropdown">
-      <button
-        type="button"
-        className="store-theme-dropdown-trigger"
-        style={{
-          ...s.dropdownTrigger,
-          ...(compact ? s.dropdownTriggerCompact : {}),
-          ...(disabled ? s.dropdownDisabled : {}),
-        }}
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-      >
-        <span style={selected ? s.dropdownValue : s.dropdownPlaceholder}>
-          {selected?.label || placeholder}
-        </span>
-        <ChevronDown
-          size={12}
-          style={{ ...s.dropdownChevronIcon, transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}
-        />
-      </button>
-
-      {open && !disabled ? (
-        <div style={s.dropdownMenu} className="store-theme-dropdown-menu">
-          {options.map((option) => {
-            const active = String(option.value) === String(value)
-            return (
-              <button
-                key={String(option.value)}
-                type="button"
-                className={`store-theme-dropdown-item${active ? ' store-theme-dropdown-item-active' : ''}`}
-                style={{ ...s.dropdownItem, ...(active ? s.dropdownItemActive : {}) }}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
+    <StoreThemeDropdown
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      compact={compact}
+      variant="pill"
+      wrapStyle={wrapStyle}
+    />
   )
 }
 
