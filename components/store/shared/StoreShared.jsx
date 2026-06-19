@@ -612,10 +612,10 @@ export const ui = {
     background: '#ffffff',
   },
   reportGroupStartTd: {
-    borderTop: '2px solid #2d7a33',
+    borderTop: '1.5px solid #2d7a33',
   },
   reportEntryCell: {
-    borderLeft: '4px solid #2d7a33',
+    borderLeft: '2px solid #2d7a33',
     background: '#f2f8f3',
     color: '#123416',
     fontWeight: 700,
