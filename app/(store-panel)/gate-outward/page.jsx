@@ -15,7 +15,7 @@ import {
   Download,
   FileText,
 } from 'lucide-react'
-import { openReportWindow } from '@/lib/reportDesign'
+import { ReportModal } from '@/components/store/shared/StoreShared'
 
 function toDMY(isoDate) {
   if (!isoDate) return ''
@@ -165,8 +165,9 @@ export default function GateOutwardPage() {
     a.click()
   }
 
-  const exportPDF = (rows) => {
-    const reportRows = rows.flatMap((r) =>
+  const reportRecords = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
+  const reportRows = useMemo(
+    () => reportRecords.flatMap((r) =>
       r.items.map((item) => ({
         _groupId: r.id,
         goNo: r.goNo,
@@ -182,27 +183,9 @@ export default function GateOutwardPage() {
         address: r.address || '-',
         source: item.source || '-',
       }))
-    )
-    openReportWindow({
-      title: 'Gate Outward Report',
-      subtitle: 'Outward material movement report',
-      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
-      columns: [
-        { key: 'goNo', label: 'GO No', rowSpan: true },
-        { key: 'date', label: 'Date', rowSpan: true },
-        { key: 'product', label: 'Product' },
-        { key: 'numbering', label: 'Numbering' },
-        { key: 'batchNumber', label: 'Batch No' },
-        { key: 'brand', label: 'Brand' },
-        { key: 'quantity', label: 'Qty' },
-        { key: 'vehicle', label: 'Vehicle', rowSpan: true },
-        { key: 'driver', label: 'Driver', rowSpan: true },
-        { key: 'customer', label: 'Customer', rowSpan: true },
-        { key: 'source', label: 'Source', rowSpan: true },
-      ],
-      rows: reportRows,
-    })
-  }
+    ),
+    [reportRecords]
+  )
 
   return (
     <DashboardLayout>
@@ -214,22 +197,10 @@ export default function GateOutwardPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset filters" onClick={resetFilters}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReportPanel((v) => !v)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReportPanel(true)}><Eye size={15} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/gate-outward/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>
-
-        {showReportPanel && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}><FileText size={14} color="#2d7a33" />Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:</span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div style={s.controlsCard}>
           <div style={s.searchWrap}>
@@ -313,6 +284,27 @@ export default function GateOutwardPage() {
             <span style={s.footerText}>Showing {filtered.length} of {records.length} records{selected.length > 0 && <span style={s.selCount}> · {selected.length} selected</span>}</span>
           </div>
         </div>
+
+        {showReportPanel ? (
+          <ReportModal
+            title="Gate Outward"
+            data={reportRows}
+            columns={[
+              { key: 'goNo', label: 'GO No', rowSpan: true },
+              { key: 'date', label: 'Date', rowSpan: true },
+              { key: 'product', label: 'Product' },
+              { key: 'numbering', label: 'Numbering' },
+              { key: 'batchNumber', label: 'Batch No' },
+              { key: 'brand', label: 'Brand' },
+              { key: 'quantity', label: 'Qty' },
+              { key: 'vehicle', label: 'Vehicle', rowSpan: true },
+              { key: 'driver', label: 'Driver', rowSpan: true },
+              { key: 'customer', label: 'Customer', rowSpan: true },
+              { key: 'source', label: 'Source', rowSpan: true },
+            ]}
+            onClose={() => setShowReportPanel(false)}
+          />
+        ) : null}
       </div>
     </DashboardLayout>
   )

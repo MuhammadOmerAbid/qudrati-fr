@@ -11,7 +11,7 @@ import {
   FileText, Download, Search, Calendar,
   ChevronDown, ChevronLeft, ChevronRight, Edit2, X, CheckSquare, Square, FileSpreadsheet
 } from 'lucide-react'
-import { openReportWindow } from '@/lib/reportDesign'
+import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 const MOCK_SUPPLIERS = [
@@ -489,8 +489,8 @@ export default function GateInwardPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'gate-inward-report.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+  const reportRecords = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
+  const reportRows = useMemo(() => reportRecords.flatMap((r) => r.items.map((item) => ({
       _groupId: r.id,
       grNo: r.grNo,
       supplier: r.supplierName,
@@ -500,30 +500,7 @@ export default function GateInwardPage() {
       quantity: `${item.quantity} ${item.unit}`,
       date: r.receiveDate,
       status: r.status,
-    })))
-    openReportWindow({
-      title: 'Gate Inward Report',
-      subtitle: 'Inward material movement report',
-      filters: [
-        filterStatus !== 'All Status' ? `Status: ${filterStatus}` : '',
-        filterBrand !== 'All Brands' ? `Brand: ${filterBrand}` : '',
-        filterCategory !== 'All Categories' ? `Category: ${filterCategory}` : '',
-        filterDateFrom ? `From: ${filterDateFrom}` : '',
-        filterDateTo ? `To: ${filterDateTo}` : '',
-      ],
-      columns: [
-        { key: 'grNo', label: 'GR No', rowSpan: true },
-        { key: 'supplier', label: 'Supplier', rowSpan: true },
-        { key: 'brand', label: 'Brand' },
-        { key: 'category', label: 'Category' },
-        { key: 'product', label: 'Product' },
-        { key: 'quantity', label: 'Quantity' },
-        { key: 'date', label: 'Date', rowSpan: true },
-        { key: 'status', label: 'Status', rowSpan: true },
-      ],
-      rows: reportRows,
-    })
-  }
+    }))), [reportRecords])
 
   const resetFilters = () => { setSearch(''); setFilterStatus('All Status'); setFilterBrand('All Brands'); setFilterCategory('All Categories'); setFilterDateFrom(''); setFilterDateTo(''); setSelected([]) }
 
@@ -537,24 +514,10 @@ export default function GateInwardPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset filters" onClick={resetFilters}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReportPanel(v => !v)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReportPanel(true)}><Eye size={15} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/gate-inward/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>
-
-        {/* Report Panel */}
-        {showReportPanel && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}><FileText size={14} color="#2d7a33" />Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:</span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div style={{ ...s.controlsCard, padding: isMobile ? '12px' : s.controlsCard.padding }}>
           <div style={{ ...s.filtersRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, minmax(150px, 1fr))' }}>
@@ -661,6 +624,23 @@ export default function GateInwardPage() {
       </div>
 
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
+      {showReportPanel ? (
+        <ReportModal
+          title="Gate Inward"
+          data={reportRows}
+          columns={[
+            { key: 'grNo', label: 'GR No', rowSpan: true },
+            { key: 'supplier', label: 'Supplier', rowSpan: true },
+            { key: 'brand', label: 'Brand' },
+            { key: 'category', label: 'Category' },
+            { key: 'product', label: 'Product' },
+            { key: 'quantity', label: 'Quantity' },
+            { key: 'date', label: 'Date', rowSpan: true },
+            { key: 'status', label: 'Status', rowSpan: true },
+          ]}
+          onClose={() => setShowReportPanel(false)}
+        />
+      ) : null}
       {editRecord && isSuperUser && <EditModal record={editRecord} suppliers={MOCK_SUPPLIERS} brands={MOCK_BRANDS} categories={MOCK_CATEGORIES} products={MOCK_PRODUCTS} units={MOCK_UNITS} onClose={() => setEditRecord(null)} onSave={handleSaveEdit} />}
     </DashboardLayout>
   )
