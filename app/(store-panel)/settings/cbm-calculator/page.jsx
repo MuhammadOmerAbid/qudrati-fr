@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { cbmProductsApi } from '@/infrastructure/api/endpoints'
-import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Edit2, Save, X } from 'lucide-react'
+import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 
 const UNITS = ['Inch', 'CM', 'MM']
@@ -96,7 +96,6 @@ export default function CBMCalculatorPage() {
   const [containerType, setContainerType] = useState('40ft')
   const [isMobile, setIsMobile] = useState(false)
   const [loadingRows, setLoadingRows] = useState(false)
-  const [editingRows, setEditingRows] = useState([])
 
   const containerCBM = containerType === '40ft' ? 66 : 33
   const containerWeight = containerType === '40ft' ? 26500 : 13500
@@ -111,19 +110,13 @@ export default function CBMCalculatorPage() {
         ? await cbmProductsApi.create(payload)
         : await cbmProductsApi.update(id, payload)
       setRows((prev) => prev.map((row) => row.id === id ? normalizeRow(saved) : row))
-      setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
       return saved
     } catch {
       // Keep the local row editable if the network/API call fails.
       return null
     }
   }
-  const isEditing = (id) => isLocalRow(id) || editingRows.includes(id)
-  const startEdit = (id) => setEditingRows((prev) => prev.includes(id) ? prev : [...prev, id])
-  const stopEdit = (id) => {
-    if (isLocalRow(id)) return
-    setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
-  }
+  const isEditing = (id) => isLocalRow(id)
   const updateRow = (id, field, value, shouldSave = false) => {
     let nextTarget = null
     setRows((prev) => prev.map((row) => {
@@ -139,7 +132,6 @@ export default function CBMCalculatorPage() {
   const addRow = () => {
     const row = emptyRow()
     setRows((prev) => [...prev, row])
-    setEditingRows((prev) => [...prev, row.id])
   }
   const removeRow = async (id) => {
     if (!isSuperuser) return
@@ -150,19 +142,26 @@ export default function CBMCalculatorPage() {
         return
       }
     }
-    setRows((prev) => prev.length > 1 ? prev.filter((row) => row.id !== id) : prev)
-    setEditingRows((prev) => prev.filter((rowId) => rowId !== id))
+    setRows((prev) => {
+      const nextRows = prev.filter((row) => row.id !== id)
+      return nextRows.length ? nextRows : [emptyRow()]
+    })
   }
   const resetRows = async () => {
     if (!isSuperuser) return
-    const persistedRows = rows.filter((row) => !isLocalRow(row.id))
+    const nextRows = rows.map((row) => ({ ...row, quantity: '' }))
+    const persistedRows = nextRows.filter((row) => !isLocalRow(row.id))
     try {
-      await Promise.all(persistedRows.map((row) => cbmProductsApi.delete(row.id)))
+      await Promise.all(
+        persistedRows
+          .map((row) => ({ id: row.id, payload: rowPayload(row) }))
+          .filter((row) => row.payload)
+          .map((row) => cbmProductsApi.update(row.id, row.payload))
+      )
     } catch {
       return
     }
-    setRows([emptyRow()])
-    setEditingRows([])
+    setRows(nextRows)
   }
   const loadSample = async () => {
     const existingItems = new Set(rows.map((row) => String(row.item || '').trim().toLowerCase()).filter(Boolean))
@@ -378,22 +377,11 @@ export default function CBMCalculatorPage() {
                   <span style={mobileRowIndex}>Row {idx + 1}</span>
                   <div style={actionGroup}>
                     {isEditing(row.id) ? (
-                      <>
-                        <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
-                          <Save size={13} />
-                        </button>
-                        {!isLocalRow(row.id) ? (
-                          <button onClick={() => stopEdit(row.id)} style={neutralIconBtn} type="button" title="Cancel">
-                            <X size={13} />
-                          </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <button onClick={() => startEdit(row.id)} style={editIconBtn} type="button" title="Edit">
-                        <Edit2 size={13} />
+                      <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                        <Save size={13} />
                       </button>
-                    )}
-                    {isSuperuser && computed.length > 1 ? (
+                    ) : null}
+                    {isSuperuser ? (
                       <button onClick={() => removeRow(row.id)} style={deleteIconBtn} type="button" title="Delete">
                         <Trash2 size={13} />
                       </button>
@@ -452,11 +440,14 @@ export default function CBMCalculatorPage() {
                   </div>
                   <div>
                     <label style={mobileLabel}>Quantity</label>
-                    {isEditing(row.id) ? (
-                      <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input()} />
-                    ) : (
-                      <span style={mobileReadCell}>{row.quantity || '-'}</span>
-                    )}
+                    <input
+                      value={row.quantity}
+                      onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                      onBlur={() => !isLocalRow(row.id) && saveRow(row.id)}
+                      placeholder="0"
+                      type="number"
+                      style={input()}
+                    />
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt/Carton</label>
@@ -575,7 +566,14 @@ export default function CBMCalculatorPage() {
                       )}
                     </td>
                     <td style={td}>
-                      {editing ? <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} /> : <span style={readCell}>{row.quantity || '-'}</span>}
+                      <input
+                        value={row.quantity}
+                        onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                        onBlur={() => !isLocalRow(row.id) && saveRow(row.id)}
+                        placeholder="0"
+                        type="number"
+                        style={input({ width: 72 })}
+                      />
                     </td>
                     <td style={td}>
                       {editing ? <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} /> : <span style={readCell}>{row.weightPerCarton || '-'}</span>}
@@ -606,22 +604,11 @@ export default function CBMCalculatorPage() {
                     <td style={td}>
                       <div style={actionGroup}>
                         {editing ? (
-                          <>
-                            <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
-                              <Save size={13} />
-                            </button>
-                            {!isLocalRow(row.id) ? (
-                              <button onClick={() => stopEdit(row.id)} style={neutralIconBtn} type="button" title="Cancel">
-                                <X size={13} />
-                              </button>
-                            ) : null}
-                          </>
-                        ) : (
-                          <button onClick={() => startEdit(row.id)} style={editIconBtn} type="button" title="Edit">
-                            <Edit2 size={13} />
+                          <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                            <Save size={13} />
                           </button>
-                        )}
-                        {isSuperuser && computed.length > 1 && (
+                        ) : null}
+                        {isSuperuser ? (
                           <button
                             onClick={() => removeRow(row.id)}
                             style={deleteIconBtn}
@@ -630,7 +617,7 @@ export default function CBMCalculatorPage() {
                           >
                             <Trash2 size={13} />
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -888,25 +875,11 @@ const iconBtnBase = {
   cursor: 'pointer',
 }
 
-const editIconBtn = {
-  ...iconBtnBase,
-  border: '1px solid #bfdbfe',
-  background: '#eff6ff',
-  color: '#2563eb',
-}
-
 const saveIconBtn = {
   ...iconBtnBase,
   border: `1px solid ${settingsTheme.border}`,
   background: '#edf8ef',
   color: settingsTheme.primarySoft,
-}
-
-const neutralIconBtn = {
-  ...iconBtnBase,
-  border: `1px solid ${settingsTheme.border}`,
-  background: '#fff',
-  color: settingsTheme.textMuted,
 }
 
 const deleteIconBtn = {
