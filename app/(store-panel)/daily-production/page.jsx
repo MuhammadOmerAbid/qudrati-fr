@@ -9,7 +9,7 @@ import {
   CheckSquare, Square, FileSpreadsheet, Download, FileText,
   ChevronDown, ChevronUp, Calendar
 } from 'lucide-react'
-import { openReportWindow } from '@/lib/reportDesign'
+import { ReportModal } from '@/components/store/shared/StoreShared'
 
 const INITIAL_RECORDS = [
   { id: 1, product: 'Seal Packing Line A', startTime: '08:00', endTime: '14:00', noOfLabour: 12, date: '27/05/2025', note: 'Morning shift, full capacity run.' },
@@ -150,27 +150,11 @@ export default function DailyProductionPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'daily-production.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    openReportWindow({
-      title: 'Daily Production Report',
-      subtitle: 'Production work entries report',
-      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
-      columns: [
-        { key: 'product', label: 'Product' },
-        { key: 'startTime', label: 'Start' },
-        { key: 'endTime', label: 'End' },
-        { key: 'hours', label: 'Hours' },
-        { key: 'noOfLabour', label: 'Labour' },
-        { key: 'date', label: 'Date' },
-        { key: 'note', label: 'Note' },
-      ],
-      rows: rows.map((r) => ({
-        ...r,
-        hours: calcHours(r.startTime, r.endTime),
-        note: r.note || '-',
-      })),
-    })
-  }
+  const reportRows = useMemo(() => exportRows.map((r) => ({
+    ...r,
+    hours: calcHours(r.startTime, r.endTime),
+    note: r.note || '-',
+  })), [exportRows])
 
   return (
     <DashboardLayout>
@@ -184,7 +168,7 @@ export default function DailyProductionPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReport(v => !v)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReport(true)}><Eye size={15} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/daily-production/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>
@@ -199,20 +183,6 @@ export default function DailyProductionPage() {
             <div style={s.reportRow}><span style={{ ...s.reportLabel, color: '#991b1b' }}>{loadError}</span></div>
           </div>
         ) : null}
-
-        {/* Report Panel */}
-        {showReport && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}><FileText size={14} color="#2d7a33" />Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:</span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Search */}
         <div style={s.searchWrap}>
@@ -323,6 +293,22 @@ export default function DailyProductionPage() {
         </div>
       </div>
 
+      {showReport ? (
+        <ReportModal
+          title="Daily Production"
+          data={reportRows}
+          columns={[
+            { key: 'product', label: 'Product' },
+            { key: 'startTime', label: 'Start' },
+            { key: 'endTime', label: 'End' },
+            { key: 'hours', label: 'Hours' },
+            { key: 'noOfLabour', label: 'Labour' },
+            { key: 'date', label: 'Date' },
+            { key: 'note', label: 'Note' },
+          ]}
+          onClose={() => setShowReport(false)}
+        />
+      ) : null}
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
     </DashboardLayout>
   )

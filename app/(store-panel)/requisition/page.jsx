@@ -9,7 +9,7 @@ import {
   Search, X, ChevronDown, ChevronUp, CheckSquare,
   Square, CornerUpLeft, FileSpreadsheet, Download, FileText
 } from 'lucide-react'
-import { openReportWindow } from '@/lib/reportDesign'
+import { ReportModal } from '@/components/store/shared/StoreShared'
 const PRODUCTS = [
   { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
   { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
@@ -172,8 +172,8 @@ export default function RequisitionPage() {
     a.download = 'goods-requisition.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+  const reportRecords = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
+  const reportRows = useMemo(() => reportRecords.flatMap((r) => r.items.map((item) => ({
       _groupId: r.id,
       receiver: r.receiverName,
       entryBy: r.entryBy,
@@ -184,25 +184,7 @@ export default function RequisitionPage() {
       returned: `${item.returned} ${item.unit}`,
       net: `${item.quantity - item.returned} ${item.unit}`,
       comment: r.comment || '-',
-    })))
-    openReportWindow({
-      title: 'Goods Requisition Report',
-      subtitle: 'Issued, returned, and net goods movement',
-      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
-      columns: [
-        { key: 'receiver', label: 'Receiver', rowSpan: true },
-        { key: 'entryBy', label: 'Entry By', rowSpan: true },
-        { key: 'date', label: 'Date', rowSpan: true },
-        { key: 'product', label: 'Product' },
-        { key: 'category', label: 'Category' },
-        { key: 'issued', label: 'Issued' },
-        { key: 'returned', label: 'Returned' },
-        { key: 'net', label: 'Net' },
-        { key: 'comment', label: 'Comment', rowSpan: true },
-      ],
-      rows: reportRows,
-    })
-  }
+    }))), [reportRecords])
 
   return (
     <DashboardLayout>
@@ -218,7 +200,7 @@ export default function RequisitionPage() {
             <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}>
               <RotateCcw size={16} />
             </button>
-            <button style={s.reportBtn} onClick={() => setShowReport(v => !v)}>
+            <button style={s.reportBtn} onClick={() => setShowReport(true)}>
               <Eye size={15} /> View Report
             </button>
             <button style={s.addBtn} onClick={() => router.push('/requisition/new')}>
@@ -237,25 +219,6 @@ export default function RequisitionPage() {
             <div style={s.reportRow}><span style={{ ...s.reportLabel, color: '#991b1b' }}>{loadError}</span></div>
           </div>
         ) : null}
-
-        {/* Report Panel */}
-        {showReport && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}>
-                <FileText size={14} color="#2d7a33" />
-                Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:
-              </span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && (
-                  <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Keyword Search */}
         <div style={s.searchWrap}>
@@ -426,6 +389,25 @@ export default function RequisitionPage() {
 
       {/* View Modal */}
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
+
+      {showReport ? (
+        <ReportModal
+          title="Goods Requisition"
+          data={reportRows}
+          columns={[
+            { key: 'receiver', label: 'Receiver', rowSpan: true },
+            { key: 'entryBy', label: 'Entry By', rowSpan: true },
+            { key: 'date', label: 'Date', rowSpan: true },
+            { key: 'product', label: 'Product' },
+            { key: 'category', label: 'Category' },
+            { key: 'issued', label: 'Issued' },
+            { key: 'returned', label: 'Returned' },
+            { key: 'net', label: 'Net' },
+            { key: 'comment', label: 'Comment', rowSpan: true },
+          ]}
+          onClose={() => setShowReport(false)}
+        />
+      ) : null}
 
       {/* Return Modal */}
       {returnModal && (
