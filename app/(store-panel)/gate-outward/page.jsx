@@ -110,7 +110,11 @@ export default function GateOutwardPage() {
   }, [])
 
   const sourceOptions = useMemo(() => {
-    const sources = records.flatMap((record) => record.items.map((item) => item.source)).filter(Boolean)
+    const sources = [
+      'Inventory',
+      'Finished Goods',
+      ...records.flatMap((record) => record.items.map((item) => item.source)).filter(Boolean),
+    ]
     return Array.from(new Set(sources)).sort((a, b) => a.localeCompare(b))
   }, [records])
 
@@ -368,6 +372,7 @@ export default function GateOutwardPage() {
               { key: 'vehicle', label: 'Vehicle', rowSpan: true },
               { key: 'driver', label: 'Driver', rowSpan: true },
               { key: 'customer', label: 'Customer', rowSpan: true },
+              { key: 'address', label: 'Address', rowSpan: true },
               { key: 'source', label: 'Source', rowSpan: true },
             ]}
             onClose={() => setShowReportPanel(false)}

@@ -357,14 +357,31 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
 
     const head = [columns.map((col) => col.label)]
     const body = rows.length
-      ? rows.map((row, rowIndex) =>
-          columns.map((col) => {
-            if (col.rowSpan && !isFirstGroupRow(row, rowIndex)) return ''
+      ? rows.map((row, rowIndex) => {
+          const groupKey = row?._groupId == null ? '' : String(row._groupId)
+          const firstInGroup = isFirstGroupRow(row, rowIndex)
+          return columns.reduce((cells, col) => {
+            if (col.rowSpan && groupKey && !firstInGroup) return cells
             const raw = row[col.key]
             const value = col.key === dateKey ? formatDate(raw) : raw
-            return value || value === 0 ? String(value) : '-'
-          })
-        )
+            const content = value || value === 0 ? String(value) : '-'
+            if (col.rowSpan && groupKey && groupState.sizes[groupKey] > 1) {
+              cells.push({
+                content,
+                rowSpan: groupState.sizes[groupKey],
+                styles: {
+                  valign: 'middle',
+                  fontStyle: 'bold',
+                  fillColor: [242, 248, 243],
+                  textColor: [18, 52, 22],
+                },
+              })
+              return cells
+            }
+            cells.push(content)
+            return cells
+          }, [])
+        })
       : [['No records found', ...Array(Math.max(0, columns.length - 1)).fill('')]]
 
     autoTable(doc, {
