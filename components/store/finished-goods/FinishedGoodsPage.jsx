@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw } from 'lucide-react'
 import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
   formatDate,
   Checkbox,
@@ -23,10 +24,19 @@ const normalizeEntry = (entry = {}) => ({
   products: Array.isArray(entry.products) ? entry.products : [],
 })
 
+function parseDateValue(value) {
+  if (!value) return null
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export default function FinishedGoodsPage({ isSuperUser = true }) {
   const router = useRouter()
   const [entries, setEntries] = useState([])
   const [search, setSearch] = useState('')
+  const [filterBrand, setFilterBrand] = useState('All Brands')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [expanded, setExpanded] = useState({})
   const [showReport, setShowReport] = useState(false)
@@ -52,20 +62,33 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
     loadEntries()
   }, [])
 
+  const brandOptions = useMemo(() => {
+    const brands = entries.map((entry) => entry.brand).filter(Boolean)
+    return Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b))
+  }, [entries])
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return entries
     const q = search.toLowerCase()
-    return entries.filter((entry) =>
-      [entry.brand, ...entry.products.map((product) => `${product.product} ${product.packing}`)]
+    return entries.filter((entry) => {
+      const text = [entry.brand, entry.date, ...entry.products.map((product) => `${product.product} ${product.packing}`)]
         .join(' ')
         .toLowerCase()
-        .includes(q)
-    )
-  }, [entries, search])
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesBrand = filterBrand === 'All Brands' || entry.brand === filterBrand
+      const rowDate = parseDateValue(entry.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesBrand && matchesFrom && matchesTo
+    })
+  }, [entries, search, filterBrand, filterDateFrom, filterDateTo])
+
+  const reportEntries = selected.length > 0 ? entries.filter((entry) => selected.includes(entry.id)) : filtered
 
   const reportRows = useMemo(
     () =>
-      entries.flatMap((entry) =>
+      reportEntries.flatMap((entry) =>
         entry.products.map((product) => ({
           _groupId: entry.id,
           brand: entry.brand,
@@ -76,7 +99,7 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
           comment: product.comment,
         }))
       ),
-    [entries]
+    [reportEntries]
   )
 
   const totalCartons = (entry) =>
@@ -108,14 +131,41 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
 
       {loadError ? <div style={errorBanner}>{loadError}</div> : null}
 
-      <div style={ui.searchWrap}>
-        <Search size={15} color="#7a8a7a" />
-        <input
-          style={ui.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by brand, product or packing"
-        />
+      <div style={filterCard}>
+        <div style={ui.filtersRow}>
+          <StoreThemeDropdown
+            value={filterBrand}
+            onChange={setFilterBrand}
+            placeholder="All Brands"
+            variant="pill"
+            options={[
+              { value: 'All Brands', label: 'All Brands' },
+              ...brandOptions.map((brand) => ({ value: brand, label: brand })),
+            ]}
+          />
+          <StoreThemeDatePicker
+            value={filterDateFrom}
+            onChange={setFilterDateFrom}
+            placeholder="From Date"
+            variant="pill"
+          />
+          <StoreThemeDatePicker
+            value={filterDateTo}
+            onChange={setFilterDateTo}
+            placeholder="To Date"
+            variant="pill"
+            alignRight
+          />
+        </div>
+        <div style={{ ...ui.searchWrap, marginTop: 12 }}>
+          <Search size={15} color="#7a8a7a" />
+          <input
+            style={ui.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by brand, product or packing"
+          />
+        </div>
       </div>
 
       <TableShell
@@ -290,4 +340,12 @@ const errorBanner = {
   color: '#b91c1c',
   fontSize: 13,
   fontWeight: 600,
+}
+
+const filterCard = {
+  backgroundColor: '#f2f4f2',
+  borderRadius: 20,
+  padding: 14,
+  border: '1px solid #e2e8e2',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
 }

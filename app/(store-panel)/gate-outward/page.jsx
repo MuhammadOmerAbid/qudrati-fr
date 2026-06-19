@@ -16,12 +16,20 @@ import {
   FileText,
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 function toDMY(isoDate) {
   if (!isoDate) return ''
   const [y, m, d] = String(isoDate).slice(0, 10).split('-')
   if (!y || !m || !d) return String(isoDate)
   return `${d}/${m}/${y}`
+}
+
+function parseDMYDate(value) {
+  const [d, m, y] = String(value || '').split('/')
+  if (!d || !m || !y) return null
+  const date = new Date(`${y}-${m}-${d}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function normalizeItem(raw = {}) {
@@ -72,6 +80,10 @@ export default function GateOutwardPage() {
   const router = useRouter()
   const [records, setRecords] = useState([])
   const [search, setSearch] = useState('')
+  const [filterSource, setFilterSource] = useState('All Sources')
+  const [filterCustomer, setFilterCustomer] = useState('All Customers')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -97,8 +109,17 @@ export default function GateOutwardPage() {
     return () => { active = false }
   }, [])
 
+  const sourceOptions = useMemo(() => {
+    const sources = records.flatMap((record) => record.items.map((item) => item.source)).filter(Boolean)
+    return Array.from(new Set(sources)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
+  const customerOptions = useMemo(() => {
+    const customers = records.map((record) => record.customerName).filter(Boolean)
+    return Array.from(new Set(customers)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return records
     const q = search.toLowerCase()
     return records.filter((r) => {
       const text = [
@@ -115,9 +136,17 @@ export default function GateOutwardPage() {
       ]
         .join(' ')
         .toLowerCase()
-      return text.includes(q)
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesSource = filterSource === 'All Sources' || r.items.some((item) => item.source === filterSource)
+      const matchesCustomer = filterCustomer === 'All Customers' || r.customerName === filterCustomer
+      const rowDate = parseDMYDate(r.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesSource && matchesCustomer && matchesFrom && matchesTo
     })
-  }, [records, search])
+  }, [records, search, filterSource, filterCustomer, filterDateFrom, filterDateTo])
 
   const toggleSelect = (id) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -129,6 +158,10 @@ export default function GateOutwardPage() {
 
   const resetFilters = () => {
     setSearch('')
+    setFilterSource('All Sources')
+    setFilterCustomer('All Customers')
+    setFilterDateFrom('')
+    setFilterDateTo('')
     setSelected([])
   }
 
@@ -203,6 +236,41 @@ export default function GateOutwardPage() {
         </div>
 
         <div style={s.controlsCard}>
+          <div style={s.filtersRow}>
+            <StoreThemeDropdown
+              value={filterSource}
+              onChange={setFilterSource}
+              placeholder="All Sources"
+              variant="pill"
+              options={[
+                { value: 'All Sources', label: 'All Sources' },
+                ...sourceOptions.map((source) => ({ value: source, label: source })),
+              ]}
+            />
+            <StoreThemeDropdown
+              value={filterCustomer}
+              onChange={setFilterCustomer}
+              placeholder="All Customers"
+              variant="pill"
+              options={[
+                { value: 'All Customers', label: 'All Customers' },
+                ...customerOptions.map((customer) => ({ value: customer, label: customer })),
+              ]}
+            />
+            <StoreThemeDatePicker
+              value={filterDateFrom}
+              onChange={setFilterDateFrom}
+              placeholder="From Date"
+              variant="pill"
+            />
+            <StoreThemeDatePicker
+              value={filterDateTo}
+              onChange={setFilterDateTo}
+              placeholder="To Date"
+              variant="pill"
+              alignRight
+            />
+          </div>
           <div style={s.searchWrap}>
             <Search size={15} color="#7a8a7a" />
             <input
@@ -409,6 +477,12 @@ const s = {
     padding: '14px 16px',
     border: '1px solid #e2e8e2',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+    marginBottom: 14,
+  },
+  filtersRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 12,
     marginBottom: 14,
   },
   searchWrap: { display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '10px 14px' },

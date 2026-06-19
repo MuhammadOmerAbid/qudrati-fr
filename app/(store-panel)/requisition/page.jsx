@@ -10,6 +10,7 @@ import {
   Square, CornerUpLeft, FileSpreadsheet, Download, FileText
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 const PRODUCTS = [
   { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
   { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
@@ -53,11 +54,22 @@ const INITIAL_RECORDS = [
   },
 ]
 
+function parseDMYDate(value) {
+  const [d, m, y] = String(value || '').split('/')
+  if (!d || !m || !y) return null
+  const date = new Date(`${y}-${m}-${d}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export default function RequisitionPage() {
   const router = useRouter()
 
   const [records, setRecords]             = useState([])
   const [search, setSearch]               = useState('')
+  const [filterReceiver, setFilterReceiver] = useState('All Receivers')
+  const [filterCategory, setFilterCategory] = useState('All Categories')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected]           = useState([])
   const [expandedComment, setExpandedComment] = useState(null)
   const [returnModal, setReturnModal]     = useState(null)   // { record, itemIdx }
@@ -107,16 +119,45 @@ export default function RequisitionPage() {
   }
 
   useEffect(() => { loadFromApi() }, [])
+
+  const receiverOptions = useMemo(() => {
+    const receivers = records.map((record) => record.receiverName).filter(Boolean)
+    return Array.from(new Set(receivers)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
+  const categoryOptions = useMemo(() => {
+    const categories = records.flatMap((record) => record.items.map((item) => item.category)).filter(Boolean)
+    return Array.from(new Set(categories)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
   const filtered = useMemo(() => {
-    if (!search) return records
     const q = search.toLowerCase()
-    return records.filter(r =>
-      [
+    return records.filter(r => {
+      const text = [
         r.receiverName, r.entryBy, r.entryDate, r.comment,
         ...r.items.flatMap(i => [i.productName, i.subCategory, i.category, String(i.quantity), i.unit, String(i.returned), String(i.quantity - i.returned)])
-      ].join(' ').toLowerCase().includes(q)
-    )
-  }, [records, search])
+      ].join(' ').toLowerCase()
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesReceiver = filterReceiver === 'All Receivers' || r.receiverName === filterReceiver
+      const matchesCategory = filterCategory === 'All Categories' || r.items.some((item) => item.category === filterCategory)
+      const rowDate = parseDMYDate(r.entryDate)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesReceiver && matchesCategory && matchesFrom && matchesTo
+    })
+  }, [records, search, filterReceiver, filterCategory, filterDateFrom, filterDateTo])
+
+  const resetFilters = () => {
+    setSearch('')
+    setFilterReceiver('All Receivers')
+    setFilterCategory('All Categories')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setSelected([])
+  }
+
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll    = () => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
   const handleDelete = async (id) => {
@@ -197,7 +238,7 @@ export default function RequisitionPage() {
             <p style={s.pageSubtitle}>View and manage requisition entries.</p>
           </div>
           <div style={s.headerActions}>
-            <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}>
+            <button style={s.iconBtn} title="Reset" onClick={resetFilters}>
               <RotateCcw size={16} />
             </button>
             <button style={s.reportBtn} onClick={() => setShowReport(true)}>
@@ -221,15 +262,41 @@ export default function RequisitionPage() {
         ) : null}
 
         {/* Keyword Search */}
-        <div style={s.searchWrap}>
-          <Search size={15} color="#7a8a7a" />
-          <input
-            style={s.searchInput}
-            placeholder="Search by receiver / entry by / date / product / sub-category / category / comment..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+        <div style={s.controlsCard}>
+          <div style={s.filtersRow}>
+            <StoreThemeDropdown
+              value={filterReceiver}
+              onChange={setFilterReceiver}
+              placeholder="All Receivers"
+              variant="pill"
+              options={[
+                { value: 'All Receivers', label: 'All Receivers' },
+                ...receiverOptions.map((receiver) => ({ value: receiver, label: receiver })),
+              ]}
+            />
+            <StoreThemeDropdown
+              value={filterCategory}
+              onChange={setFilterCategory}
+              placeholder="All Categories"
+              variant="pill"
+              options={[
+                { value: 'All Categories', label: 'All Categories' },
+                ...categoryOptions.map((category) => ({ value: category, label: category })),
+              ]}
+            />
+            <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+            <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+          </div>
+          <div style={s.searchWrap}>
+            <Search size={15} color="#7a8a7a" />
+            <input
+              style={s.searchInput}
+              placeholder="Search by receiver / entry by / date / product / sub-category / category / comment..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+          </div>
         </div>
 
         {/* Table */}
@@ -637,6 +704,20 @@ const s = {
     color: '#ef4444',
     cursor: 'pointer',
   },
+  controlsCard: {
+    backgroundColor: '#f2f4f2',
+    borderRadius: RADIUS,
+    padding: '14px 16px',
+    border: '1px solid #e2e8e2',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+    marginBottom: 14,
+  },
+  filtersRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 12,
+    marginBottom: 14,
+  },
   searchWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -645,7 +726,6 @@ const s = {
     border: '1px solid #d4dfd4',
     borderRadius: 40,
     padding: '10px 14px',
-    marginBottom: 14,
   },
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
   clearBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#7a8a7a', display: 'flex', padding: 0 },
