@@ -6,6 +6,16 @@ import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { getTodayStoreEntries } from '@/application/services/store/storeEntryTracker'
 import {
+  dailyProductionApi,
+  dashboardApi,
+  finishedGoodsApi,
+  gateInwardApi,
+  gateOutwardApi,
+  inventoryApi,
+  productionOrderApi,
+  requisitionApi,
+} from '@/infrastructure/api/endpoints'
+import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ClipboardList,
@@ -33,7 +43,6 @@ const OPERATIONS = [
     icon: ArrowDownToLine,
     accent: '#2d7a33',
     bg: '#eaf5eb',
-    fields: [{ label: 'Category', value: 'Raw Material' }, { label: 'Name', value: 'Wood Pellets' }, { label: 'Quantity', value: '520 kg' }],
   },
   {
     id: 'goods-requisition',
@@ -43,7 +52,6 @@ const OPERATIONS = [
     icon: ClipboardList,
     accent: '#2f8740',
     bg: '#eaf5eb',
-    fields: [{ label: 'Receiver', value: 'Prod Dept' }, { label: 'Product', value: 'Base Oil' }, { label: 'Qty', value: '12 units' }],
   },
   {
     id: 'gate-outward',
@@ -53,7 +61,6 @@ const OPERATIONS = [
     icon: ArrowUpFromLine,
     accent: '#2c7a4a',
     bg: '#eaf5eb',
-    fields: [{ label: 'Product', value: 'Organic Flour' }, { label: 'Brand', value: 'Qudrati' }, { label: 'Qty', value: '80 bags' }],
   },
   {
     id: 'production-order',
@@ -63,7 +70,6 @@ const OPERATIONS = [
     icon: BoxIcon,
     accent: '#2a6f31',
     bg: '#eaf5eb',
-    fields: [{ label: 'Order No', value: 'PO-2409' }, { label: 'Product', value: 'Bakery Mix' }, { label: 'Status', value: 'Active' }],
   },
   {
     id: 'daily-production',
@@ -73,7 +79,6 @@ const OPERATIONS = [
     icon: Factory,
     accent: '#3d9448',
     bg: '#eaf5eb',
-    fields: [{ label: 'Product', value: 'Atta' }, { label: 'Time (hrs)', value: '6.5' }, { label: 'Workers', value: '12' }],
   },
   {
     id: 'finished-goods',
@@ -83,7 +88,6 @@ const OPERATIONS = [
     icon: Package,
     accent: '#25642d',
     bg: '#eaf5eb',
-    fields: [{ label: 'Brand', value: 'Premium' }, { label: 'Product', value: 'Flour' }, { label: 'Cartons', value: '340' }],
   },
   {
     id: 'inventory',
@@ -93,7 +97,6 @@ const OPERATIONS = [
     icon: Warehouse,
     accent: '#205628',
     bg: '#eaf5eb',
-    fields: [{ label: 'Item', value: 'Wheat' }, { label: 'Stock', value: '12.4T' }, { label: 'Unit', value: 'Tons' }],
   },
 ]
 
@@ -132,11 +135,103 @@ const ENTRY_TRACKED_MODULES = [
   'finished-goods',
 ]
 
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+const fmtCount = (value) => Number(value || 0).toLocaleString()
+const firstText = (...values) => {
+  const found = values.find((value) => String(value ?? '').trim())
+  return found || '-'
+}
+
+function latestGateInward(row = {}) {
+  const item = Array.isArray(row.items) ? row.items[0] : null
+  return firstText(item?.productName, item?.product_name, row.gr_no, row.grNo)
+}
+
+function latestRequisition(row = {}) {
+  const item = Array.isArray(row.items) ? row.items[0] : null
+  return firstText(item?.productName, item?.product_name, row.receiver_name, row.receiverName)
+}
+
+function latestGateOutward(row = {}) {
+  const item = Array.isArray(row.items) ? row.items[0] : null
+  return firstText(item?.productName, item?.product_name, row.customer_name, row.go_no)
+}
+
+function latestProductionOrder(row = {}) {
+  const item = Array.isArray(row.items) ? row.items[0] : null
+  return firstText(row.name, row.product?.name, item?.goods, row.status)
+}
+
+function latestDailyProduction(row = {}) {
+  const entry = Array.isArray(row.entries) ? row.entries[0] : null
+  return firstText(entry?.product, row.production_order?.name, row.date)
+}
+
+function latestFinishedGoods(row = {}) {
+  const product = Array.isArray(row.products) ? row.products[0] : null
+  return firstText(product?.product, row.product?.name, row.brand)
+}
+
+function latestInventory(row = {}) {
+  return firstText(row.product, row.product_name, row.category, row.brand)
+}
+
+function buildOperationSummaries(today = {}, lists = {}) {
+  const gateInward = lists.gateInward || []
+  const requisitions = lists.requisitions || []
+  const gateOutward = lists.gateOutward || []
+  const productionOrders = lists.productionOrders || []
+  const dailyProduction = lists.dailyProduction || []
+  const finishedGoods = lists.finishedGoods || []
+  const inventory = lists.inventory || []
+
+  return {
+    'gate-inward': [
+      { label: 'Today', value: fmtCount(today.gate_inward_today) },
+      { label: 'Total', value: fmtCount(gateInward.length) },
+      { label: 'Latest', value: latestGateInward(gateInward[0]) },
+    ],
+    'goods-requisition': [
+      { label: 'Today', value: fmtCount(today.requisitions_today) },
+      { label: 'Total', value: fmtCount(requisitions.length) },
+      { label: 'Latest', value: latestRequisition(requisitions[0]) },
+    ],
+    'gate-outward': [
+      { label: 'Today', value: fmtCount(today.gate_outward_today) },
+      { label: 'Total', value: fmtCount(gateOutward.length) },
+      { label: 'Latest', value: latestGateOutward(gateOutward[0]) },
+    ],
+    'production-order': [
+      { label: 'Pending', value: fmtCount(today.pending_production_orders) },
+      { label: 'Total', value: fmtCount(productionOrders.length) },
+      { label: 'Latest', value: latestProductionOrder(productionOrders[0]) },
+    ],
+    'daily-production': [
+      { label: 'Today', value: fmtCount(today.daily_production_today) },
+      { label: 'Total', value: fmtCount(dailyProduction.length) },
+      { label: 'Latest', value: latestDailyProduction(dailyProduction[0]) },
+    ],
+    'finished-goods': [
+      { label: 'Today', value: fmtCount(today.finished_goods_today) },
+      { label: 'Total', value: fmtCount(finishedGoods.length) },
+      { label: 'Latest', value: latestFinishedGoods(finishedGoods[0]) },
+    ],
+    inventory: [
+      { label: 'Items', value: fmtCount(today.inventory_items || inventory.length) },
+      { label: 'Total Stock', value: fmtCount(inventory.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0)) },
+      { label: 'Latest', value: latestInventory(inventory[0]) },
+    ],
+  }
+}
+
 export default function DashboardPage() {
-  const { user, panel, hasPermission } = useAuthStore()
+  const { user, hasPermission } = useAuthStore()
   const router = useRouter()
   const [globalQuery, setGlobalQuery] = useState('')
   const [todayEntries, setTodayEntries] = useState(0)
+  const [dashboardToday, setDashboardToday] = useState({})
+  const [operationSummaries, setOperationSummaries] = useState(() => buildOperationSummaries())
+  const [dashboardLoading, setDashboardLoading] = useState(false)
 
   const isSuperuser = user?.role === 'superuser'
   const normalizedQuery = globalQuery.trim().toLowerCase()
@@ -170,8 +265,67 @@ export default function DashboardPage() {
     }
   }, [refreshTodayEntries])
 
+  const loadDashboardCards = useCallback(async () => {
+    setDashboardLoading(true)
+    const [
+      todayRes,
+      gateInwardRes,
+      requisitionRes,
+      gateOutwardRes,
+      productionOrderRes,
+      dailyProductionRes,
+      finishedGoodsRes,
+      inventoryRes,
+    ] = await Promise.allSettled([
+      dashboardApi.today(),
+      gateInwardApi.list(),
+      requisitionApi.list(),
+      gateOutwardApi.list(),
+      productionOrderApi.list(),
+      dailyProductionApi.list(),
+      finishedGoodsApi.list(),
+      inventoryApi.list(),
+    ])
+
+    const today = todayRes.status === 'fulfilled' ? (todayRes.value || {}) : {}
+    const lists = {
+      gateInward: gateInwardRes.status === 'fulfilled' ? toList(gateInwardRes.value) : [],
+      requisitions: requisitionRes.status === 'fulfilled' ? toList(requisitionRes.value) : [],
+      gateOutward: gateOutwardRes.status === 'fulfilled' ? toList(gateOutwardRes.value) : [],
+      productionOrders: productionOrderRes.status === 'fulfilled' ? toList(productionOrderRes.value) : [],
+      dailyProduction: dailyProductionRes.status === 'fulfilled' ? toList(dailyProductionRes.value) : [],
+      finishedGoods: finishedGoodsRes.status === 'fulfilled' ? toList(finishedGoodsRes.value) : [],
+      inventory: inventoryRes.status === 'fulfilled' ? toList(inventoryRes.value) : [],
+    }
+
+    setDashboardToday(today)
+    setOperationSummaries(buildOperationSummaries(today, lists))
+    setDashboardLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadDashboardCards()
+    window.addEventListener('store-entries-updated', loadDashboardCards)
+    window.addEventListener('focus', loadDashboardCards)
+    return () => {
+      window.removeEventListener('store-entries-updated', loadDashboardCards)
+      window.removeEventListener('focus', loadDashboardCards)
+    }
+  }, [loadDashboardCards])
+
+  const operationCards = useMemo(() => (
+    OPERATIONS.map((item) => ({
+      ...item,
+      fields: operationSummaries[item.id] || [
+        { label: 'Today', value: dashboardLoading ? 'Loading' : '0' },
+        { label: 'Total', value: dashboardLoading ? 'Loading' : '0' },
+        { label: 'Latest', value: dashboardLoading ? 'Loading' : '-' },
+      ],
+    }))
+  ), [dashboardLoading, operationSummaries])
+
   const visibleOperations = useMemo(() => {
-    return OPERATIONS.filter((item) => {
+    return operationCards.filter((item) => {
       if (!isSuperuser && !hasPermission(item.id)) return false
       if (!normalizedQuery) return true
       const fieldsText = (item.fields || [])
@@ -180,7 +334,7 @@ export default function DashboardPage() {
       const haystack = `${item.title} ${item.subtitle} ${item.id} ${fieldsText}`.toLowerCase()
       return haystack.includes(normalizedQuery)
     })
-  }, [hasPermission, isSuperuser, normalizedQuery])
+  }, [hasPermission, isSuperuser, normalizedQuery, operationCards])
 
   const visibleQuickActions = useMemo(() => {
     return QUICK_ACTIONS.filter((item) => {
@@ -204,11 +358,19 @@ export default function DashboardPage() {
     )
   }, [normalizedQuery])
 
+  const totalEntriesToday = dashboardToday.date
+    ? Number(dashboardToday.gate_inward_today || 0)
+      + Number(dashboardToday.gate_outward_today || 0)
+      + Number(dashboardToday.requisitions_today || 0)
+      + Number(dashboardToday.daily_production_today || 0)
+      + Number(dashboardToday.finished_goods_today || 0)
+    : todayEntries
+
   const statCards = [
-    { label: 'Total Entries Today', value: String(todayEntries) },
+    { label: 'Total Entries Today', value: fmtCount(totalEntriesToday) },
+    { label: 'Inventory Items', value: fmtCount(dashboardToday.inventory_items) },
+    { label: 'Active Products', value: fmtCount(dashboardToday.active_products) },
     { label: 'Quick Entry Screens', value: String(visibleQuickActions.length) },
-    { label: 'Account Type', value: isSuperuser ? 'Super User' : 'User' },
-    { label: 'Active Panel', value: panel ? panel[0].toUpperCase() + panel.slice(1) : 'Store' },
   ]
 
   return (
