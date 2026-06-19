@@ -11,6 +11,7 @@ import {
   FileText, Download, Search, Calendar,
   ChevronDown, ChevronLeft, ChevronRight, Edit2, X, CheckSquare, Square, FileSpreadsheet
 } from 'lucide-react'
+import { openReportWindow } from '@/lib/reportDesign'
 
 const MOCK_SUPPLIERS = [
   { id: 1, name: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore' },
@@ -544,9 +545,38 @@ export default function GateInwardPage() {
   }
 
   const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Gate Inward Report</title><style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}.r{background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}.p{background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}</style></head><body><h2>Gate Inward Report</h2><p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p><table><thead><tr><th>GR No</th><th>Supplier</th><th>Brand</th><th>Category</th><th>Product</th><th>Quantity</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows.flatMap(r => r.items.map(item => `<tr><td>${r.grNo}</td><td>${r.supplierName}</td><td>${item.brandName}</td><td>${item.categoryName}</td><td>${item.productName}</td><td>${item.quantity} ${item.unit}</td><td>${r.receiveDate}</td><td><span class="${r.status === 'Received' ? 'r' : 'p'}">${r.status}</span></td></tr>`)).join('')}</tbody></table></body></html>`)
-    win.document.close(); win.print()
+    const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+      grNo: r.grNo,
+      supplier: r.supplierName,
+      brand: item.brandName,
+      category: item.categoryName,
+      product: item.productName,
+      quantity: `${item.quantity} ${item.unit}`,
+      date: r.receiveDate,
+      status: r.status,
+    })))
+    openReportWindow({
+      title: 'Gate Inward Report',
+      subtitle: 'Inward material movement report',
+      filters: [
+        filterStatus !== 'All Status' ? `Status: ${filterStatus}` : '',
+        filterBrand !== 'All Brands' ? `Brand: ${filterBrand}` : '',
+        filterCategory !== 'All Categories' ? `Category: ${filterCategory}` : '',
+        filterDateFrom ? `From: ${filterDateFrom}` : '',
+        filterDateTo ? `To: ${filterDateTo}` : '',
+      ],
+      columns: [
+        { key: 'grNo', label: 'GR No' },
+        { key: 'supplier', label: 'Supplier' },
+        { key: 'brand', label: 'Brand' },
+        { key: 'category', label: 'Category' },
+        { key: 'product', label: 'Product' },
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'date', label: 'Date' },
+        { key: 'status', label: 'Status' },
+      ],
+      rows: reportRows,
+    })
   }
 
   const resetFilters = () => { setSearch(''); setFilterStatus('All Status'); setFilterBrand('All Brands'); setFilterCategory('All Categories'); setFilterDateFrom(''); setFilterDateTo(''); setSelected([]) }
