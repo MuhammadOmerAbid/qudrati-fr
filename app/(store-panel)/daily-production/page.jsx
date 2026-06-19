@@ -9,6 +9,7 @@ import {
   CheckSquare, Square, FileSpreadsheet, Download, FileText,
   ChevronDown, ChevronUp, Calendar
 } from 'lucide-react'
+import { openReportWindow } from '@/lib/reportDesign'
 
 const INITIAL_RECORDS = [
   { id: 1, product: 'Seal Packing Line A', startTime: '08:00', endTime: '14:00', noOfLabour: 12, date: '27/05/2025', note: 'Morning shift, full capacity run.' },
@@ -150,9 +151,25 @@ export default function DailyProductionPage() {
   }
 
   const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Daily Production Report</title><style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}.date-row{background:#f9fafb;font-weight:700;color:#374151;padding:8px;font-size:13px}</style></head><body><h2>Daily Production Report</h2><p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p><table><tr><th>Product</th><th>Start</th><th>End</th><th>Hours</th><th>Labour</th><th>Date</th><th>Note</th></tr>${rows.map(r => `<tr><td>${r.product}</td><td>${r.startTime}</td><td>${r.endTime}</td><td>${calcHours(r.startTime, r.endTime)}</td><td>${r.noOfLabour}</td><td>${r.date}</td><td>${r.note || '-'}</td></tr>`).join('')}</table></body></html>`)
-    win.document.close(); win.print()
+    openReportWindow({
+      title: 'Daily Production Report',
+      subtitle: 'Production work entries report',
+      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
+      columns: [
+        { key: 'product', label: 'Product' },
+        { key: 'startTime', label: 'Start' },
+        { key: 'endTime', label: 'End' },
+        { key: 'hours', label: 'Hours' },
+        { key: 'noOfLabour', label: 'Labour' },
+        { key: 'date', label: 'Date' },
+        { key: 'note', label: 'Note' },
+      ],
+      rows: rows.map((r) => ({
+        ...r,
+        hours: calcHours(r.startTime, r.endTime),
+        note: r.note || '-',
+      })),
+    })
   }
 
   return (

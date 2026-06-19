@@ -5,6 +5,7 @@ import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, Download, X, History
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { addPdfReportHeader, loadImageDataUrl, openReportWindow } from '@/lib/reportDesign'
 
 export const BRANDS = ['Soghaat', 'Raja', 'Handi', 'Qudarti', 'General']
 
@@ -229,6 +230,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
   useEffect(() => {
     setSelectedFilters((prev) => {
       const next = { ...prev }
+      let changed = false
       selectFilters.forEach((filter) => {
         const current = next[filter.key]
         const values = (filter.options || []).map((option) => (
@@ -236,11 +238,13 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         ))
         if (current === undefined) {
           next[filter.key] = filter.initialValue ?? filter.allValue ?? ''
+          changed = true
         } else if (!values.some((value) => String(value ?? '') === String(current ?? ''))) {
           next[filter.key] = filter.allValue ?? ''
+          changed = true
         }
       })
-      return next
+      return changed ? next : prev
     })
   }, [selectFilters])
 
@@ -295,34 +299,6 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
     .filter(Boolean), [selectFilters, selectedFilters])
 
   const printReportPdf = () => {
-    const reportWindow = window.open('', '_blank', 'width=1200,height=800')
-    if (!reportWindow) return
-
-    const escapeHtml = (value) =>
-      String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-
-    const tableHead = columns.map((col) => `<th>${escapeHtml(col.label)}</th>`).join('')
-    const tableBody = rows.length
-      ? rows
-          .map((row) => {
-            const tds = columns
-              .map((col) => {
-                const raw = row[col.key]
-                const value = col.key === dateKey ? formatDate(raw) : raw
-                const display = value || value === 0 ? value : '-'
-                return `<td>${escapeHtml(display)}</td>`
-              })
-              .join('')
-            return `<tr>${tds}</tr>`
-          })
-          .join('')
-      : `<tr><td colspan="${columns.length}" style="text-align:center;color:#64748b;padding:20px;">No records found</td></tr>`
-
     const appliedFilters = [
       ...selectedFilterLabels,
       search.trim() ? `Keyword: ${search.trim()}` : '',
@@ -330,68 +306,22 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       toDate ? `To: ${formatDate(toDate)}` : '',
     ].filter(Boolean)
 
-    const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(title)} Report</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #1e293b; }
-      h1 { margin: 0; font-size: 22px; color: #102a16; }
-      .meta { margin-top: 6px; color: #64748b; font-size: 12px; }
-      .filters { margin-top: 8px; font-size: 12px; color: #334155; }
-      .count { margin-top: 8px; font-size: 12px; color: #334155; font-weight: 600; }
-      table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-      th { background: #f7faf8; color: #334155; text-align: left; font-size: 12px; border: 1px solid #e2e8f0; padding: 8px; }
-      td { border: 1px solid #e2e8f0; font-size: 12px; padding: 8px; vertical-align: top; }
-      @media print {
-        body { margin: 12px; }
-        .no-print { display: none; }
-      }
-    </style>
-  </head>
-  <body>
-    <h1>${escapeHtml(title)} Report</h1>
-    <div class="meta">Generated on: ${escapeHtml(new Date().toLocaleString())}</div>
-    <div class="filters">${appliedFilters.length ? escapeHtml(appliedFilters.join(' | ')) : 'Filters: None'}</div>
-    <div class="count">Records: ${rows.length}</div>
-    <table>
-      <thead>
-        <tr>${tableHead}</tr>
-      </thead>
-      <tbody>
-        ${tableBody}
-      </tbody>
-    </table>
-    <script>
-      window.onload = function () {
-        window.focus();
-        window.print();
-      };
-    </script>
-  </body>
-</html>`
-
-    reportWindow.document.open()
-    reportWindow.document.write(html)
-    reportWindow.document.close()
+    openReportWindow({
+      title: `${title} Report`,
+      subtitle: 'Store module report',
+      filters: appliedFilters,
+      columns,
+      rows,
+    })
   }
 
-  const downloadReportPdf = () => {
+  const downloadReportPdf = async () => {
     const orientation = columns.length > 7 ? 'landscape' : 'portrait'
     const doc = new jsPDF({
       orientation,
       unit: 'pt',
       format: 'a4',
     })
-
-    const titleText = `${title} Report`
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.text(titleText, 40, 42)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
 
     const filters = [
       ...selectedFilterLabels,
@@ -400,9 +330,13 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       toDate ? `To: ${formatDate(toDate)}` : '',
     ].filter(Boolean)
 
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 60)
-    doc.text(`Filters: ${filters.length ? filters.join(' | ') : 'None'}`, 40, 74)
-    doc.text(`Records: ${rows.length}`, 40, 88)
+    const logoImage = await loadImageDataUrl()
+    const startY = addPdfReportHeader(doc, {
+      title: `${title} Report`,
+      subtitle: `Generated: ${new Date().toLocaleString()} | Records: ${rows.length}`,
+      filters,
+      logoImage,
+    })
 
     const head = [columns.map((col) => col.label)]
     const body = rows.length
@@ -416,7 +350,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       : [['No records found', ...Array(Math.max(0, columns.length - 1)).fill('')]]
 
     autoTable(doc, {
-      startY: 104,
+      startY,
       head,
       body,
       theme: 'grid',
@@ -429,10 +363,11 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         textColor: [30, 41, 59],
       },
       headStyles: {
-        fillColor: [247, 250, 248],
-        textColor: [51, 65, 85],
+        fillColor: [232, 240, 232],
+        textColor: [23, 60, 27],
         fontStyle: 'bold',
       },
+      alternateRowStyles: { fillColor: [250, 252, 250] },
     })
 
     const safeName = `${title.toLowerCase().replace(/\s+/g, '-')}-report.pdf`

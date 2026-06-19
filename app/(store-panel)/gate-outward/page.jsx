@@ -15,6 +15,7 @@ import {
   Download,
   FileText,
 } from 'lucide-react'
+import { openReportWindow } from '@/lib/reportDesign'
 
 function toDMY(isoDate) {
   if (!isoDate) return ''
@@ -165,52 +166,41 @@ export default function GateOutwardPage() {
   }
 
   const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`
-      <html>
-        <head>
-          <title>Gate Outward Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
-            h2 { color: #2d7a33; margin: 0 0 4px; }
-            p { margin: 0 0 10px; color: #6b7280; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th { background: #f0fdf4; color: #1a2e1b; padding: 8px; text-align: left; border-bottom: 2px solid #bbf7d0; }
-            td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; }
-          </style>
-        </head>
-        <body>
-          <h2>Gate Outward Report</h2>
-          <p>Generated: ${new Date().toLocaleDateString('en-PK')}</p>
-          <table>
-            <tr>
-              <th>GO No</th><th>Date</th><th>Product</th><th>Numbering</th><th>Batch No</th><th>Brand</th><th>Qty</th><th>Vehicle</th><th>Driver</th><th>Customer</th><th>Address</th>
-            </tr>
-            ${rows
-              .flatMap((r) =>
-                r.items.map(
-                  (item) => `<tr>
-                    <td>${r.goNo}</td>
-                    <td>${r.date}</td>
-                    <td>${item.productName}</td>
-                    <td>${item.numbering || '-'}</td>
-                    <td>${item.batchNumber || '-'}</td>
-                    <td>${item.brand}</td>
-                    <td>${item.quantity} ${item.unit}</td>
-                    <td>${r.vehicleNo || '-'}</td>
-                    <td>${r.driverName || '-'}</td>
-                    <td>${r.customerName || '-'}</td>
-                    <td>${r.address || '-'}</td>
-                  </tr>`
-                )
-              )
-              .join('')}
-          </table>
-        </body>
-      </html>
-    `)
-    win.document.close()
-    win.print()
+    const reportRows = rows.flatMap((r) =>
+      r.items.map((item) => ({
+        goNo: r.goNo,
+        date: r.date,
+        product: item.productName,
+        numbering: item.numbering || '-',
+        batchNumber: item.batchNumber || '-',
+        brand: item.brand,
+        quantity: `${item.quantity} ${item.unit}`,
+        vehicle: r.vehicleNo || '-',
+        driver: r.driverName || '-',
+        customer: r.customerName || '-',
+        address: r.address || '-',
+        source: item.source || '-',
+      }))
+    )
+    openReportWindow({
+      title: 'Gate Outward Report',
+      subtitle: 'Outward material movement report',
+      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
+      columns: [
+        { key: 'goNo', label: 'GO No' },
+        { key: 'date', label: 'Date' },
+        { key: 'product', label: 'Product' },
+        { key: 'numbering', label: 'Numbering' },
+        { key: 'batchNumber', label: 'Batch No' },
+        { key: 'brand', label: 'Brand' },
+        { key: 'quantity', label: 'Qty' },
+        { key: 'vehicle', label: 'Vehicle' },
+        { key: 'driver', label: 'Driver' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'source', label: 'Source' },
+      ],
+      rows: reportRows,
+    })
   }
 
   return (

@@ -9,6 +9,7 @@ import {
   Search, X, ChevronDown, ChevronUp, CheckSquare,
   Square, CornerUpLeft, FileSpreadsheet, Download, FileText
 } from 'lucide-react'
+import { openReportWindow } from '@/lib/reportDesign'
 const PRODUCTS = [
   { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
   { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
@@ -172,15 +173,34 @@ export default function RequisitionPage() {
   }
 
   const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Goods Requisition Report</title>
-    <style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}</style>
-    </head><body><h2>Goods Requisition Report</h2>
-    <p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p>
-    <table><tr><th>Receiver</th><th>Entry By</th><th>Date</th><th>Product</th><th>Sub-Category</th><th>Category</th><th>Issued</th><th>Returned</th><th>Net</th><th>Comment</th></tr>
-    ${rows.flatMap(r => r.items.map(item => `<tr><td>${r.receiverName}</td><td>${r.entryBy}</td><td>${r.entryDate}</td><td>${item.productName}</td><td>${item.subCategory}</td><td>${item.category}</td><td>${item.quantity} ${item.unit}</td><td>${item.returned} ${item.unit}</td><td>${item.quantity - item.returned} ${item.unit}</td><td>${r.comment || '-'}</td></tr>`)).join('')}
-    </table></body></html>`)
-    win.document.close(); win.print()
+    const reportRows = rows.flatMap((r) => r.items.map((item) => ({
+      receiver: r.receiverName,
+      entryBy: r.entryBy,
+      date: r.entryDate,
+      product: item.productName,
+      category: item.category,
+      issued: `${item.quantity} ${item.unit}`,
+      returned: `${item.returned} ${item.unit}`,
+      net: `${item.quantity - item.returned} ${item.unit}`,
+      comment: r.comment || '-',
+    })))
+    openReportWindow({
+      title: 'Goods Requisition Report',
+      subtitle: 'Issued, returned, and net goods movement',
+      filters: [search.trim() ? `Keyword: ${search.trim()}` : ''],
+      columns: [
+        { key: 'receiver', label: 'Receiver' },
+        { key: 'entryBy', label: 'Entry By' },
+        { key: 'date', label: 'Date' },
+        { key: 'product', label: 'Product' },
+        { key: 'category', label: 'Category' },
+        { key: 'issued', label: 'Issued' },
+        { key: 'returned', label: 'Returned' },
+        { key: 'net', label: 'Net' },
+        { key: 'comment', label: 'Comment' },
+      ],
+      rows: reportRows,
+    })
   }
 
   return (
