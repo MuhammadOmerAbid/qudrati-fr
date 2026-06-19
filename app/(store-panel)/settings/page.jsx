@@ -43,7 +43,7 @@ const SETTING_CARDS = [
   {
     id: 'packaging',
     label: 'Packaging',
-    description: 'Manage packaging types (Box, Bag, Carton…)',
+    description: 'Manage packaging types',
     icon: Box,
     path: '/settings/packaging',
     color: '#2d7a33',
