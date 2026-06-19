@@ -21,10 +21,20 @@ import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/sha
 
 const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
 
+function parseDateValue(value) {
+  if (!value) return null
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export default function ProductionOrderPage({ isSuperUser = true }) {
   const router = useRouter()
   const [orders, setOrders] = useState(PRODUCTION_INITIAL)
   const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('All Status')
+  const [filterGoods, setFilterGoods] = useState('All Goods')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [showReport, setShowReport] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
@@ -61,16 +71,28 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     }
   }, [])
 
+  const goodsOptions = useMemo(() => {
+    const goods = orders.flatMap((order) => order.items.map((item) => item.goods)).filter(Boolean)
+    return Array.from(new Set(goods)).sort((a, b) => a.localeCompare(b))
+  }, [orders])
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return orders
     const q = search.toLowerCase()
-    return orders.filter((order) =>
-      [order.name, ...order.items.map((item) => `${item.goods} ${item.packing} ${item.status}`)]
+    return orders.filter((order) => {
+      const text = [order.name, order.date, ...order.items.map((item) => `${item.goods} ${item.packing} ${item.status}`)]
         .join(' ')
         .toLowerCase()
-        .includes(q)
-    )
-  }, [orders, search])
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesStatus = filterStatus === 'All Status' || order.items.some((item) => item.status === filterStatus)
+      const matchesGoods = filterGoods === 'All Goods' || order.items.some((item) => item.goods === filterGoods)
+      const rowDate = parseDateValue(order.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesStatus && matchesGoods && matchesFrom && matchesTo
+    })
+  }, [orders, search, filterStatus, filterGoods, filterDateFrom, filterDateTo])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -82,9 +104,11 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     return map
   }, [filtered])
 
+  const reportOrders = selected.length > 0 ? orders.filter((order) => selected.includes(order.id)) : filtered
+
   const reportRows = useMemo(
     () =>
-      orders.flatMap((order) =>
+      reportOrders.flatMap((order) =>
         order.items.map((item) => ({
           _groupId: order.id,
           date: order.date,
@@ -96,7 +120,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           status: item.status,
         }))
       ),
-    [orders]
+    [reportOrders]
   )
 
   const openEditEditor = (order) => {
@@ -152,14 +176,40 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
         )}
       />
 
-      <div style={ui.searchWrap}>
-        <Search size={15} color="#7a8a7a" />
-        <input
-          style={ui.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order name, goods, packing or status"
-        />
+      <div style={filterCard}>
+        <div style={ui.filtersRow}>
+          <StoreThemeDropdown
+            value={filterStatus}
+            onChange={setFilterStatus}
+            placeholder="All Status"
+            variant="pill"
+            options={[
+              { value: 'All Status', label: 'All Status' },
+              ...Object.keys(STATUS_COLORS).map((status) => ({ value: status, label: status })),
+            ]}
+          />
+          <StoreThemeDropdown
+            value={filterGoods}
+            onChange={setFilterGoods}
+            placeholder="All Goods"
+            variant="pill"
+            options={[
+              { value: 'All Goods', label: 'All Goods' },
+              ...goodsOptions.map((goods) => ({ value: goods, label: goods })),
+            ]}
+          />
+          <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+          <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+        </div>
+        <div style={{ ...ui.searchWrap, marginTop: 12 }}>
+          <Search size={15} color="#7a8a7a" />
+          <input
+            style={ui.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by order name, goods, packing or status"
+          />
+        </div>
       </div>
 
       <TableShell
@@ -431,4 +481,12 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
       ) : null}
     </div>
   )
+}
+
+const filterCard = {
+  backgroundColor: '#f2f4f2',
+  borderRadius: 20,
+  padding: 14,
+  border: '1px solid #e2e8e2',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
 }

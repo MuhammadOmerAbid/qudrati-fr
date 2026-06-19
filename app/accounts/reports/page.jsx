@@ -1145,7 +1145,7 @@ export default function ReportsPage() {
       const [{ default: jsPDF }, { default: autoTable }, logoImage] = await Promise.all([
         import('jspdf'),
         import('jspdf-autotable'),
-        loadImageDataUrl('/qudartinew.png'),
+        loadImageDataUrl('/qudarti-packaging-logo.png'),
       ])
 
       const doc = new jsPDF({
@@ -1321,7 +1321,7 @@ export default function ReportsPage() {
           <div className="print-only" style={s.printHead}>
             <div style={s.printBrandRow}>
               <div style={s.printLogoFrame}>
-                <img src="/qudartinew.png" alt="Qudarti Food Logo" style={s.printLogo} />
+                <img src="/qudarti-packaging-logo.png" alt="Qudarti Food Logo" style={s.printLogo} />
               </div>
               <div>
                 <p style={s.printBrand}>Qudarti Food Processors</p>
@@ -2060,11 +2060,10 @@ const s = {
     gap: 12,
   },
   printLogoFrame: {
-    width: 82,
-    height: 70,
-    borderRadius: 12,
-    background: '#ffffff',
-    padding: 7,
+    width: 92,
+    height: 74,
+    background: 'transparent',
+    padding: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

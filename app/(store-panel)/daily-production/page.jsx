@@ -10,6 +10,7 @@ import {
   ChevronDown, ChevronUp, Calendar
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 const INITIAL_RECORDS = [
   { id: 1, product: 'Seal Packing Line A', startTime: '08:00', endTime: '14:00', noOfLabour: 12, date: '27/05/2025', note: 'Morning shift, full capacity run.' },
@@ -23,8 +24,11 @@ const INITIAL_RECORDS = [
 const DAILY_TABLE_COLS = ['56px', '320px', '130px', '130px', '140px', '130px', '130px']
 
 function parseDMY(str) {
+  if (!str) return null
   const [d, m, y] = str.split('/')
-  return new Date(`${y}-${m}-${d}`)
+  if (!d || !m || !y) return null
+  const date = new Date(`${y}-${m}-${d}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function calcHours(start, end) {
@@ -42,6 +46,9 @@ export default function DailyProductionPage() {
 
   const [records, setRecords] = useState([])
   const [search, setSearch]   = useState('')
+  const [filterProduct, setFilterProduct] = useState('All Products')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [viewRecord, setViewRecord] = useState(null)
   const [showReport, setShowReport] = useState(false)
@@ -87,14 +94,36 @@ export default function DailyProductionPage() {
   }
 
   useEffect(() => { loadFromApi() }, [])
+
+  const productOptions = useMemo(() => {
+    const products = records.map((record) => record.product).filter(Boolean)
+    return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
   const filtered = useMemo(() => {
-    if (!search) return records
     const q = search.toLowerCase()
-    return records.filter(r =>
-      [r.product, r.startTime, r.endTime, r.noOfLabour, r.date, r.note]
-        .join(' ').toLowerCase().includes(q)
-    )
-  }, [records, search])
+    return records.filter(r => {
+      const text = [r.product, r.startTime, r.endTime, r.noOfLabour, r.date, r.note]
+        .join(' ').toLowerCase()
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesProduct = filterProduct === 'All Products' || r.product === filterProduct
+      const rowDate = parseDMY(r.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesProduct && matchesFrom && matchesTo
+    })
+  }, [records, search, filterProduct, filterDateFrom, filterDateTo])
+
+  const resetFilters = () => {
+    setSearch('')
+    setFilterProduct('All Products')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setSelected([])
+  }
+
   const grouped = useMemo(() => {
     const map = {}
     filtered.forEach(r => {
@@ -102,7 +131,7 @@ export default function DailyProductionPage() {
       map[r.date].push(r)
     })
     // Sort dates descending
-    return Object.entries(map).sort((a, b) => parseDMY(b[0]) - parseDMY(a[0]))
+    return Object.entries(map).sort((a, b) => (parseDMY(b[0]) || 0) - (parseDMY(a[0]) || 0))
   }, [filtered])
   const toggleSelect  = (id)  => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll     = ()    => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
@@ -167,7 +196,7 @@ export default function DailyProductionPage() {
             <p style={s.pageSubtitle}>View and manage production entries.</p>
           </div>
           <div style={s.headerActions}>
-            <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}><RotateCcw size={16} /></button>
+            <button style={s.iconBtn} title="Reset" onClick={resetFilters}><RotateCcw size={16} /></button>
             <button style={s.reportBtn} onClick={() => setShowReport(true)}><FileText size={14} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/daily-production/new')}><Plus size={16} /> Add New Entry</button>
           </div>
@@ -185,10 +214,26 @@ export default function DailyProductionPage() {
         ) : null}
 
         {/* Search */}
-        <div style={s.searchWrap}>
-          <Search size={15} color="#7a8a7a" />
-          <input style={s.searchInput} placeholder="Search by product..." value={search} onChange={e => setSearch(e.target.value)} />
-          {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+        <div style={s.controlsCard}>
+          <div style={s.filtersRow}>
+            <StoreThemeDropdown
+              value={filterProduct}
+              onChange={setFilterProduct}
+              placeholder="All Products"
+              variant="pill"
+              options={[
+                { value: 'All Products', label: 'All Products' },
+                ...productOptions.map((product) => ({ value: product, label: product })),
+              ]}
+            />
+            <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+            <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+          </div>
+          <div style={s.searchWrap}>
+            <Search size={15} color="#7a8a7a" />
+            <input style={s.searchInput} placeholder="Search by product..." value={search} onChange={e => setSearch(e.target.value)} />
+            {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+          </div>
         </div>
 
         {/* Table */}
@@ -446,6 +491,20 @@ const s = {
     color: '#ef4444',
     cursor: 'pointer',
   },
+  controlsCard: {
+    backgroundColor: '#f2f4f2',
+    borderRadius: RADIUS,
+    padding: '14px 16px',
+    border: '1px solid #e2e8e2',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+    marginBottom: 14,
+  },
+  filtersRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 12,
+    marginBottom: 14,
+  },
   searchWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -454,7 +513,6 @@ const s = {
     border: '1px solid #d4dfd4',
     borderRadius: 40,
     padding: '10px 14px',
-    marginBottom: 14,
   },
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
   clearBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#7a8a7a', display: 'flex', padding: 0 },
