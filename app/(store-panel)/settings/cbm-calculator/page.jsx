@@ -10,6 +10,10 @@ import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsSha
 
 const UNITS = ['Inch', 'CM', 'MM']
 const WEIGHT_UNITS = ['Kg', 'Gram', 'Lb']
+const CONTAINER_PRESETS = {
+  '40ft': { capacity: '66', weight: '26500' },
+  '20ft': { capacity: '33', weight: '13500' },
+}
 
 function toCM(value, unit) {
   const num = parseFloat(value) || 0
@@ -94,11 +98,13 @@ export default function CBMCalculatorPage() {
   const isSuperuser = user?.role === 'superuser'
   const [rows, setRows] = useState([emptyRow()])
   const [containerType, setContainerType] = useState('40ft')
+  const [containerCapacity, setContainerCapacity] = useState(CONTAINER_PRESETS['40ft'].capacity)
+  const [containerMaxWeight, setContainerMaxWeight] = useState(CONTAINER_PRESETS['40ft'].weight)
   const [isMobile, setIsMobile] = useState(false)
   const [loadingRows, setLoadingRows] = useState(false)
 
-  const containerCBM = containerType === '40ft' ? 66 : 33
-  const containerWeight = containerType === '40ft' ? 26500 : 13500
+  const containerCBM = parseFloat(containerCapacity) || 0
+  const containerWeight = parseFloat(containerMaxWeight) || 0
 
   const saveRow = async (id, rowOverride = null) => {
     const target = rowOverride || rows.find((row) => row.id === id)
@@ -188,8 +194,8 @@ export default function CBMCalculatorPage() {
   const totalWeightUsed = computed.reduce((sum, row) => sum + row.totalWeight, 0)
   const hasWeightInput = rows.some((row) => String(row.weightPerCarton || '').trim() !== '')
   const cbmRemaining = containerCBM - totalCBMUsed
-  const cbmPct = Math.min((totalCBMUsed / containerCBM) * 100, 100)
-  const weightPct = totalWeightUsed > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
+  const cbmPct = containerCBM > 0 ? Math.min((totalCBMUsed / containerCBM) * 100, 100) : 0
+  const weightPct = totalWeightUsed > 0 && containerWeight > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
 
   const summaryCards = [
     {
@@ -210,11 +216,25 @@ export default function CBMCalculatorPage() {
     },
     {
       label: 'Capacity',
-      value: containerCBM.toFixed(2),
+      value: containerCapacity,
       unit: 'm3',
       color: settingsTheme.textMuted,
       bg: '#f6f9f6',
       border: settingsTheme.border,
+      editable: true,
+      onChange: setContainerCapacity,
+      inputWidth: 86,
+    },
+    {
+      label: 'Weight Available',
+      value: containerMaxWeight,
+      unit: 'Kg',
+      color: settingsTheme.textMuted,
+      bg: '#f6f9f6',
+      border: settingsTheme.border,
+      editable: true,
+      onChange: setContainerMaxWeight,
+      inputWidth: 110,
     },
     ...(isMobile && !hasWeightInput ? [] : [{
       label: 'Total Weight',
@@ -228,12 +248,12 @@ export default function CBMCalculatorPage() {
 
   const progressCards = [
     {
-      label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM} m3`,
+      label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM || 0} m3`,
       pct: cbmPct,
       color: cbmPct > 90 ? settingsTheme.danger : settingsTheme.primarySoft,
     },
     ...(hasWeightInput ? [{
-      label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight} Kg` : 'Enter weight per carton'}`,
+      label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight || 0} Kg` : 'Enter weight per carton'}`,
       pct: weightPct,
       color: weightPct > 90 ? settingsTheme.danger : settingsTheme.primary,
     }] : []),
@@ -303,7 +323,15 @@ export default function CBMCalculatorPage() {
           </div>
           <SettingsSelect
             value={containerType}
-            onChange={(e) => setContainerType(e.target.value)}
+            onChange={(e) => {
+              const nextType = e.target.value
+              const preset = CONTAINER_PRESETS[nextType]
+              setContainerType(nextType)
+              if (preset) {
+                setContainerCapacity(preset.capacity)
+                setContainerMaxWeight(preset.weight)
+              }
+            }}
             wrapperStyle={{
               minWidth: isMobile ? 0 : 180,
               width: isMobile ? '100%' : 'auto',
@@ -324,12 +352,26 @@ export default function CBMCalculatorPage() {
         </div>
 
         <div style={{ ...summaryGrid, gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : summaryGrid.gridTemplateColumns }}>
-          {summaryCards.map(({ label, value, unit, color, bg, border }) => (
+          {summaryCards.map(({ label, value, unit, color, bg, border, editable, onChange, inputWidth }) => (
             <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 18px' }}>
               <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: settingsTheme.textMuted }}>{label}</p>
-              <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
-                {value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unit}</span>
-              </p>
+              {editable ? (
+                <div style={editableSummaryValue}>
+                  <input
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={{ ...summaryInput, width: inputWidth }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color }}>{unit}</span>
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
+                  {value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unit}</span>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -715,7 +757,7 @@ const subtitle = {
 
 const summaryGrid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
   marginBottom: 20,
 }
@@ -732,6 +774,24 @@ const progressCard = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 10,
   padding: '12px 16px',
+}
+
+const editableSummaryValue = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 6,
+}
+
+const summaryInput = {
+  border: 'none',
+  borderBottom: `1px solid ${settingsTheme.border}`,
+  background: 'transparent',
+  color: settingsTheme.text,
+  fontSize: 22,
+  fontWeight: 800,
+  outline: 'none',
+  padding: '0 0 2px',
+  fontFamily: 'inherit',
 }
 
 const tableWrap = {
