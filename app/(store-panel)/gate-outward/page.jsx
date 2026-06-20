@@ -38,6 +38,7 @@ function normalizeItem(raw = {}) {
     brand: String(raw.brand || '').trim(),
     numbering: String(raw.numbering || '').trim(),
     batchNumber: String(raw.batchNumber || raw.batch_number || '').trim(),
+    packaging: String(raw.packaging || raw.packing || '').trim(),
     quantity: Number(raw.quantity) || 0,
     unit: String(raw.unit || 'Unit').trim() || 'Unit',
     source: String(raw.source || '').trim(),
@@ -141,7 +142,7 @@ export default function GateOutwardPage() {
         r.note,
         r.numbering,
         r.batchNumber,
-        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, String(it.quantity), it.unit, it.source]),
+        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, it.source]),
       ]
         .join(' ')
         .toLowerCase()
@@ -177,7 +178,7 @@ export default function GateOutwardPage() {
   const exportRows = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
 
   const exportCSV = (rows) => {
-    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
+    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
       r.items.map((item) =>
         [
@@ -186,6 +187,7 @@ export default function GateOutwardPage() {
           item.productName,
           item.numbering || '-',
           item.batchNumber || '-',
+          item.packaging || '-',
           item.brand,
           `${item.quantity} ${item.unit}`,
           r.vehicleNo,
@@ -219,6 +221,7 @@ export default function GateOutwardPage() {
         product: item.productName,
         numbering: item.numbering || '-',
         batchNumber: item.batchNumber || '-',
+        packaging: item.packaging || '-',
         brand: item.brand,
         quantity: `${item.quantity} ${item.unit}`,
         vehicle: r.vehicleNo || '-',
@@ -314,6 +317,7 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Product</th>
                 <th style={s.th}>Numbering</th>
                 <th style={s.th}>Batch No</th>
+                <th style={s.th}>Packaging</th>
                 <th style={s.th}>Brand</th>
                 <th style={s.th}>Qty</th>
                 <th style={s.th}>Source</th>
@@ -328,7 +332,7 @@ export default function GateOutwardPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={16} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={17} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -353,6 +357,7 @@ export default function GateOutwardPage() {
                       <td style={s.td}>{item.productName}</td>
                       <td style={s.td}>{item.numbering || '-'}</td>
                       <td style={s.td}>{item.batchNumber || '-'}</td>
+                      <td style={s.td}>{item.packaging || '-'}</td>
                       <td style={s.td}>{item.brand}</td>
                       <td style={s.td}>{item.quantity} {item.unit}</td>
                       <td style={s.td}>{item.source || '-'}</td>
@@ -385,6 +390,7 @@ export default function GateOutwardPage() {
               { key: 'product', label: 'Product' },
               { key: 'numbering', label: 'Numbering' },
               { key: 'batchNumber', label: 'Batch No' },
+              { key: 'packaging', label: 'Packaging' },
               { key: 'brand', label: 'Brand' },
               { key: 'quantity', label: 'Qty' },
               { key: 'vehicle', label: 'Vehicle', rowSpan: true },
@@ -521,7 +527,7 @@ const s = {
     overflowX: 'auto',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
   },
-  table: { width: '100%', minWidth: 1500, borderCollapse: 'collapse' },
+  table: { width: '100%', minWidth: 1600, borderCollapse: 'collapse' },
   thead: { background: '#e8eee8' },
   th: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap', letterSpacing: '0.1px' },
   tr: { transition: 'background 0.15s' },

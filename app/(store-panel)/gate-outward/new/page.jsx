@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowUpFromLine, Plus, X, ArrowLeft, Save } from 'lucide-react'
-import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi } from '@/infrastructure/api/endpoints'
+import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi, packagingApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
@@ -23,6 +23,8 @@ const SOURCE_OPTIONS = [
   { value: SOURCE_INVENTORY, label: 'Inventory' },
   { value: SOURCE_FINISHED_GOODS, label: 'Finished Goods' },
 ]
+
+const FALLBACK_PACKAGING_TYPES = ['Box', 'Bag', 'Carton', 'Wrap', 'Bundle']
 
 const todayISO = () => new Date().toISOString().split('T')[0]
 
@@ -162,12 +164,24 @@ const blankItem = (source = '') => ({
   key: Date.now() + Math.random(),
   source,
   productId: '',
+  packaging: '',
   numbering: '',
   batchNumber: '',
   quantity: '',
   unit: 'Unit',
   error: '',
 })
+
+const normalizePackagingType = (entry, idx = 0) => {
+  const name = String(entry?.name || entry?.packaging || entry || '').trim()
+  if (!name) return null
+  const isInactive = entry && typeof entry === 'object' && (entry.status === false || entry.status === 'inactive')
+  if (isInactive) return null
+  return {
+    id: String(entry?.id ?? name ?? idx),
+    name,
+  }
+}
 
 function loadRecords() {
   if (typeof window === 'undefined') return INITIAL_GATE_OUTWARD_RECORDS
@@ -251,6 +265,9 @@ export default function GateOutwardNewPage() {
     [SOURCE_INVENTORY]: fallbackInventoryProducts,
     [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
   })
+  const [packagingTypes, setPackagingTypes] = useState(
+    FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name }))
+  )
 
   useEffect(() => {
     let active = true
@@ -287,10 +304,11 @@ export default function GateOutwardNewPage() {
       setLoadWarning('')
 
       try {
-        const [customersRes, inventoryRes, finishedGoodsRes] = await Promise.all([
+        const [customersRes, inventoryRes, finishedGoodsRes, packagingRes] = await Promise.all([
           customersApi.list(),
           inventoryApi.list(),
           finishedGoodsApi.list(),
+          packagingApi.list(),
         ])
 
         if (!active) return
@@ -309,12 +327,18 @@ export default function GateOutwardNewPage() {
           toList(finishedGoodsRes)
             .flatMap((entry, idx) => normalizeFinishedGoodEntryProducts(entry, idx, 'fg'))
         )
+        const packagingList = toList(packagingRes)
+          .map((entry, idx) => normalizePackagingType(entry, idx))
+          .filter(Boolean)
 
         setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
         setProductsBySource({
           [SOURCE_INVENTORY]: inventoryProducts,
           [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
         })
+        setPackagingTypes(packagingList.length
+          ? packagingList
+          : FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name })))
       } catch {
         if (!active) return
 
@@ -323,6 +347,7 @@ export default function GateOutwardNewPage() {
           [SOURCE_INVENTORY]: fallbackInventoryProducts,
           [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
         })
+        setPackagingTypes(FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name })))
         setLoadWarning('Unable to fetch latest Settings data. Showing fallback options.')
       } finally {
         if (active) setLoadingOptions(false)
@@ -395,6 +420,7 @@ export default function GateOutwardNewPage() {
 
         if (field === 'source') {
           updated.productId = ''
+          updated.packaging = ''
           updated.quantity = ''
           updated.unit = unitOptions[0] || 'Unit'
         }
@@ -436,7 +462,9 @@ export default function GateOutwardNewPage() {
     if (!customerId) nextErrors.customer = 'Please select a customer'
 
     const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0)
+    const missingPackaging = items.some((row) => row.source === SOURCE_FINISHED_GOODS && !row.packaging)
     if (missing) nextErrors.items = 'Please complete source, product, and quantity for all rows'
+    if (!missing && missingPackaging) nextErrors.items = 'Please select packaging for finished goods rows'
 
     const overLimitRow = items.find((row) => {
       const product = getProduct(row.source, row.productId)
@@ -494,6 +522,8 @@ export default function GateOutwardNewPage() {
             source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
             sourceType: row.source,
             productId: product?.id ?? row.productId,
+            packaging: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
+            packing: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
             inventoryItemId: product?.inventoryItemId ?? null,
             inventory_item_id: product?.inventoryItemId ?? null,
             productName: product?.name || '',
@@ -700,6 +730,22 @@ export default function GateOutwardNewPage() {
                       ]}
                     />
                   </div>
+
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <div style={s.itemField}>
+                      {idx === 0 && <label style={s.label}>Packaging</label>}
+                      <StoreThemeDropdown
+                        value={item.packaging}
+                        onChange={(nextPackaging) => updateItem(item.key, 'packaging', nextPackaging)}
+                        variant="input"
+                        placeholder={loadingOptions ? 'Loading packaging...' : 'Select Packaging'}
+                        options={[
+                          { value: '', label: loadingOptions ? 'Loading packaging...' : 'Select Packaging' },
+                          ...packagingTypes.map((entry) => ({ value: entry.name, label: entry.name })),
+                        ]}
+                      />
+                    </div>
+                  )}
 
                   <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
                     {idx === 0 && <label style={s.label}>Numbering</label>}
