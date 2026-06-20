@@ -6,17 +6,17 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowLeft, Save, Plus, X } from 'lucide-react'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { inventoryApi, requisitionApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, inventoryApi, requisitionApi } from '@/infrastructure/api/endpoints'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
 /* ─── Mock Data — replace with real API calls ─── */
 const FALLBACK_PRODUCTS = [
-  { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
-  { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
-  { id: 3, name: '500ml Bottle',    category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
-  { id: 4, name: '1L Bottle',       category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
-  { id: 5, name: 'Front Sticker',   category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
-  { id: 6, name: 'Standard Carton', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
+  { id: 1, name: '69 mm Seal',      brand: 'General', category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
+  { id: 2, name: '72 MM Seal',      brand: 'General', category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
+  { id: 3, name: '500ml Bottle',    brand: 'General', category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
+  { id: 4, name: '1L Bottle',       brand: 'General', category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
+  { id: 5, name: 'Front Sticker',   brand: 'General', category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
+  { id: 6, name: 'Standard Carton', brand: 'General', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
 ]
 
 const todayISO = () => new Date().toISOString().split('T')[0]
@@ -28,6 +28,7 @@ export default function RequisitionNewPage() {
   const { user } = useAuthStore()
 
   const [products, setProducts] = useState([])
+  const [brands, setBrands] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [loadWarning, setLoadWarning] = useState('')
 
@@ -47,12 +48,19 @@ export default function RequisitionNewPage() {
       setLoadingProducts(true)
       setLoadWarning('')
       try {
-        const res = await inventoryApi.list()
+        const [res, brandsRes] = await Promise.all([
+          inventoryApi.list(),
+          brandsApi.list(),
+        ])
         const rows = toList(res)
-        if (active) setProducts(rows)
+        if (active) {
+          setProducts(rows)
+          setBrands(toList(brandsRes))
+        }
       } catch {
         if (active) {
           setProducts([])
+          setBrands([])
           setLoadWarning('Unable to load Inventory from backend. Showing fallback options.')
         }
       } finally {
@@ -73,19 +81,21 @@ export default function RequisitionNewPage() {
   }, [])
 
   const productOptions = useMemo(() => {
+    const brandNameById = new Map(brands.map((brand) => [String(brand.id), brand.name]))
     const apiOptions = products.map((p) => ({
       id: p.id,
       name: p.product || p.name,
+      brand: p.brand_name || brandNameById.get(String(p.brand)) || p.brand || '',
       category: p.category || p.category_name || '',
-      subCategory: p.subcategory || p.subCategory || p.brand || p.brand_name || '',
+      subCategory: p.subcategory || p.subCategory || p.sub_category || '',
       unit: p.unit || 'Unit',
       available: Number(p.quantity),
     }))
     return apiOptions.length ? apiOptions : FALLBACK_PRODUCTS
-  }, [products])
+  }, [brands, products])
 
   const getProduct = (id) => productOptions.find(p => String(p.id) === String(id))
-  const selectedIds = items.map(i => Number(i.productId)).filter(Boolean)
+  const selectedIds = items.map(i => String(i.productId)).filter(Boolean)
 
   const updateItem = (key, field, value) => {
     setItems(prev => prev.map(i => i.key === key ? { ...i, [field]: value } : i))
@@ -143,6 +153,8 @@ export default function RequisitionNewPage() {
             inventoryItemId: prod?.id ?? row.productId,
             inventory_item_id: prod?.id ?? row.productId,
             productName: prod?.name || '',
+            brand: prod?.brand || '',
+            brandName: prod?.brand || '',
             subCategory: prod?.subCategory || '',
             category: prod?.category || '',
             quantity: Number(row.quantity),
@@ -213,6 +225,7 @@ export default function RequisitionNewPage() {
           {/* Column Headers */}
           {!isMobile ? <div style={s.colHeaderRow}>
             <div style={{ flex: 2 }}><span style={s.subLabel}>Product</span></div>
+            <div style={{ flex: 1 }}><span style={s.subLabel}>Brand</span></div>
             <div style={{ flex: 1 }}><span style={s.subLabel}>Sub-Category / Type</span></div>
             <div style={{ flex: 1 }}><span style={s.subLabel}>Category</span></div>
             <div style={{ flex: '0 0 110px' }}><span style={s.subLabel}>Quantity</span></div>
@@ -224,7 +237,7 @@ export default function RequisitionNewPage() {
           {items.map((item) => {
             const prod = getProduct(item.productId)
             const availableProducts = productOptions.filter(
-              (p) => !selectedIds.includes(Number(p.id)) || String(p.id) === String(item.productId)
+              (p) => !selectedIds.includes(String(p.id)) || String(p.id) === String(item.productId)
             )
 
             return (
@@ -239,9 +252,21 @@ export default function RequisitionNewPage() {
                     placeholder={loadingProducts ? 'Loading products...' : 'Select Product'}
                     options={[
                       { value: '', label: loadingProducts ? 'Loading products...' : 'Select Product' },
-                      ...availableProducts.map((p) => ({ value: String(p.id), label: p.name })),
+                      ...availableProducts.map((p) => ({
+                        value: String(p.id),
+                        label: `${p.name}${p.brand ? ` (${p.brand})` : ''}`,
+                      })),
                     ]}
                   />
+                </div>
+
+                {/* Brand (auto from product/settings) */}
+                <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : 1 }}>
+                  <div style={s.typeDisplay}>
+                    {prod
+                      ? <span style={s.brandBadge}>{prod.brand || '-'}</span>
+                      : <span style={s.typePlaceholder}>-</span>}
+                  </div>
                 </div>
 
                 {/* Sub-Category / Type (auto from product) */}
@@ -307,6 +332,7 @@ export default function RequisitionNewPage() {
                   return prod ? (
                     <div key={item.key} style={s.selectedChip}>
                       <span style={s.chipName}>{prod.name}</span>
+                      <span style={s.chipBrand}>{prod.brand || '-'}</span>
                       <span style={s.chipSubCat}>{prod.subCategory}</span>
                       <span style={s.chipCat}>{prod.category}</span>
                       <span style={s.chipQty}>{item.quantity} {prod.unit}</span>
@@ -409,6 +435,7 @@ const s = {
   itemField: { display: 'flex', flexDirection: 'column', flex: 1 },
   typeDisplay: { display: 'flex', alignItems: 'center', height: 40, paddingLeft: 4 },
   subCatBadge: { display: 'inline-block', background: '#eef2ee', border: '1px solid #d4dfd4', color: '#2d7a33', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 700 },
+  brandBadge: { display: 'inline-block', background: '#ffffff', border: '1px solid #cfe0d0', color: '#123416', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 800 },
   catBadge: { display: 'inline-block', background: '#e8f0e8', border: '1px solid #d4dfd4', color: '#1f7a2b', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 700 },
   typePlaceholder: { color: '#b2c0b3', fontSize: 13 },
   unitDisplay: { height: 40, display: 'flex', alignItems: 'center', fontSize: 12.5, color: '#607062', fontWeight: 600, paddingLeft: 4 },
@@ -420,6 +447,7 @@ const s = {
   selectedList: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   selectedChip: { display: 'flex', alignItems: 'center', gap: 6, background: '#f2f4f2', border: '1px solid #d4dfd4', borderRadius: 40, padding: '4px 10px' },
   chipName: { fontSize: 12.5, fontWeight: 600, color: '#1f2f21' },
+  chipBrand: { fontSize: 11, color: '#123416', background: '#ffffff', border: '1px solid #cfe0d0', borderRadius: 40, padding: '1px 8px', fontWeight: 800 },
   chipSubCat: { fontSize: 11, color: '#2d7a33', background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '1px 8px', fontWeight: 700 },
   chipCat: { fontSize: 11, color: '#1f7a2b', background: '#e8f0e8', border: '1px solid #d4dfd4', borderRadius: 40, padding: '1px 8px', fontWeight: 700 },
   chipQty: { fontSize: 12.5, color: '#2d7a33', fontWeight: 700 },

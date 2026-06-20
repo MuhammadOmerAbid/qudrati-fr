@@ -12,44 +12,44 @@ import {
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 const PRODUCTS = [
-  { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
-  { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
-  { id: 3, name: '500ml Bottle',    category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
-  { id: 4, name: '1L Bottle',       category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
-  { id: 5, name: 'Front Sticker',   category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
-  { id: 6, name: 'Standard Carton', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
+  { id: 1, name: '69 mm Seal',      brand: 'General', category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
+  { id: 2, name: '72 MM Seal',      brand: 'General', category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
+  { id: 3, name: '500ml Bottle',    brand: 'General', category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
+  { id: 4, name: '1L Bottle',       brand: 'General', category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
+  { id: 5, name: 'Front Sticker',   brand: 'General', category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
+  { id: 6, name: 'Standard Carton', brand: 'General', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
 ]
 
 const INITIAL_RECORDS = [
   {
     id: 1, receiverName: 'SAJJAD', entryBy: 'Demo Account', entryDate: '22/05/2025',
     comment: '',
-    items: [{ productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 1000, unit: 'Unit', returned: 0 }],
+    items: [{ productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 1000, unit: 'Unit', returned: 0 }],
   },
   {
     id: 2, receiverName: 'HAMID', entryBy: 'Demo Account', entryDate: '27/05/2025',
     comment: 'Urgent requirement for production line.',
-    items: [{ productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 2000, unit: 'Unit', returned: 200 }],
+    items: [{ productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 2000, unit: 'Unit', returned: 200 }],
   },
   {
     id: 3, receiverName: 'GULFAM', entryBy: 'Demo Account', entryDate: '27/05/2025',
     comment: '',
-    items: [{ productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 1100, unit: 'Unit', returned: 0 }],
+    items: [{ productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 1100, unit: 'Unit', returned: 0 }],
   },
   {
     id: 4, receiverName: 'xyz', entryBy: 'Demo Account', entryDate: '28/05/2025',
     comment: 'Mixed order for two departments. Please ensure careful handling.',
     items: [
-      { productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 100 },
-      { productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 0 },
+      { productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 100 },
+      { productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 0 },
     ],
   },
   {
     id: 5, receiverName: 'ADNAN', entryBy: 'Demo Account', entryDate: '03/06/2025',
     comment: '',
     items: [
-      { productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 50 },
-      { productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 0 },
+      { productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 50 },
+      { productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 0 },
     ],
   },
 ]
@@ -88,6 +88,7 @@ export default function RequisitionPage() {
   const normalizeItem = (item) => ({
     productId: item?.productId ?? item?.product_id ?? '',
     productName: String(item?.productName || item?.product_name || '').trim(),
+    brand: String(item?.brand || item?.brandName || item?.brand_name || 'General').trim() || 'General',
     subCategory: String(item?.subCategory || item?.sub_category || '').trim(),
     category: String(item?.category || '').trim(),
     quantity: Number(item?.quantity) || 0,
@@ -135,7 +136,7 @@ export default function RequisitionPage() {
     return records.filter(r => {
       const text = [
         r.receiverName, r.entryBy, r.entryDate, r.comment,
-        ...r.items.flatMap(i => [i.productName, i.subCategory, i.category, String(i.quantity), i.unit, String(i.returned), String(i.quantity - i.returned)])
+        ...r.items.flatMap(i => [i.productName, i.brand, i.subCategory, i.category, String(i.quantity), i.unit, String(i.returned), String(i.quantity - i.returned)])
       ].join(' ').toLowerCase()
       const matchesSearch = !q.trim() || text.includes(q)
       const matchesReceiver = filterReceiver === 'All Receivers' || r.receiverName === filterReceiver
@@ -198,11 +199,11 @@ export default function RequisitionPage() {
   const exportRows = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
 
   const exportCSV = (rows) => {
-    const headers = ['Receiver Name', 'Entry By', 'Entry Date', 'Product', 'Sub-Category', 'Category', 'Issued Qty', 'Returned Qty', 'Net Qty', 'Unit', 'Comment']
+    const headers = ['Receiver Name', 'Entry By', 'Entry Date', 'Product', 'Brand', 'Sub-Category', 'Category', 'Issued Qty', 'Returned Qty', 'Net Qty', 'Unit', 'Comment']
     const lines = rows.flatMap(r =>
       r.items.map(item => [
         r.receiverName, r.entryBy, r.entryDate,
-        item.productName, item.subCategory, item.category,
+        item.productName, item.brand, item.subCategory, item.category,
         item.quantity, item.returned, item.quantity - item.returned,
         item.unit, r.comment
       ].map(v => `"${v}"`).join(','))
@@ -220,6 +221,7 @@ export default function RequisitionPage() {
       entryBy: r.entryBy,
       date: r.entryDate,
       product: item.productName,
+      brand: item.brand,
       category: item.category,
       issued: `${item.quantity} ${item.unit}`,
       returned: `${item.returned} ${item.unit}`,
@@ -315,6 +317,7 @@ export default function RequisitionPage() {
                 <th style={s.th}>Entry By</th>
                 <th style={s.th}>Entry Date</th>
                 <th style={s.th}>Product</th>
+                <th style={s.th}>Brand</th>
                 <th style={s.th}>Sub-Category</th>
                 <th style={s.th}>Qty / Returned / Net</th>
                 <th style={s.th}>
@@ -327,7 +330,7 @@ export default function RequisitionPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={s.emptyCell}>
+                <tr><td colSpan={10} style={s.emptyCell}>
                   <div style={s.emptyState}>
                     <ClipboardList size={32} color="#d1d5db" />
                     <p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>No records found</p>
@@ -363,6 +366,11 @@ export default function RequisitionPage() {
                     {/* Product */}
                     <td style={s.td}>
                       <span style={s.productName}>{item.productName}</span>
+                    </td>
+
+                    {/* Brand */}
+                    <td style={s.td}>
+                      <span style={s.brandBadge}>{item.brand}</span>
                     </td>
 
                     {/* Sub-Category */}
@@ -466,6 +474,7 @@ export default function RequisitionPage() {
             { key: 'entryBy', label: 'Entry By', rowSpan: true },
             { key: 'date', label: 'Date', rowSpan: true },
             { key: 'product', label: 'Product' },
+            { key: 'brand', label: 'Brand' },
             { key: 'category', label: 'Category' },
             { key: 'issued', label: 'Issued' },
             { key: 'returned', label: 'Returned' },
@@ -510,7 +519,7 @@ function ViewModal({ record, onClose }) {
           <table style={s.innerTable}>
             <thead>
               <tr>
-                {['Product', 'Sub-Category', 'Category', 'Issued', 'Returned', 'Net'].map(h => (
+                {['Product', 'Brand', 'Sub-Category', 'Category', 'Issued', 'Returned', 'Net'].map(h => (
                   <th key={h} style={s.innerTh}>{h}</th>
                 ))}
               </tr>
@@ -519,6 +528,7 @@ function ViewModal({ record, onClose }) {
               {record.items.map((item, i) => (
                 <tr key={i}>
                   <td style={s.innerTd}>{item.productName}</td>
+                  <td style={s.innerTd}><span style={s.brandBadge}>{item.brand}</span></td>
                   <td style={s.innerTd}><span style={s.subCatBadge}>{item.subCategory}</span></td>
                   <td style={s.innerTd}>{item.category}</td>
                   <td style={s.innerTd}>{item.quantity} {item.unit}</td>
@@ -567,7 +577,7 @@ function ReturnModal({ record, itemIdx, onClose, onReturn }) {
         </div>
         <div style={s.modalBody}>
           <div style={s.returnInfo}>
-            <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Product</span><span style={s.returnInfoVal}>{item.productName} ({item.subCategory})</span></div>
+            <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Product</span><span style={s.returnInfoVal}>{item.productName} ({item.brand} / {item.subCategory})</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Category</span><span style={s.returnInfoVal}>{item.category}</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Issued</span><span style={s.returnInfoVal}>{item.quantity} {item.unit}</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Already Returned</span><span style={{ ...s.returnInfoVal, color: '#ef4444' }}>{item.returned} {item.unit}</span></div>
@@ -736,12 +746,13 @@ const s = {
     overflowX: 'auto',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
   },
-  table: { width: '100%', minWidth: 1120, borderCollapse: 'collapse' },
+  table: { width: '100%', minWidth: 1220, borderCollapse: 'collapse' },
   thead: { background: '#e8eee8' },
   th: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap', letterSpacing: '0.1px' },
   tr: { transition: 'background 0.15s' },
   td: { padding: '10px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', verticalAlign: 'top', background: '#ffffff' },
   productName: { fontSize: 13, fontWeight: 600, color: '#1f2f21' },
+  brandBadge: { display: 'inline-block', background: '#ffffff', border: '1px solid #cfe0d0', color: '#123416', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 800 },
   subCatBadge: { display: 'inline-block', background: '#eef2ee', border: '1px solid #d4dfd4', color: '#2d7a33', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 700 },
   qtyGroup: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   qtyIssued: { fontSize: 12.5, color: '#374151', fontWeight: 500 },
