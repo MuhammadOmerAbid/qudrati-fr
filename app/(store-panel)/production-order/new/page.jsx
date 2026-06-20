@@ -7,17 +7,46 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { packagingApi } from '@/infrastructure/api/endpoints'
 
 const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
 
+const fallbackPackingOptions = PACKINGS.map((name, idx) => ({ id: `fallback-packing-${idx}`, name }))
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+function normalizePacking(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || entry?.packing || entry || '').trim()
+  if (!name) return null
+  return {
+    id: String(entry?.id ?? `packing-${idx}`),
+    name,
+  }
+}
+
+function uniqueByName(options) {
+  const seen = new Set()
+  return options.filter((entry) => {
+    const key = String(entry.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export default function ProductionOrderNewPage() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem(1)])
+  const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
+  const [loadingPacking, setLoadingPacking] = useState(true)
+  const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
@@ -29,6 +58,30 @@ export default function ProductionOrderNewPage() {
     apply()
     mobileQuery.addEventListener('change', apply)
     return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadPacking = async () => {
+      setLoadingPacking(true)
+      setLoadWarning('')
+      try {
+        const data = await packagingApi.list()
+        const nextPacking = toList(data)
+          .map((entry, idx) => normalizePacking(entry, idx))
+          .filter(Boolean)
+        if (active) setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+      } catch {
+        if (active) {
+          setPackingOptions(fallbackPackingOptions)
+          setLoadWarning('Unable to load packing from Settings. Showing fallback options.')
+        }
+      } finally {
+        if (active) setLoadingPacking(false)
+      }
+    }
+    loadPacking()
+    return () => { active = false }
   }, [])
 
   const updateItem = (index, key, value) => {
@@ -105,6 +158,8 @@ export default function ProductionOrderNewPage() {
         </div>
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
+          {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+
           <div style={s.formRow}>
             <div style={s.formCol}>
               <label style={s.label}>Order Name</label>
@@ -163,10 +218,10 @@ export default function ProductionOrderNewPage() {
                     value={item.packing}
                     onChange={(nextValue) => updateItem(idx, 'packing', nextValue)}
                     variant="input"
-                    placeholder="Select packing"
+                    placeholder={loadingPacking ? 'Loading packing...' : 'Select packing'}
                     options={[
-                      { value: '', label: 'Select packing' },
-                      ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingPacking ? 'Loading packing...' : 'Select packing' },
+                      ...packingOptions.map((entry) => ({ value: entry.name, label: entry.name })),
                     ]}
                   />
                 </div>
