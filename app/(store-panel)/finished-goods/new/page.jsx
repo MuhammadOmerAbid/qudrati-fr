@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import {
   BRANDS,
-  CATEGORIES,
   PRODUCTS,
   PACKINGS,
   getWordCount,
@@ -17,12 +16,63 @@ import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/sha
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+const fallbackProductOptions = Object.values(PRODUCTS)
+  .flat()
+  .map((name, idx) => ({ id: `fallback-product-${idx}`, name, label: name }))
+
+const fallbackPackingOptions = PACKINGS.map((name, idx) => ({ id: `fallback-packing-${idx}`, name }))
+
+function normalizeFinishedGoodProduct(entry, idx = 0) {
+  const meta = Array.isArray(entry?.products)
+    ? (entry.products[0] || {})
+    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.brand || entry?.name || meta?.product || meta?.name || '').trim()
+  if (!name) return null
+
+  const details = [meta?.code, meta?.description].map((part) => String(part || '').trim()).filter(Boolean)
+  return {
+    id: String(entry?.id ?? `fg-product-${idx}`),
+    name,
+    label: details.length ? `${name} (${details.join(' - ')})` : name,
+  }
+}
+
+function normalizePacking(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || entry?.packing || entry || '').trim()
+  if (!name) return null
+  return {
+    id: String(entry?.id ?? `packing-${idx}`),
+    name,
+  }
+}
+
+function uniqueByName(options) {
+  const seen = new Set()
+  return options.filter((entry) => {
+    const key = String(entry.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export default function FinishedGoodsNewPage() {
   const router = useRouter()
   const [brand, setBrand] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem()])
+  const [productOptions, setProductOptions] = useState(fallbackProductOptions)
+  const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
+  const [loadingOptions, setLoadingOptions] = useState(true)
+  const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
@@ -34,6 +84,41 @@ export default function FinishedGoodsNewPage() {
     apply()
     mobileQuery.addEventListener('change', apply)
     return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadOptions = async () => {
+      setLoadingOptions(true)
+      setLoadWarning('')
+      try {
+        const [productsRes, packingRes] = await Promise.all([
+          finishedGoodsApi.list(),
+          packagingApi.list(),
+        ])
+        if (!active) return
+
+        const nextProducts = toList(productsRes)
+          .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx))
+          .filter(Boolean)
+        const nextPacking = toList(packingRes)
+          .map((entry, idx) => normalizePacking(entry, idx))
+          .filter(Boolean)
+
+        setProductOptions(nextProducts.length ? uniqueByName(nextProducts) : fallbackProductOptions)
+        setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+      } catch {
+        if (!active) return
+        setProductOptions(fallbackProductOptions)
+        setPackingOptions(fallbackPackingOptions)
+        setLoadWarning('Unable to load Settings products/packing. Showing fallback options.')
+      } finally {
+        if (active) setLoadingOptions(false)
+      }
+    }
+
+    loadOptions()
+    return () => { active = false }
   }, [])
 
   const updateItem = (index, key, value) => {
@@ -95,6 +180,8 @@ export default function FinishedGoodsNewPage() {
         </div>
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
+          {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+
           <div style={s.formRow}>
             <div style={s.formCol}>
               <label style={s.label}>Brand</label>
@@ -149,12 +236,10 @@ export default function FinishedGoodsNewPage() {
                     value={item.product}
                     onChange={(nextProduct) => updateItem(idx, 'product', nextProduct)}
                     variant="input"
-                    placeholder="Select product"
+                    placeholder={loadingOptions ? 'Loading products...' : 'Select product'}
                     options={[
-                      { value: '', label: 'Select product' },
-                      ...(CATEGORIES[brand] || [])
-                        .flatMap((categoryName) => PRODUCTS[categoryName] || [])
-                        .map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingOptions ? 'Loading products...' : 'Select product' },
+                      ...productOptions.map((entry) => ({ value: entry.name, label: entry.label })),
                     ]}
                   />
                 </div>
@@ -164,10 +249,10 @@ export default function FinishedGoodsNewPage() {
                     value={item.packing}
                     onChange={(nextPacking) => updateItem(idx, 'packing', nextPacking)}
                     variant="input"
-                    placeholder="Select packing"
+                    placeholder={loadingOptions ? 'Loading packing...' : 'Select packing'}
                     options={[
-                      { value: '', label: 'Select packing' },
-                      ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingOptions ? 'Loading packing...' : 'Select packing' },
+                      ...packingOptions.map((entry) => ({ value: entry.name, label: entry.name })),
                     ]}
                   />
                 </div>
