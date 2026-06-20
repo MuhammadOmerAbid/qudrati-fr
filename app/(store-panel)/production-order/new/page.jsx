@@ -7,15 +7,37 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { packagingApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 
 const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
 
+const fallbackGoodsOptions = [...new Set(Object.values(PRODUCTS).flat())].map((name, idx) => ({
+  id: `fallback-good-${idx}`,
+  name,
+  label: name,
+}))
 const fallbackPackingOptions = PACKINGS.map((name, idx) => ({ id: `fallback-packing-${idx}`, name }))
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+function normalizeFinishedGoodProduct(entry, idx = 0) {
+  const meta = Array.isArray(entry?.products)
+    ? (entry.products[0] || {})
+    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.brand || entry?.name || meta?.product || meta?.name || '').trim()
+  if (!name) return null
+  const details = [meta?.code, meta?.description].map((part) => String(part || '').trim()).filter(Boolean)
+  return {
+    id: String(entry?.id ?? `fg-good-${idx}`),
+    name,
+    label: details.length ? `${name} (${details.join(' - ')})` : name,
+  }
+}
 
 function normalizePacking(entry, idx = 0) {
   const status = String(entry?.status || '').toLowerCase()
@@ -44,7 +66,9 @@ export default function ProductionOrderNewPage() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem(1)])
+  const [goodsOptions, setGoodsOptions] = useState(fallbackGoodsOptions)
   const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
+  const [loadingGoods, setLoadingGoods] = useState(true)
   const [loadingPacking, setLoadingPacking] = useState(true)
   const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
@@ -62,25 +86,37 @@ export default function ProductionOrderNewPage() {
 
   useEffect(() => {
     let active = true
-    const loadPacking = async () => {
+    const loadOptions = async () => {
+      setLoadingGoods(true)
       setLoadingPacking(true)
       setLoadWarning('')
       try {
-        const data = await packagingApi.list()
-        const nextPacking = toList(data)
+        const [goodsRes, packingRes] = await Promise.all([
+          finishedGoodsApi.list(),
+          packagingApi.list(),
+        ])
+        const nextGoods = toList(goodsRes)
+          .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx))
+          .filter(Boolean)
+        const nextPacking = toList(packingRes)
           .map((entry, idx) => normalizePacking(entry, idx))
           .filter(Boolean)
-        if (active) setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+        if (active) {
+          setGoodsOptions(nextGoods.length ? uniqueByName(nextGoods) : fallbackGoodsOptions)
+          setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+        }
       } catch {
         if (active) {
+          setGoodsOptions(fallbackGoodsOptions)
           setPackingOptions(fallbackPackingOptions)
-          setLoadWarning('Unable to load packing from Settings. Showing fallback options.')
+          setLoadWarning('Unable to load goods/packing from Settings. Showing fallback options.')
         }
       } finally {
+        if (active) setLoadingGoods(false)
         if (active) setLoadingPacking(false)
       }
     }
-    loadPacking()
+    loadOptions()
     return () => { active = false }
   }, [])
 
@@ -136,8 +172,6 @@ export default function ProductionOrderNewPage() {
       setSaving(false)
     }
   }
-
-  const goodsOptions = [...new Set(Object.values(PRODUCTS).flat())]
 
   return (
     <DashboardLayout>
@@ -205,10 +239,10 @@ export default function ProductionOrderNewPage() {
                     value={item.goods}
                     onChange={(nextValue) => updateItem(idx, 'goods', nextValue)}
                     variant="input"
-                    placeholder="Select goods"
+                    placeholder={loadingGoods ? 'Loading goods...' : 'Select goods'}
                     options={[
-                      { value: '', label: 'Select goods' },
-                      ...goodsOptions.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingGoods ? 'Loading goods...' : 'Select goods' },
+                      ...goodsOptions.map((entry) => ({ value: entry.name, label: entry.label })),
                     ]}
                   />
                 </div>
