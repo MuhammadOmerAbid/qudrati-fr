@@ -59,6 +59,7 @@ function normalizeGateOutwardRecord(raw = {}) {
     batchNumber: raw.batch_number,
     quantity: raw.quantity,
     unit: raw.unit,
+    source: raw.source,
   })
 
   return {
@@ -67,6 +68,8 @@ function normalizeGateOutwardRecord(raw = {}) {
     date: toDMY(raw.dispatch_date),
     vehicleNo: raw.vehicle_no || '',
     driverName: raw.driver_name || '',
+    driverPhone: raw.driver_phone || raw.driverPhone || '',
+    driverCnic: raw.driver_cnic || raw.driverCnic || '',
     customerName: raw.customer_name || '',
     address: raw.address || '',
     note: raw.note || '',
@@ -131,6 +134,8 @@ export default function GateOutwardPage() {
         r.date,
         r.vehicleNo,
         r.driverName,
+        r.driverPhone,
+        r.driverCnic,
         r.customerName,
         r.address,
         r.note,
@@ -172,7 +177,7 @@ export default function GateOutwardPage() {
   const exportRows = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
 
   const exportCSV = (rows) => {
-    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Customer', 'Address', 'Source', 'Note']
+    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
       r.items.map((item) =>
         [
@@ -185,6 +190,8 @@ export default function GateOutwardPage() {
           `${item.quantity} ${item.unit}`,
           r.vehicleNo,
           r.driverName,
+          r.driverPhone,
+          r.driverCnic,
           r.customerName,
           r.address,
           item.source,
@@ -216,9 +223,12 @@ export default function GateOutwardPage() {
         quantity: `${item.quantity} ${item.unit}`,
         vehicle: r.vehicleNo || '-',
         driver: r.driverName || '-',
+        driverPhone: r.driverPhone || '-',
+        driverCnic: r.driverCnic || '-',
         customer: r.customerName || '-',
         address: r.address || '-',
         source: item.source || '-',
+        note: r.note || '-',
       }))
     ),
     [reportRecords]
@@ -306,15 +316,19 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Batch No</th>
                 <th style={s.th}>Brand</th>
                 <th style={s.th}>Qty</th>
+                <th style={s.th}>Source</th>
                 <th style={s.th}>Vehicle</th>
                 <th style={s.th}>Driver</th>
+                <th style={s.th}>Driver Phone</th>
+                <th style={s.th}>Driver CNIC</th>
                 <th style={s.th}>Customer</th>
                 <th style={s.th}>Address</th>
+                <th style={s.th}>Note</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={12} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={16} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -341,11 +355,15 @@ export default function GateOutwardPage() {
                       <td style={s.td}>{item.batchNumber || '-'}</td>
                       <td style={s.td}>{item.brand}</td>
                       <td style={s.td}>{item.quantity} {item.unit}</td>
+                      <td style={s.td}>{item.source || '-'}</td>
 
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.vehicleNo || '-'}</td>}
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.driverName || '-'}</td>}
+                      {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.driverPhone || '-'}</td>}
+                      {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.driverCnic || '-'}</td>}
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.customerName || '-'}</td>}
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.address || '-'}</td>}
+                      {idx === 0 && <td style={s.noteTd} rowSpan={record.items.length}>{record.note || '-'}</td>}
                     </tr>
                   ))
                 )
@@ -371,9 +389,12 @@ export default function GateOutwardPage() {
               { key: 'quantity', label: 'Qty' },
               { key: 'vehicle', label: 'Vehicle', rowSpan: true },
               { key: 'driver', label: 'Driver', rowSpan: true },
+              { key: 'driverPhone', label: 'Driver Phone', rowSpan: true },
+              { key: 'driverCnic', label: 'Driver CNIC', rowSpan: true },
               { key: 'customer', label: 'Customer', rowSpan: true },
               { key: 'address', label: 'Address', rowSpan: true },
               { key: 'source', label: 'Source', rowSpan: true },
+              { key: 'note', label: 'Note', rowSpan: true },
             ]}
             onClose={() => setShowReportPanel(false)}
           />
@@ -500,11 +521,12 @@ const s = {
     overflowX: 'auto',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
   },
-  table: { width: '100%', minWidth: 1060, borderCollapse: 'collapse' },
+  table: { width: '100%', minWidth: 1500, borderCollapse: 'collapse' },
   thead: { background: '#e8eee8' },
   th: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap', letterSpacing: '0.1px' },
   tr: { transition: 'background 0.15s' },
   td: { padding: '11px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', background: '#ffffff' },
+  noteTd: { padding: '11px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', background: '#ffffff', minWidth: 180, maxWidth: 260, whiteSpace: 'normal', lineHeight: 1.4 },
   checkBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 },
   emptyCell: { textAlign: 'center', padding: '56px 0', background: '#ffffff', fontSize: 14, color: '#9ca3af' },
   tableFooter: { padding: '11px 16px', borderTop: '1px solid #d4dfd4', background: '#e8eee8' },
