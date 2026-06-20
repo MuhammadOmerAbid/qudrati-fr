@@ -136,6 +136,15 @@ export default function DailyProductionPage() {
   const toggleSelect  = (id)  => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll     = ()    => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
   const toggleDate    = (date) => setCollapsedDates(p => ({ ...p, [date]: !p[date] }))
+  const toggleDateBatch = (dateRecords) => {
+    const ids = dateRecords.map((row) => row.id)
+    const allSelected = ids.every((id) => selected.includes(id))
+    setSelected((prev) => (
+      allSelected
+        ? prev.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...prev, ...ids]))
+    ))
+  }
   const handleDelete = async (id) => {
     const target = records.find((row) => row.id === id)
     if (!target) return
@@ -275,12 +284,34 @@ export default function DailyProductionPage() {
             const isCollapsed = collapsedDates[date]
             const totalLabour = dateRecords.reduce((sum, r) => sum + Number(r.noOfLabour), 0)
             const dateSelected = dateRecords.filter(r => selected.includes(r.id)).length
+            const dateAllSelected = dateSelected === dateRecords.length && dateRecords.length > 0
 
             return (
               <div key={date} style={s.dateGroup}>
                 {/* Date Section Header */}
                 <button style={s.dateSectionBtn} onClick={() => toggleDate(date)}>
                   <div style={s.dateSectionLeft}>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={dateAllSelected ? 'Unselect this date batch' : 'Select this date batch'}
+                      style={s.dateBatchSelect}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleDateBatch(dateRecords)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          toggleDateBatch(dateRecords)
+                        }
+                      }}
+                    >
+                      {dateAllSelected
+                        ? <CheckSquare size={15} color="#54B45B" />
+                        : <Square size={15} color="#9ca3af" />}
+                    </span>
                     <Calendar size={14} color="#2d7a33" />
                     <span style={s.dateSectionLabel}>{date}</span>
                     <span style={s.dateSectionCount}>{dateRecords.length} {dateRecords.length === 1 ? 'entry' : 'entries'}</span>
@@ -537,6 +568,18 @@ const s = {
   dateGroup: { borderBottom: '1px solid #d4dfd4' },
   dateSectionBtn: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#e8eee8', border: 'none', cursor: 'pointer', borderBottom: '1px solid #d4dfd4' },
   dateSectionLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  dateBatchSelect: {
+    width: 24,
+    height: 24,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    background: '#ffffff',
+    border: '1px solid #d4dfd4',
+    cursor: 'pointer',
+    flex: '0 0 auto',
+  },
   dateSectionLabel: { fontSize: 13.5, fontWeight: 700, color: '#1f2f21' },
   dateSectionCount: { fontSize: 11.5, color: '#2d7a33', background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '2px 8px', fontWeight: 700 },
   dateSectionLabour: { fontSize: 12, color: '#607062' },
