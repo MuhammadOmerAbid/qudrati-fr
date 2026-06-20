@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import { settingsTheme } from '@/components/settings/SettingsShared'
 import { ArrowLeft, Save, Shield } from 'lucide-react'
+import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
 const todayISO = () => new Date().toISOString().split('T')[0]
 
@@ -25,6 +26,8 @@ export default function FinishedGoodProductsNewPage() {
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
   const [form, setForm] = useState({ name: '', code: '', description: '' })
+  const [brands, setBrands] = useState([])
+  const [loadingBrands, setLoadingBrands] = useState(true)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -35,6 +38,26 @@ export default function FinishedGoodProductsNewPage() {
     return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    const loadBrands = async () => {
+      setLoadingBrands(true)
+      try {
+        const data = await brandsApi.list()
+        const list = Array.isArray(data) ? data : (data?.results || [])
+        if (active) {
+          setBrands(list.filter((brand) => brand.status !== false && String(brand.status || '').toLowerCase() !== 'inactive'))
+        }
+      } catch {
+        if (active) setBrands([])
+      } finally {
+        if (active) setLoadingBrands(false)
+      }
+    }
+    loadBrands()
+    return () => { active = false }
+  }, [])
+
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     setErrors((prev) => ({ ...prev, [key]: undefined }))
@@ -42,7 +65,7 @@ export default function FinishedGoodProductsNewPage() {
 
   const validate = () => {
     const next = {}
-    if (!form.name.trim()) next.name = 'Name is required'
+    if (!form.name.trim()) next.name = 'Brand is required'
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -104,13 +127,17 @@ export default function FinishedGoodProductsNewPage() {
           {errorMsg ? <div style={s.errorBanner}>{errorMsg}</div> : null}
 
           <div style={s.fieldWrap}>
-            <label style={s.label}>Name</label>
-            <input
-              type="text"
-              style={{ ...s.input, ...(errors.name ? s.inputError : {}) }}
+            <label style={s.label}>Brand</label>
+            <StoreThemeDropdown
               value={form.name}
-              placeholder="Enter product name"
-              onChange={(e) => setField('name', e.target.value)}
+              onChange={(nextBrand) => setField('name', nextBrand)}
+              hasError={Boolean(errors.name)}
+              variant="input"
+              placeholder={loadingBrands ? 'Loading brands...' : 'Select brand'}
+              options={[
+                { value: '', label: loadingBrands ? 'Loading brands...' : 'Select brand' },
+                ...brands.map((brand) => ({ value: brand.name, label: brand.name })),
+              ]}
             />
             {errors.name ? <span style={s.errorText}>{errors.name}</span> : null}
           </div>
