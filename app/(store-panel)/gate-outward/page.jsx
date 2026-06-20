@@ -89,6 +89,7 @@ export default function GateOutwardPage() {
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
+  const [noteModal, setNoteModal] = useState(null)
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -368,7 +369,19 @@ export default function GateOutwardPage() {
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.driverCnic || '-'}</td>}
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.customerName || '-'}</td>}
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.address || '-'}</td>}
-                      {idx === 0 && <td style={s.noteTd} rowSpan={record.items.length}>{record.note || '-'}</td>}
+                      {idx === 0 && (
+                        <td style={s.td} rowSpan={record.items.length}>
+                          {record.note ? (
+                            <button
+                              type="button"
+                              style={s.noteBtn}
+                              onClick={() => setNoteModal({ title: record.goNo, note: record.note })}
+                            >
+                              <Eye size={13} /> View
+                            </button>
+                          ) : '-'}
+                        </td>
+                      )}
                     </tr>
                   ))
                 )
@@ -405,12 +418,28 @@ export default function GateOutwardPage() {
             onClose={() => setShowReportPanel(false)}
           />
         ) : null}
+
+        {noteModal ? (
+          <div style={s.modalOverlay} onClick={() => setNoteModal(null)}>
+            <div style={s.noteModal} onClick={(e) => e.stopPropagation()}>
+              <div style={s.noteModalHeader}>
+                <div>
+                  <h3 style={s.noteModalTitle}>Note</h3>
+                  <p style={s.noteModalSub}>{noteModal.title}</p>
+                </div>
+                <button type="button" style={s.modalCloseBtn} onClick={() => setNoteModal(null)}>×</button>
+              </div>
+              <p style={s.noteModalText}>{noteModal.note}</p>
+            </div>
+          </div>
+        ) : null}
       </div>
     </DashboardLayout>
   )
 }
 
 const RADIUS = 20
+const TABLE_MIN_WIDTH = 1480
 
 const s = {
   wrapper: { width: '100%' },
@@ -521,21 +550,88 @@ const s = {
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
 
   tableWrap: {
-    background: '#f2f4f2',
+    background: '#e8eee8',
     borderRadius: RADIUS,
     border: '1px solid #e2e8e2',
     overflowX: 'auto',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
   },
-  table: { width: '100%', minWidth: 1600, borderCollapse: 'collapse' },
+  table: { width: '100%', minWidth: TABLE_MIN_WIDTH, borderCollapse: 'collapse', background: '#ffffff' },
   thead: { background: '#e8eee8' },
   th: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap', letterSpacing: '0.1px' },
   tr: { transition: 'background 0.15s' },
   td: { padding: '11px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', background: '#ffffff' },
-  noteTd: { padding: '11px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', background: '#ffffff', minWidth: 180, maxWidth: 260, whiteSpace: 'normal', lineHeight: 1.4 },
+  noteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    border: '1px solid #d4dfd4',
+    borderRadius: 999,
+    background: '#ffffff',
+    color: '#2d7a33',
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(8, 18, 10, 0.38)',
+    zIndex: 60,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  noteModal: {
+    width: 'min(440px, 100%)',
+    background: '#f8fbf8',
+    border: '1px solid #cfe0d0',
+    borderRadius: 16,
+    boxShadow: '0 24px 70px rgba(0,0,0,0.22)',
+    overflow: 'hidden',
+  },
+  noteModalHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 14,
+    padding: '16px 18px',
+    borderBottom: '1px solid #d4dfd4',
+    background: '#e8f3e9',
+  },
+  noteModalTitle: { margin: 0, fontSize: 17, fontWeight: 800, color: '#123416' },
+  noteModalSub: { margin: '4px 0 0', fontSize: 12, color: '#607062', fontWeight: 700 },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    border: '1px solid #d4dfd4',
+    background: '#ffffff',
+    color: '#2d7a33',
+    fontSize: 20,
+    lineHeight: '26px',
+    cursor: 'pointer',
+  },
+  noteModalText: {
+    margin: 0,
+    padding: '18px',
+    color: '#273529',
+    fontSize: 14,
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+  },
   checkBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 },
   emptyCell: { textAlign: 'center', padding: '56px 0', background: '#ffffff', fontSize: 14, color: '#9ca3af' },
-  tableFooter: { padding: '11px 16px', borderTop: '1px solid #d4dfd4', background: '#e8eee8' },
+  tableFooter: {
+    minWidth: TABLE_MIN_WIDTH,
+    boxSizing: 'border-box',
+    padding: '11px 16px',
+    borderTop: '1px solid #d4dfd4',
+    background: '#e8eee8',
+  },
   footerText: { fontSize: 12.5, color: '#607062', fontWeight: 500 },
   selCount: { color: '#1f7a2b', fontWeight: 700 },
 }
