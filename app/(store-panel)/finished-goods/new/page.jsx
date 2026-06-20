@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import {
-  BRANDS,
   PRODUCTS,
   PACKINGS,
   getWordCount,
@@ -69,6 +68,8 @@ export default function FinishedGoodsNewPage() {
   const [brand, setBrand] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem()])
+  const [brandOptions, setBrandOptions] = useState([])
+  const [loadingBrands, setLoadingBrands] = useState(true)
   const [productOptions, setProductOptions] = useState(fallbackProductOptions)
   const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
   const [loadingOptions, setLoadingOptions] = useState(true)
@@ -118,6 +119,27 @@ export default function FinishedGoodsNewPage() {
     }
 
     loadOptions()
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadBrands = async () => {
+      setLoadingBrands(true)
+      try {
+        const data = await brandsApi.list()
+        const list = toList(data)
+          .filter((entry) => entry.status !== false && String(entry.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry.name || '').trim())
+          .filter(Boolean)
+        if (active) setBrandOptions(Array.from(new Set(list)).sort((a, b) => a.localeCompare(b)))
+      } catch {
+        if (active) setBrandOptions([])
+      } finally {
+        if (active) setLoadingBrands(false)
+      }
+    }
+    loadBrands()
     return () => { active = false }
   }, [])
 
@@ -193,10 +215,10 @@ export default function FinishedGoodsNewPage() {
                 }}
                 hasError={Boolean(errors.brand)}
                 variant="input"
-                placeholder="Select brand"
+                placeholder={loadingBrands ? 'Loading brands...' : 'Select brand'}
                 options={[
-                  { value: '', label: 'Select brand' },
-                  ...BRANDS.map((entry) => ({ value: entry, label: entry })),
+                  { value: '', label: loadingBrands ? 'Loading brands...' : 'Select brand' },
+                  ...brandOptions.map((entry) => ({ value: entry, label: entry })),
                 ]}
               />
               {errors.brand ? <p style={s.errorText}>{errors.brand}</p> : null}
