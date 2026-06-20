@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react'
-import { addPdfReportHeader, loadImageDataUrl } from '@/lib/reportDesign'
+import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { addPdfReportHeader, getUserDisplayName, loadImageDataUrl } from '@/lib/reportDesign'
 
 const REPORT_TYPES = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -657,6 +658,8 @@ function buildReportExportPattern(activeReport, reportData, fromDate, toDate) {
 }
 
 export default function ReportsPage() {
+  const { user } = useAuthStore()
+  const generatedBy = getUserDisplayName(user)
   const [activeReport, setActiveReport] = useState('overview')
   const [fromDate, setFromDate] = useState(monthStartISO())
   const [toDate, setToDate] = useState(todayISO())
@@ -1153,17 +1156,11 @@ export default function ReportsPage() {
         unit: 'pt',
         format: 'a4',
       })
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const accountFilter = activeReport === 'general-ledger' && reportData.generalLedger.selected
-        ? `Ledger: ${reportData.generalLedger.selected.code} - ${reportData.generalLedger.selected.name}`
-        : ''
       const tableStartY = addPdfReportHeader(doc, {
         title: reportLabel,
         subtitle: `Financial report | Period: ${fromDate || '-'} to ${toDate || '-'}`,
-        filters: [
-          `Period: ${fromDate || '-'} to ${toDate || '-'}`,
-          accountFilter,
-        ].filter(Boolean),
+        generatedBy,
+        recordCount: exportPattern.rows.length,
         logoImage,
       })
 
@@ -1200,9 +1197,10 @@ export default function ReportsPage() {
         head,
         body,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 4, textColor: [31, 47, 33], lineColor: [225, 233, 225], lineWidth: 0.5 },
-        headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [248, 251, 248] },
+        styles: { fontSize: 8, cellPadding: 4, textColor: [31, 47, 33], lineColor: [17, 17, 17], lineWidth: 0.5, fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [255, 255, 255] },
+        bodyStyles: { fillColor: [255, 255, 255], lineColor: [17, 17, 17] },
+        alternateRowStyles: { fillColor: [255, 255, 255] },
         columnStyles,
         didParseCell: (data) => {
           if (data.section !== 'body') return

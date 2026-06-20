@@ -5,7 +5,8 @@ import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, Download, X, History
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { addPdfReportHeader, loadImageDataUrl, openReportWindow } from '@/lib/reportDesign'
+import { addPdfReportHeader, getUserDisplayName, loadImageDataUrl, openReportWindow } from '@/lib/reportDesign'
+import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
 export const BRANDS = ['Soghaat', 'Raja', 'Handi', 'Qudarti', 'General']
 
@@ -220,6 +221,8 @@ export function CommentEditorModal({ value, title = 'Edit Comment', onCancel, on
 }
 
 export function ReportModal({ title, data, columns, dateKey, selectFilters = [], onClose }) {
+  const { user } = useAuthStore()
+  const generatedBy = getUserDisplayName(user)
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -329,6 +332,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       filters: appliedFilters,
       columns,
       rows,
+      generatedBy,
     })
   }
 
@@ -351,7 +355,8 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
     const startY = addPdfReportHeader(doc, {
       title: `${title} Report`,
       subtitle: `Generated: ${new Date().toLocaleString()} | Records: ${rows.length}`,
-      filters,
+      generatedBy,
+      recordCount: rows.length,
       logoImage,
     })
 
@@ -396,15 +401,18 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         cellPadding: 5,
         overflow: 'linebreak',
         textColor: [31, 47, 33],
-        lineColor: [225, 233, 225],
+        lineColor: [17, 17, 17],
         lineWidth: 0.5,
+        fillColor: [255, 255, 255],
       },
       headStyles: {
         fillColor: [27, 94, 32],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
+        lineColor: [255, 255, 255],
       },
-      alternateRowStyles: { fillColor: [248, 251, 248] },
+      bodyStyles: { fillColor: [255, 255, 255], lineColor: [17, 17, 17] },
+      alternateRowStyles: { fillColor: [255, 255, 255] },
     })
 
     const safeName = `${title.toLowerCase().replace(/\s+/g, '-')}-report.pdf`
