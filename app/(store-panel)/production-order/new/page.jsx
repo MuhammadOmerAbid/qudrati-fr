@@ -7,9 +7,7 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
-
-const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
+import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
@@ -157,18 +155,17 @@ export default function ProductionOrderNewPage() {
     setSaving(true)
     try {
       const payload = {
-        id: Date.now(),
         name: name.trim() || `Order-${Date.now().toString().slice(-4)}`,
         date,
+        status: cleanItems.some((item) => item.status !== 'Completed') ? 'Pending' : 'Completed',
         items: cleanItems,
       }
 
-      const raw = window.sessionStorage.getItem(PRODUCTION_ORDER_DRAFT_KEY)
-      const existing = raw ? JSON.parse(raw) : []
-      window.sessionStorage.setItem(PRODUCTION_ORDER_DRAFT_KEY, JSON.stringify([payload, ...existing]))
+      await productionOrderApi.create(payload)
       incrementStoreEntries('production-order')
       router.push('/production-order')
-    } catch {
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, form: err?.message || 'Unable to save production order' }))
       setSaving(false)
     }
   }
@@ -193,6 +190,7 @@ export default function ProductionOrderNewPage() {
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
           {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+          {errors.form ? <p style={s.errorBanner}>{errors.form}</p> : null}
 
           <div style={s.formRow}>
             <div style={s.formCol}>

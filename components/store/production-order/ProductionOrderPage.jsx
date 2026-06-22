@@ -8,7 +8,6 @@ import {
   PRODUCTS,
   PACKINGS,
   STATUS_COLORS,
-  nextSerial,
   formatDate,
   Checkbox,
   AppButton,
@@ -18,8 +17,24 @@ import {
   ui,
 } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { productionOrderApi } from '@/infrastructure/api/endpoints'
 
-const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+const normalizeOrder = (order = {}, index = 0) => ({
+  id: order.id,
+  serialNo: order.serialNo ?? order.serial_no ?? index + 1,
+  name: order.name || order.product?.name || '',
+  date: order.date || '',
+  status: order.status || 'Pending',
+  items: Array.isArray(order.items) ? order.items.map((item, itemIndex) => ({
+    id: item.id ?? item.sr ?? itemIndex + 1,
+    sr: item.sr ?? itemIndex + 1,
+    goods: item.goods || item.product || item.name || '',
+    packing: item.packing || '',
+    qty: item.qty ?? item.quantity ?? 0,
+    status: item.status || order.status || 'Pending',
+  })) : [],
+})
 
 function parseDateValue(value) {
   if (!value) return null
@@ -37,6 +52,8 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
   const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [showReport, setShowReport] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [showEditor, setShowEditor] = useState(false)
   const [editor, setEditor] = useState({
     id: null,
@@ -46,30 +63,23 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
   })
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const raw = window.sessionStorage.getItem(PRODUCTION_ORDER_DRAFT_KEY)
-      if (!raw) return
-
-      const drafts = JSON.parse(raw)
-      if (!Array.isArray(drafts) || drafts.length === 0) return
-
-      setOrders((prev) => {
-        let serialNo = nextSerial(prev)
-        const prepared = drafts.map((draft, index) => ({
-          ...draft,
-          id: draft.id || Date.now() + index,
-          serialNo: serialNo++,
-        }))
-        return [...prepared, ...prev]
-      })
-    } catch {
-      // Ignore malformed session data.
-    } finally {
-      window.sessionStorage.removeItem(PRODUCTION_ORDER_DRAFT_KEY)
-    }
+    loadOrders()
   }, [])
+
+  const loadOrders = async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const data = await productionOrderApi.list()
+      const loaded = toList(data).map(normalizeOrder).filter((order) => order.items.length > 0)
+      setOrders(loaded.length ? loaded : PRODUCTION_INITIAL)
+    } catch (err) {
+      setOrders(PRODUCTION_INITIAL)
+      setLoadError(err?.message || 'Unable to load production orders')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const goodsOptions = useMemo(() => {
     const goods = orders.flatMap((order) => order.items.map((item) => item.goods)).filter(Boolean)
@@ -132,7 +142,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     router.push('/production-order/new')
   }
 
-  const saveOrder = () => {
+  const saveOrder = async () => {
     const cleanedItems = editor.items
       .map((item, idx) => ({ ...item, sr: idx + 1, qty: Number(item.qty) || 0 }))
       .filter((item) => item.goods && item.packing)
@@ -140,9 +150,20 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     if (!cleanedItems.length) return
 
     if (editor.id) {
-      setOrders((prev) =>
-        prev.map((order) => (order.id === editor.id ? { ...editor, items: cleanedItems } : order))
-      )
+      try {
+        const saved = await productionOrderApi.update(editor.id, {
+          name: editor.name,
+          date: editor.date,
+          status: cleanedItems.some((item) => item.status !== 'Completed') ? 'Pending' : 'Completed',
+          items: cleanedItems,
+        })
+        setOrders((prev) =>
+          prev.map((order) => (order.id === editor.id ? normalizeOrder(saved) : order))
+        )
+      } catch (err) {
+        setLoadError(err?.message || 'Unable to update production order')
+        return
+      }
     }
 
     setShowEditor(false)
@@ -159,7 +180,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
         subtitle="Track production order batches and item status"
         actions={(
           <>
-            <AppButton onClick={() => setOrders([...PRODUCTION_INITIAL])}>
+            <AppButton onClick={loadOrders}>
               <RefreshCw size={14} />
             </AppButton>
             <AppButton onClick={() => setShowReport(true)}>
@@ -175,6 +196,8 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           </>
         )}
       />
+
+      {loadError ? <div style={errorBanner}>{loadError}</div> : null}
 
       <div style={filterCard}>
         <div style={ui.filtersRow}>
@@ -237,7 +260,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           { key: 'actions', label: 'Actions', align: 'right' },
         ]}
         emptyColSpan={filtered.length === 0 ? 9 : null}
-        emptyText="No production orders found"
+        emptyText={loading ? 'Loading production orders...' : 'No production orders found'}
       >
         {Object.entries(grouped).flatMap(([dateKey, dayOrders]) => {
           const rows = []
@@ -266,6 +289,9 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                     <StoreThemeDropdown
                       value={item.status}
                       onChange={(status) => {
+                        productionOrderApi.updateItemStatus(order.id, item.id ?? item.sr, status).catch((err) => {
+                          setLoadError(err?.message || 'Unable to update item status')
+                        })
                         setOrders((prev) =>
                           prev.map((entry) =>
                             entry.id === order.id
@@ -303,7 +329,15 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                           <button
                             type="button"
                             style={ui.iconDangerButton}
-                            onClick={() => setOrders((prev) => prev.filter((entry) => entry.id !== order.id))}
+                            onClick={async () => {
+                              if (!window.confirm('Delete this production order?')) return
+                              try {
+                                await productionOrderApi.delete(order.id)
+                                setOrders((prev) => prev.filter((entry) => entry.id !== order.id))
+                              } catch (err) {
+                                setLoadError(err?.message || 'Unable to delete production order')
+                              }
+                            }}
                           >
                             <Trash2 size={13} />
                           </button>
