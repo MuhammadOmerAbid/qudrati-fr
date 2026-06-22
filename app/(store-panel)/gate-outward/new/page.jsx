@@ -74,8 +74,10 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
 
   const parentProduct = entry?.product && typeof entry.product === 'object' ? entry.product : {}
   const packing = String(firstMeta?.packing || firstMeta?.packaging || '').trim()
-  const available = toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity)
-  const hasStockShape = Boolean(packing || available != null || firstMeta?.product || parentProduct?.name)
+  const hasStockShape = Boolean(packing || firstMeta?.cartons != null || firstMeta?.product || parentProduct?.name)
+  const available = hasStockShape
+    ? toNumberOrNull(firstMeta?.cartons ?? firstMeta?.quantity ?? entry?.quantity)
+    : null
   const name = String(
     firstMeta?.product
     || firstMeta?.name
@@ -117,11 +119,11 @@ const normalizeFinishedGoodEntryProducts = (entry, idx = 0, prefix = 'fg') => {
   if (Array.isArray(entry?.products) && entry.products.length) {
     return entry.products
       .map((product, productIdx) => normalizeFinishedGoodProduct(entry, `${idx}-${productIdx}`, prefix, product))
-      .filter((product) => product && (product.available == null || product.available > 0))
+      .filter(Boolean)
   }
 
   const product = normalizeFinishedGoodProduct(entry, idx, prefix)
-  return product && (product.available == null || product.available > 0) ? [product] : []
+  return product ? [product] : []
 }
 
 const mergeCustomers = (...groups) => {
