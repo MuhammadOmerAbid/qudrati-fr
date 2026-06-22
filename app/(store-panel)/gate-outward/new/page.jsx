@@ -79,11 +79,16 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
     || parentProduct?.name
     || entry?.product_name
     || entry?.name
-    || firstMeta?.description
-    || entry?.brand
     || ''
   ).trim()
   if (!name) return null
+
+  const packing = String(firstMeta?.packing || firstMeta?.packaging || '').trim()
+  const available = toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity)
+
+  // Finished Goods source should come from finished-goods stock rows, not
+  // finished-good product master rows that only carry code/description.
+  if (!packing && available == null && !parentProduct?.name) return null
 
   const brand = String(
     entry?.brand
@@ -96,13 +101,16 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
 
   return {
     id: `${prefix}-${entry?.id ?? idx}-${idx}`,
+    finishedGoodsId: entry?.id ?? null,
+    finishedGoodsProductIndex: String(idx).split('-').pop(),
     source: SOURCE_FINISHED_GOODS,
     name,
     brand,
     category: String(entry?.category || firstMeta?.category || '').trim(),
     subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
-    unit: String(entry?.unit || firstMeta?.packing || 'Carton').trim() || 'Carton',
-    available: toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity),
+    packing,
+    unit: String(entry?.unit || 'Carton').trim() || 'Carton',
+    available,
   }
 }
 
@@ -346,7 +354,7 @@ export default function GateOutwardNewPage() {
         setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
         setProductsBySource({
           [SOURCE_INVENTORY]: inventoryProducts.length ? inventoryProducts : fallbackInventoryProducts,
-          [SOURCE_FINISHED_GOODS]: finishedGoodsProducts.length ? finishedGoodsProducts : fallbackFinishedGoodsProducts,
+          [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
         })
         setPackagingTypes(packagingList.length
           ? packagingList
@@ -440,6 +448,9 @@ export default function GateOutwardNewPage() {
         if (field === 'productId') {
           const product = getProduct(updated.source, value)
           updated.unit = product?.unit || row.unit
+          if (updated.source === SOURCE_FINISHED_GOODS) {
+            updated.packaging = product?.packing || ''
+          }
           if (updated.quantity && product && hasStockLimit(product) && Number(updated.quantity) > product.available) {
             updated.quantity = String(product.available)
             updated.error = `Quantity cannot be over ${product.available} ${product.unit}`
@@ -534,6 +545,10 @@ export default function GateOutwardNewPage() {
             source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
             sourceType: row.source,
             productId: product?.id ?? row.productId,
+            finishedGoodsId: product?.finishedGoodsId ?? null,
+            finished_goods_id: product?.finishedGoodsId ?? null,
+            finishedGoodsProductIndex: product?.finishedGoodsProductIndex ?? null,
+            finished_goods_product_index: product?.finishedGoodsProductIndex ?? null,
             packaging: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
             packing: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
             inventoryItemId: product?.inventoryItemId ?? null,
@@ -688,6 +703,12 @@ export default function GateOutwardNewPage() {
           {items.map((item, idx) => {
             const productsForSource = getProductsForSource(item.source)
             const product = getProduct(item.source, item.productId)
+            const packagingOptions = [
+              ...(product?.packing ? [{ value: product.packing, label: product.packing }] : []),
+              ...packagingTypes
+                .filter((entry) => String(entry.name) !== String(product?.packing || ''))
+                .map((entry) => ({ value: entry.name, label: entry.name })),
+            ]
 
             let availableText = 'Select source first'
             if (item.source && productsForSource.length === 0) availableText = 'No products available for selected source'
@@ -753,7 +774,7 @@ export default function GateOutwardNewPage() {
                         placeholder={loadingOptions ? 'Loading packaging...' : 'Select Packaging'}
                         options={[
                           { value: '', label: loadingOptions ? 'Loading packaging...' : 'Select Packaging' },
-                          ...packagingTypes.map((entry) => ({ value: entry.name, label: entry.name })),
+                          ...packagingOptions,
                         ]}
                       />
                     </div>
