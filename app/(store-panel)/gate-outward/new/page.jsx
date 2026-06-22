@@ -73,25 +73,23 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
     : (entry?.products && typeof entry.products === 'object' ? entry.products : {}))
 
   const parentProduct = entry?.product && typeof entry.product === 'object' ? entry.product : {}
+  const packing = String(firstMeta?.packing || firstMeta?.packaging || '').trim()
+  const available = toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity)
+  const hasStockShape = Boolean(packing || available != null || firstMeta?.product || parentProduct?.name)
   const name = String(
     firstMeta?.product
     || firstMeta?.name
     || parentProduct?.name
     || entry?.product_name
     || entry?.name
+    || firstMeta?.description
+    || entry?.brand
     || ''
   ).trim()
   if (!name) return null
 
-  const packing = String(firstMeta?.packing || firstMeta?.packaging || '').trim()
-  const available = toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity)
-
-  // Finished Goods source should come from finished-goods stock rows, not
-  // finished-good product master rows that only carry code/description.
-  if (!packing && available == null && !parentProduct?.name) return null
-
   const brand = String(
-    entry?.brand
+    (hasStockShape ? entry?.brand : '')
     || entry?.brand_name
     || parentProduct?.brand_name
     || firstMeta?.brand
@@ -103,6 +101,7 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
     id: `${prefix}-${entry?.id ?? idx}-${idx}`,
     finishedGoodsId: entry?.id ?? null,
     finishedGoodsProductIndex: String(idx).split('-').pop(),
+    finishedGoodsStockRow: hasStockShape,
     source: SOURCE_FINISHED_GOODS,
     name,
     brand,
@@ -549,6 +548,8 @@ export default function GateOutwardNewPage() {
             finished_goods_id: product?.finishedGoodsId ?? null,
             finishedGoodsProductIndex: product?.finishedGoodsProductIndex ?? null,
             finished_goods_product_index: product?.finishedGoodsProductIndex ?? null,
+            finishedGoodsStockRow: Boolean(product?.finishedGoodsStockRow),
+            finished_goods_stock_row: Boolean(product?.finishedGoodsStockRow),
             packaging: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
             packing: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
             inventoryItemId: product?.inventoryItemId ?? null,
