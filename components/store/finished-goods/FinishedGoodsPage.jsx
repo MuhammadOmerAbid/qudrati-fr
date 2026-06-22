@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw } from 'lucide-react'
+import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
+  PRODUCTS,
+  PACKINGS,
   formatDate,
+  getWordCount,
   Checkbox,
   AppButton,
   TableShell,
@@ -23,6 +26,7 @@ const normalizeEntry = (entry = {}) => ({
   date: entry.date || '',
   products: Array.isArray(entry.products) ? entry.products : [],
 })
+const blankProduct = () => ({ product: '', packing: '', cartons: '', comment: '' })
 
 function parseDateValue(value) {
   if (!value) return null
@@ -41,6 +45,15 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
   const [expanded, setExpanded] = useState({})
   const [showReport, setShowReport] = useState(false)
   const [commentEdit, setCommentEdit] = useState(null)
+  const [showEditor, setShowEditor] = useState(false)
+  const [editor, setEditor] = useState({
+    id: null,
+    brand: '',
+    date: new Date().toISOString().slice(0, 10),
+    products: [blankProduct()],
+  })
+  const [editorError, setEditorError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
 
@@ -65,6 +78,22 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
   const brandOptions = useMemo(() => {
     const brands = entries.map((entry) => entry.brand).filter(Boolean)
     return Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b))
+  }, [entries])
+
+  const productOptions = useMemo(() => {
+    const products = [
+      ...Object.values(PRODUCTS).flat(),
+      ...entries.flatMap((entry) => entry.products.map((product) => product.product)),
+    ].filter(Boolean)
+    return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
+  }, [entries])
+
+  const packingOptions = useMemo(() => {
+    const packings = [
+      ...PACKINGS,
+      ...entries.flatMap((entry) => entry.products.map((product) => product.packing)),
+    ].filter(Boolean)
+    return Array.from(new Set(packings)).sort((a, b) => a.localeCompare(b))
   }, [entries])
 
   const filtered = useMemo(() => {
@@ -104,6 +133,55 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
 
   const totalCartons = (entry) =>
     entry.products.reduce((sum, product) => sum + (Number(product.cartons) || 0), 0)
+
+  const openEditEditor = (entry) => {
+    setEditor({
+      id: entry.id,
+      brand: entry.brand || '',
+      date: entry.date || new Date().toISOString().slice(0, 10),
+      products: entry.products.length ? entry.products.map((product) => ({ ...blankProduct(), ...product })) : [blankProduct()],
+    })
+    setEditorError('')
+    setShowEditor(true)
+  }
+
+  const updateEditorProduct = (index, key, value) => {
+    setEditor((prev) => ({
+      ...prev,
+      products: prev.products.map((product, idx) => (idx === index ? { ...product, [key]: value } : product)),
+    }))
+    setEditorError('')
+  }
+
+  const saveEditedEntry = async () => {
+    const cleanedProducts = editor.products
+      .map((product) => ({ ...product, cartons: Number(product.cartons) || 0 }))
+      .filter((product) => product.product && product.packing)
+
+    if (!editor.brand) {
+      setEditorError('Please enter a brand')
+      return
+    }
+    if (!cleanedProducts.length) {
+      setEditorError('Add at least one complete product row')
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      const saved = await finishedGoodsApi.update(editor.id, {
+        brand: editor.brand,
+        date: editor.date,
+        products: cleanedProducts,
+      })
+      setEntries((prev) => prev.map((item) => (item.id === editor.id ? normalizeEntry(saved) : item)))
+      setShowEditor(false)
+    } catch (err) {
+      setEditorError(err?.message || 'Unable to update finished goods entry')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
 
   return (
     <div style={ui.pageWrap}>
@@ -231,23 +309,28 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
                 </button>
               </td>
               <td style={{ ...ui.td, textAlign: 'right' }}>
-                {isSuperUser ? (
-                  <button
-                    type="button"
-                    style={ui.iconDangerButton}
-                    onClick={async () => {
-                      if (!window.confirm('Delete this finished goods entry?')) return
-                      try {
-                        await finishedGoodsApi.delete(entry.id)
-                        setEntries((prev) => prev.filter((item) => item.id !== entry.id))
-                      } catch (err) {
-                        setLoadError(err?.message || 'Unable to delete finished goods entry')
-                      }
-                    }}
-                  >
-                    <Trash2 size={13} />
+                <div style={ui.inlineActionsRight}>
+                  <button type="button" style={ui.iconButton} onClick={() => openEditEditor(entry)}>
+                    <Pencil size={13} />
                   </button>
-                ) : null}
+                  {isSuperUser ? (
+                    <button
+                      type="button"
+                      style={ui.iconDangerButton}
+                      onClick={async () => {
+                        if (!window.confirm('Delete this finished goods entry?')) return
+                        try {
+                          await finishedGoodsApi.delete(entry.id)
+                          setEntries((prev) => prev.filter((item) => item.id !== entry.id))
+                        } catch (err) {
+                          setLoadError(err?.message || 'Unable to delete finished goods entry')
+                        }
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  ) : null}
+                </div>
               </td>
             </tr>
           )
@@ -310,6 +393,142 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
             }
           }}
         />
+      ) : null}
+
+      {showEditor ? (
+        <div style={ui.overlay}>
+          <div style={ui.modal}>
+            <div style={ui.modalHeaderTop}>
+              <div>
+                <h3 style={ui.modalTitle}>Edit Finished Goods</h3>
+                <p style={ui.modalSub}>Update brand, date, products, cartons and comments</p>
+              </div>
+              <AppButton onClick={() => setShowEditor(false)} style={ui.iconBtnOnly}>
+                <X size={16} />
+              </AppButton>
+            </div>
+
+            {editorError ? <div style={{ ...errorBanner, marginBottom: 12 }}>{editorError}</div> : null}
+
+            <div style={ui.formRow}>
+              <div style={ui.formCol}>
+                <label style={ui.label}>Brand</label>
+                <StoreThemeDropdown
+                  value={editor.brand}
+                  onChange={(nextBrand) => {
+                    setEditor((prev) => ({ ...prev, brand: nextBrand }))
+                    setEditorError('')
+                  }}
+                  variant="input"
+                  placeholder="Select brand"
+                  options={[
+                    { value: '', label: 'Select brand' },
+                    ...brandOptions.map((brand) => ({ value: brand, label: brand })),
+                    ...(editor.brand && !brandOptions.includes(editor.brand)
+                      ? [{ value: editor.brand, label: editor.brand }]
+                      : []),
+                  ]}
+                />
+              </div>
+              <div style={{ ...ui.formCol, maxWidth: 220 }}>
+                <label style={ui.label}>Date</label>
+                <StoreThemeDatePicker
+                  value={editor.date}
+                  onChange={(nextDate) => setEditor((prev) => ({ ...prev, date: nextDate }))}
+                  placeholder="Select date"
+                  variant="input"
+                />
+              </div>
+            </div>
+
+            <hr style={ui.divider} />
+
+            {editor.products.map((product, idx) => (
+              <div key={`edit-product-${idx}`} style={ui.itemRow}>
+                <div style={ui.itemRowTop}>
+                  <span style={ui.itemTitle}>Product {idx + 1}</span>
+                  {editor.products.length > 1 ? (
+                    <button
+                      type="button"
+                      style={ui.iconDangerButton}
+                      onClick={() =>
+                        setEditor((prev) => ({
+                          ...prev,
+                          products: prev.products.filter((_, index) => index !== idx),
+                        }))
+                      }
+                    >
+                      <X size={13} />
+                    </button>
+                  ) : null}
+                </div>
+                <div style={ui.formRow}>
+                  <div style={ui.formCol}>
+                    <label style={ui.label}>Product</label>
+                    <StoreThemeDropdown
+                      value={product.product}
+                      onChange={(nextProduct) => updateEditorProduct(idx, 'product', nextProduct)}
+                      variant="input"
+                      placeholder="Select product"
+                      options={[
+                        { value: '', label: 'Select product' },
+                        ...productOptions.map((entry) => ({ value: entry, label: entry })),
+                      ]}
+                    />
+                  </div>
+                  <div style={ui.formCol}>
+                    <label style={ui.label}>Packing</label>
+                    <StoreThemeDropdown
+                      value={product.packing}
+                      onChange={(nextPacking) => updateEditorProduct(idx, 'packing', nextPacking)}
+                      variant="input"
+                      placeholder="Select packing"
+                      options={[
+                        { value: '', label: 'Select packing' },
+                        ...packingOptions.map((entry) => ({ value: entry, label: entry })),
+                      ]}
+                    />
+                  </div>
+                  <div style={{ ...ui.formCol, maxWidth: 140 }}>
+                    <label style={ui.label}>Cartons</label>
+                    <input
+                      type="number"
+                      min={0}
+                      style={ui.input}
+                      value={product.cartons}
+                      onChange={(e) => updateEditorProduct(idx, 'cartons', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <label style={ui.label}>Comment</label>
+                <textarea
+                  rows={3}
+                  style={ui.textarea}
+                  value={product.comment || ''}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    if (getWordCount(next) <= 500) updateEditorProduct(idx, 'comment', next)
+                  }}
+                />
+                <p style={ui.charCounter}>{getWordCount(product.comment)} / 500 words</p>
+              </div>
+            ))}
+
+            <AppButton
+              onClick={() => setEditor((prev) => ({ ...prev, products: [...prev.products, blankProduct()] }))}
+              style={ui.addLineButton}
+            >
+              <Plus size={14} /> Add Product
+            </AppButton>
+
+            <div style={ui.modalActionsEnd}>
+              <AppButton onClick={() => setShowEditor(false)} disabled={savingEdit}>Cancel</AppButton>
+              <AppButton type="primary" onClick={saveEditedEntry} disabled={savingEdit}>
+                {savingEdit ? 'Updating...' : 'Update Entry'}
+              </AppButton>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {showReport ? (

@@ -72,21 +72,33 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
     ? (entry.products[0] || {})
     : (entry?.products && typeof entry.products === 'object' ? entry.products : {}))
 
+  const parentProduct = entry?.product && typeof entry.product === 'object' ? entry.product : {}
   const name = String(
     firstMeta?.product
     || firstMeta?.name
+    || parentProduct?.name
     || entry?.product_name
+    || entry?.name
     || firstMeta?.description
     || entry?.brand
     || ''
   ).trim()
   if (!name) return null
 
+  const brand = String(
+    entry?.brand
+    || entry?.brand_name
+    || parentProduct?.brand_name
+    || firstMeta?.brand
+    || firstMeta?.brandName
+    || ''
+  ).trim()
+
   return {
     id: `${prefix}-${entry?.id ?? idx}-${idx}`,
     source: SOURCE_FINISHED_GOODS,
     name,
-    brand: String(entry?.brand || firstMeta?.code || '').trim(),
+    brand,
     category: String(entry?.category || firstMeta?.category || '').trim(),
     subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
     unit: String(entry?.unit || firstMeta?.packing || 'Carton').trim() || 'Carton',
@@ -333,8 +345,8 @@ export default function GateOutwardNewPage() {
 
         setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
         setProductsBySource({
-          [SOURCE_INVENTORY]: inventoryProducts,
-          [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
+          [SOURCE_INVENTORY]: inventoryProducts.length ? inventoryProducts : fallbackInventoryProducts,
+          [SOURCE_FINISHED_GOODS]: finishedGoodsProducts.length ? finishedGoodsProducts : fallbackFinishedGoodsProducts,
         })
         setPackagingTypes(packagingList.length
           ? packagingList

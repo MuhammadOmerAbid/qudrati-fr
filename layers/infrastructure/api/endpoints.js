@@ -142,6 +142,7 @@ export const dailyProductionApi = {
 export const productionOrderApi = {
   list: (params) => get('/production-orders/', params),
   create: (data) => post('/production-orders/', data),
+  update: (id, data) => patch(`/production-orders/${id}/`, data),
   updateItemStatus: (orderId, itemId, status) =>
     patch(`/production-orders/${orderId}/items/${itemId}/`, { status }),
   delete: (id) => del(`/production-orders/${id}/`),
