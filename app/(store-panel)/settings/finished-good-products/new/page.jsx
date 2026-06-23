@@ -7,7 +7,12 @@ import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { brandsApi, finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import { settingsTheme } from '@/components/settings/SettingsShared'
 import { ArrowLeft, Save, Shield } from 'lucide-react'
-import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 
 const todayISO = () => new Date().toISOString().split('T')[0]
 
@@ -123,7 +128,7 @@ export default function FinishedGoodProductsNewPage() {
           </button>
         </div>
 
-        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }}>
+        <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 24 }} data-keyboard-cell-scope>
           {errorMsg ? <div style={s.errorBanner}>{errorMsg}</div> : null}
 
           <div style={s.fieldWrap}>
@@ -131,8 +136,10 @@ export default function FinishedGoodProductsNewPage() {
             <StoreThemeDropdown
               value={form.name}
               onChange={(nextBrand) => setField('name', nextBrand)}
+              onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
               hasError={Boolean(errors.name)}
               variant="input"
+              triggerProps={keyboardCellTriggerProps}
               placeholder={loadingBrands ? 'Loading brands...' : 'Select brand'}
               options={[
                 { value: '', label: loadingBrands ? 'Loading brands...' : 'Select brand' },
@@ -147,8 +154,10 @@ export default function FinishedGoodProductsNewPage() {
             <input
               type="text"
               style={s.input}
+              data-keyboard-cell
               value={form.code}
               placeholder="Enter code or reference"
+              onKeyDown={handleKeyboardCellEnter}
               onChange={(e) => setField('code', e.target.value)}
             />
           </div>
@@ -158,8 +167,10 @@ export default function FinishedGoodProductsNewPage() {
             <input
               type="text"
               style={s.input}
+              data-keyboard-cell
               value={form.description}
               placeholder="Description"
+              onKeyDown={handleKeyboardCellEnter}
               onChange={(e) => setField('description', e.target.value)}
             />
           </div>

@@ -123,7 +123,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           _groupId: order.id,
           date: order.date,
           orderName: order.name,
-          serialNo: order.serialNo,
+          serialNo: item.sr,
           goods: item.goods,
           packing: item.packing,
           qty: item.qty,
@@ -503,7 +503,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           dateKey="date"
           columns={[
             { key: 'orderName', label: 'Order Name', rowSpan: true },
-            { key: 'serialNo', label: 'P.Sr', rowSpan: true },
+            { key: 'serialNo', label: 'P.Sr' },
             { key: 'date', label: 'Date', rowSpan: true },
             { key: 'goods', label: 'Goods' },
             { key: 'packing', label: 'Packing' },

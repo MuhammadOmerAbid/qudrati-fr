@@ -20,6 +20,30 @@ function isSameValue(a, b) {
   return String(a ?? '') === String(b ?? '')
 }
 
+export const keyboardCellTriggerProps = { 'data-keyboard-cell': true }
+
+export function focusNextKeyboardCell(fromElement) {
+  if (typeof document === 'undefined') return
+  const current = fromElement || document.activeElement
+  const scope = current?.closest?.('[data-keyboard-cell-scope]')
+  if (!scope) return
+
+  const cells = Array.from(scope.querySelectorAll('[data-keyboard-cell]'))
+    .filter((cell) => {
+      const disabled = cell.disabled || cell.getAttribute('aria-disabled') === 'true'
+      return !disabled && cell.offsetParent !== null
+    })
+  const index = cells.indexOf(current)
+  const next = cells[index >= 0 ? index + 1 : 0]
+  next?.focus?.()
+}
+
+export function handleKeyboardCellEnter(event) {
+  if (event.key !== 'Enter') return
+  event.preventDefault()
+  focusNextKeyboardCell(event.currentTarget)
+}
+
 export function StoreThemeDropdown({
   value,
   onChange,
@@ -31,6 +55,8 @@ export function StoreThemeDropdown({
   variant = 'input',
   wrapStyle,
   triggerStyle,
+  triggerProps,
+  onSelectComplete,
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -59,6 +85,9 @@ export function StoreThemeDropdown({
     setOpen(false)
     setQuery('')
     triggerRef.current?.focus()
+    if (onSelectComplete) {
+      window.setTimeout(() => onSelectComplete(option.value, option, triggerRef.current), 0)
+    }
   }
 
   const openMenu = () => {
@@ -157,6 +186,7 @@ export function StoreThemeDropdown({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
+        {...(triggerProps || {})}
       >
         <span style={selected ? styles.dropdownValue : styles.dropdownPlaceholder}>
           {selected?.label || placeholder}

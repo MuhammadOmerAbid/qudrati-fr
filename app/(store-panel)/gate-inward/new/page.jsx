@@ -6,7 +6,13 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { gateInwardApi, suppliersApi, brandsApi, categoriesApi, productsApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { Plus, X, ArrowLeft, Save } from 'lucide-react'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 
 const DEFAULT_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
 
@@ -42,6 +48,8 @@ function DropdownField({
       disabled={disabled}
       hasError={hasError}
       variant="input"
+      triggerProps={keyboardCellTriggerProps}
+      onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
     />
   )
 }
@@ -360,7 +368,7 @@ export default function GateInwardNewPage() {
             const catProds = products.filter((entry) => String(entry.categoryId) === String(item.categoryId))
 
             return (
-              <div key={item.key} style={s.itemRow}>
+              <div key={item.key} style={s.itemRow} data-keyboard-cell-scope>
                 {/* Brand */}
                 <div style={s.itemField}>
                   {idx === 0 && <label style={s.label}>Select Brand</label>}
@@ -413,8 +421,10 @@ export default function GateInwardNewPage() {
                     style={s.input}
                     type="number"
                     min="1"
+                    data-keyboard-cell
                     placeholder="Quantity"
                     value={item.quantity}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                   />
                 </div>

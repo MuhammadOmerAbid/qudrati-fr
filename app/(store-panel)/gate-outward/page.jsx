@@ -10,6 +10,10 @@ import {
   Plus,
   Search,
   FileText,
+  Pencil,
+  Trash2,
+  X,
+  Save,
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
@@ -26,6 +30,12 @@ function parseDMYDate(value) {
   if (!d || !m || !y) return null
   const date = new Date(`${y}-${m}-${d}T00:00:00`)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+function dmyToISO(value) {
+  const [d, m, y] = String(value || '').split('/')
+  if (!d || !m || !y) return ''
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
 function formatNumber(value) {
@@ -60,6 +70,12 @@ function normalizeItem(raw = {}) {
     quantity,
     unit: String(raw.unit || 'Unit').trim() || 'Unit',
     source: String(raw.source || '').trim(),
+    sourceType: String(raw.sourceType || raw.source_type || '').trim(),
+    productId: raw.productId ?? raw.product_id ?? null,
+    inventoryItemId: raw.inventoryItemId ?? raw.inventory_item_id ?? null,
+    finishedGoodsId: raw.finishedGoodsId ?? raw.finished_goods_id ?? null,
+    finishedGoodsProductIndex: raw.finishedGoodsProductIndex ?? raw.finished_goods_product_index ?? null,
+    finishedGoodsStockRow: Boolean(raw.finishedGoodsStockRow ?? raw.finished_goods_stock_row),
     weightPerCarton,
     totalWeight,
     comment: String(raw.comment || raw.itemComment || raw.item_comment || '').trim(),
@@ -111,6 +127,9 @@ export default function GateOutwardPage() {
   const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [noteModal, setNoteModal] = useState(null)
+  const [editRecord, setEditRecord] = useState(null)
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -195,6 +214,125 @@ export default function GateOutwardPage() {
     setFilterDateFrom('')
     setFilterDateTo('')
     setSelected([])
+  }
+
+  const handleDelete = async (record) => {
+    if (!record?.id) return
+    const ok = window.confirm(`Delete gate outward entry ${record.goNo}?`)
+    if (!ok) return
+
+    try {
+      await gateOutwardApi.delete(record.id)
+      setRecords((prev) => prev.filter((entry) => entry.id !== record.id))
+      setSelected((prev) => prev.filter((id) => id !== record.id))
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to delete gate outward entry')
+    }
+  }
+
+  const openEdit = (record) => {
+    setEditError('')
+    setEditRecord({
+      ...record,
+      dateIso: dmyToISO(record.date),
+      items: record.items.map((item) => ({ ...item })),
+    })
+  }
+
+  const updateEditField = (field, value) => {
+    setEditRecord((prev) => ({ ...prev, [field]: value }))
+    setEditError('')
+  }
+
+  const updateEditItem = (index, field, value) => {
+    setEditRecord((prev) => ({
+      ...prev,
+      items: prev.items.map((item, idx) => (idx === index ? { ...item, [field]: value } : item)),
+    }))
+    setEditError('')
+  }
+
+  const removeEditItem = (index) => {
+    setEditRecord((prev) => ({
+      ...prev,
+      items: prev.items.length > 1 ? prev.items.filter((_, idx) => idx !== index) : prev.items,
+    }))
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editRecord) return
+    if (!editRecord.dateIso) {
+      setEditError('Please select a date')
+      return
+    }
+    const invalidItem = editRecord.items.some((item) => !item.productName || Number(item.quantity) <= 0)
+    if (invalidItem) {
+      setEditError('Please complete product name and quantity for all rows')
+      return
+    }
+
+    setSavingEdit(true)
+    try {
+      const payload = {
+        go_no: editRecord.goNo,
+        dispatch_date: editRecord.dateIso,
+        vehicle_no: editRecord.vehicleNo || '',
+        driver_name: editRecord.driverName || '',
+        driver_phone: editRecord.driverPhone || '',
+        driver_cnic: editRecord.driverCnic || '',
+        customer_name: editRecord.customerName || '',
+        address: editRecord.address || '',
+        note: editRecord.note || '',
+        numbering: editRecord.numbering || '',
+        batch_number: editRecord.batchNumber || '',
+        status: 'Dispatched',
+        items: editRecord.items.map((item) => {
+          const weightPerCarton = Number(item.weightPerCarton || 0)
+          const quantity = Number(item.quantity || 0)
+          const totalWeight = weightPerCarton > 0 ? weightPerCarton * quantity : 0
+          return {
+            source: item.source || '',
+            sourceType: item.sourceType || (item.source === 'Finished Goods' ? 'finished_goods' : 'inventory'),
+            productId: item.productId,
+            inventoryItemId: item.inventoryItemId,
+            inventory_item_id: item.inventoryItemId,
+            finishedGoodsId: item.finishedGoodsId,
+            finished_goods_id: item.finishedGoodsId,
+            finishedGoodsProductIndex: item.finishedGoodsProductIndex,
+            finished_goods_product_index: item.finishedGoodsProductIndex,
+            finishedGoodsStockRow: Boolean(item.finishedGoodsStockRow),
+            finished_goods_stock_row: Boolean(item.finishedGoodsStockRow),
+            productName: item.productName || '',
+            brand: item.brand || '',
+            packaging: item.packaging || '',
+            packing: item.packaging || '',
+            numbering: item.numbering || '',
+            batchNumber: item.batchNumber || '',
+            batch_number: item.batchNumber || '',
+            quantity,
+            unit: item.unit || 'Unit',
+            weightPerCarton,
+            weight_per_carton: weightPerCarton,
+            totalWeight,
+            total_weight: totalWeight,
+            comment: item.comment || '',
+            itemComment: item.comment || '',
+            item_comment: item.comment || '',
+          }
+        }),
+      }
+
+      const saved = await gateOutwardApi.update(editRecord.id, payload)
+      const normalized = normalizeGateOutwardRecord(saved)
+      setRecords((prev) => prev.map((entry) => (entry.id === normalized.id ? normalized : entry)))
+      setEditRecord(null)
+      setEditError('')
+    } catch (err) {
+      setEditError(err?.message || 'Unable to update gate outward entry')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const exportCSV = (rows) => {
@@ -368,11 +506,12 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Customer</th>
                 <th style={s.th}>Address</th>
                 <th style={s.th}>Note</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={20} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={21} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -423,6 +562,18 @@ export default function GateOutwardPage() {
                               <Eye size={13} /> View
                             </button>
                           ) : '-'}
+                        </td>
+                      )}
+                      {idx === 0 && (
+                        <td style={{ ...s.td, textAlign: 'right' }} rowSpan={record.items.length}>
+                          <div style={s.rowActions}>
+                            <button type="button" style={s.editBtn} title="Edit" onClick={() => openEdit(record)}>
+                              <Pencil size={13} />
+                            </button>
+                            <button type="button" style={s.delBtn} title="Delete" onClick={() => handleDelete(record)}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -481,13 +632,128 @@ export default function GateOutwardPage() {
             </div>
           </div>
         ) : null}
+
+        {editRecord ? (
+          <div style={s.modalOverlay} onClick={() => !savingEdit && setEditRecord(null)}>
+            <div style={s.editModal} onClick={(e) => e.stopPropagation()}>
+              <div style={s.noteModalHeader}>
+                <div>
+                  <h3 style={s.noteModalTitle}>Edit Gate Outward</h3>
+                  <p style={s.noteModalSub}>{editRecord.goNo}</p>
+                </div>
+                <button type="button" style={s.modalCloseBtn} onClick={() => setEditRecord(null)} disabled={savingEdit}>×</button>
+              </div>
+
+              <div style={s.editBody}>
+                {editError ? <div style={s.editError}>{editError}</div> : null}
+                <div style={s.editGrid}>
+                  <div style={s.fieldGroup}>
+                    <label style={s.editLabel}>Date</label>
+                    <StoreThemeDatePicker value={editRecord.dateIso} onChange={(value) => updateEditField('dateIso', value)} variant="input" />
+                  </div>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Customer</span>
+                    <input style={s.editInput} value={editRecord.customerName} onChange={(e) => updateEditField('customerName', e.target.value)} />
+                  </label>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Vehicle</span>
+                    <input style={s.editInput} value={editRecord.vehicleNo} onChange={(e) => updateEditField('vehicleNo', e.target.value)} />
+                  </label>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Driver</span>
+                    <input style={s.editInput} value={editRecord.driverName} onChange={(e) => updateEditField('driverName', e.target.value)} />
+                  </label>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Driver Phone</span>
+                    <input style={s.editInput} value={editRecord.driverPhone} onChange={(e) => updateEditField('driverPhone', e.target.value)} />
+                  </label>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Driver CNIC</span>
+                    <input style={s.editInput} value={editRecord.driverCnic} onChange={(e) => updateEditField('driverCnic', e.target.value)} />
+                  </label>
+                </div>
+
+                <div style={s.editGridWide}>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Address</span>
+                    <textarea style={{ ...s.editInput, minHeight: 62 }} value={editRecord.address} onChange={(e) => updateEditField('address', e.target.value)} />
+                  </label>
+                  <label style={s.fieldGroup}>
+                    <span style={s.editLabel}>Note</span>
+                    <textarea style={{ ...s.editInput, minHeight: 62 }} value={editRecord.note} onChange={(e) => updateEditField('note', e.target.value)} />
+                  </label>
+                </div>
+
+                <div style={s.editItemsWrap}>
+                  {editRecord.items.map((item, idx) => (
+                    <div key={`edit-go-item-${idx}`} style={s.editItemCard}>
+                      <div style={s.editItemTop}>
+                        <strong style={s.editItemTitle}>Product {idx + 1}</strong>
+                        {editRecord.items.length > 1 ? (
+                          <button type="button" style={s.removeBtn} onClick={() => removeEditItem(idx)}>
+                            <X size={13} />
+                          </button>
+                        ) : null}
+                      </div>
+                      <div style={s.editItemGrid}>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Product</span>
+                          <input style={s.editInput} value={item.productName} onChange={(e) => updateEditItem(idx, 'productName', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Packaging</span>
+                          <input style={s.editInput} value={item.packaging} onChange={(e) => updateEditItem(idx, 'packaging', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Qty</span>
+                          <input style={s.editInput} type="number" min="1" value={item.quantity} onChange={(e) => updateEditItem(idx, 'quantity', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Unit</span>
+                          <input style={s.editInput} value={item.unit} onChange={(e) => updateEditItem(idx, 'unit', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Numbering</span>
+                          <input style={s.editInput} value={item.numbering} onChange={(e) => updateEditItem(idx, 'numbering', e.target.value)} placeholder="Manual or auto" />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Batch No</span>
+                          <input style={s.editInput} value={item.batchNumber} onChange={(e) => updateEditItem(idx, 'batchNumber', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Brand</span>
+                          <input style={s.editInput} value={item.brand} onChange={(e) => updateEditItem(idx, 'brand', e.target.value)} />
+                        </label>
+                        <label style={s.fieldGroup}>
+                          <span style={s.editLabel}>Weight Per Carton</span>
+                          <input style={s.editInput} type="number" min="0" step="0.01" value={item.weightPerCarton || ''} onChange={(e) => updateEditItem(idx, 'weightPerCarton', e.target.value)} />
+                        </label>
+                      </div>
+                      <label style={{ ...s.fieldGroup, marginTop: 8 }}>
+                        <span style={s.editLabel}>Comment</span>
+                        <textarea style={{ ...s.editInput, minHeight: 54 }} value={item.comment} onChange={(e) => updateEditItem(idx, 'comment', e.target.value)} />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={s.editFooter}>
+                <button type="button" style={s.cancelBtn} onClick={() => setEditRecord(null)} disabled={savingEdit}>Cancel</button>
+                <button type="button" style={savingEdit ? s.saveBtnDisabled : s.saveBtn} onClick={handleSaveEdit} disabled={savingEdit}>
+                  <Save size={14} /> {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </DashboardLayout>
   )
 }
 
 const RADIUS = 20
-const TABLE_MIN_WIDTH = 1820
+const TABLE_MIN_WIDTH = 1900
 
 const s = {
   wrapper: { width: '100%' },
@@ -623,6 +889,31 @@ const s = {
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
+  rowActions: { display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  editBtn: {
+    border: '1px solid #bfdbfe',
+    borderRadius: 8,
+    background: '#eff6ff',
+    color: '#2563eb',
+    width: 30,
+    height: 30,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
+  delBtn: {
+    border: '1px solid #fecaca',
+    borderRadius: 8,
+    background: '#fff1f2',
+    color: '#b91c1c',
+    width: 30,
+    height: 30,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
   modalOverlay: {
     position: 'fixed',
     inset: 0,
@@ -670,6 +961,57 @@ const s = {
     fontSize: 14,
     lineHeight: 1.6,
     whiteSpace: 'pre-wrap',
+  },
+  editModal: {
+    width: 'min(980px, 100%)',
+    maxHeight: '90vh',
+    background: '#f8fbf8',
+    border: '1px solid #cfe0d0',
+    borderRadius: 18,
+    boxShadow: '0 24px 70px rgba(0,0,0,0.22)',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  editBody: { padding: 18, overflowY: 'auto' },
+  editFooter: {
+    borderTop: '1px solid #d4dfd4',
+    background: '#ffffff',
+    padding: '14px 18px',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  editGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 12 },
+  editGridWide: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 14 },
+  editItemsWrap: { display: 'flex', flexDirection: 'column', gap: 12 },
+  editItemCard: { border: '1px solid #d4dfd4', borderRadius: 14, background: '#ffffff', padding: 12 },
+  editItemTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  editItemTitle: { color: '#123416', fontSize: 13.5 },
+  editItemGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 },
+  editLabel: { fontSize: 12, color: '#607062', fontWeight: 700 },
+  editInput: {
+    width: '100%',
+    border: '1px solid #d4dfd4',
+    borderRadius: 10,
+    padding: '8px 10px',
+    fontSize: 13,
+    color: '#1f2f21',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: '#ffffff',
+    fontFamily: 'inherit',
+  },
+  editError: {
+    background: '#fff5f5',
+    border: '1px solid #fecaca',
+    color: '#b91c1c',
+    borderRadius: 10,
+    padding: '9px 12px',
+    fontSize: 13,
+    fontWeight: 700,
+    marginBottom: 12,
   },
   checkbox: {
     width: 13,

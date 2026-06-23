@@ -11,7 +11,13 @@ import {
   PACKINGS,
   getWordCount,
 } from '@/components/store/shared/StoreShared'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
@@ -241,7 +247,7 @@ export default function FinishedGoodsNewPage() {
           {errors.items ? <p style={s.errorBanner}>{errors.items}</p> : null}
 
           {items.map((item, idx) => (
-            <div key={`row-${idx}`} style={s.itemCard}>
+            <div key={`row-${idx}`} style={s.itemCard} data-keyboard-cell-scope>
               <div style={s.itemTop}>
                 <span style={s.itemTitle}>Product {idx + 1}</span>
                 {items.length > 1 ? (
@@ -257,7 +263,9 @@ export default function FinishedGoodsNewPage() {
                   <StoreThemeDropdown
                     value={item.product}
                     onChange={(nextProduct) => updateItem(idx, 'product', nextProduct)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
+                    triggerProps={keyboardCellTriggerProps}
                     placeholder={loadingOptions ? 'Loading products...' : 'Select product'}
                     options={[
                       { value: '', label: loadingOptions ? 'Loading products...' : 'Select product' },
@@ -270,7 +278,9 @@ export default function FinishedGoodsNewPage() {
                   <StoreThemeDropdown
                     value={item.packing}
                     onChange={(nextPacking) => updateItem(idx, 'packing', nextPacking)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
+                    triggerProps={keyboardCellTriggerProps}
                     placeholder={loadingOptions ? 'Loading packing...' : 'Select packing'}
                     options={[
                       { value: '', label: loadingOptions ? 'Loading packing...' : 'Select packing' },
@@ -284,7 +294,9 @@ export default function FinishedGoodsNewPage() {
                     type="number"
                     min={0}
                     style={s.input}
+                    data-keyboard-cell
                     value={item.cartons}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(idx, 'cartons', e.target.value)}
                   />
                 </div>

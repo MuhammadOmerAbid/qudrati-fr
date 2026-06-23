@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowLeft, Save, Plus, X } from 'lucide-react'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 import { brandsApi, inventoryApi, requisitionApi } from '@/infrastructure/api/endpoints'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
@@ -241,14 +247,16 @@ export default function RequisitionNewPage() {
             )
 
             return (
-              <div key={item.key} style={{ ...s.productRow, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+              <div key={item.key} style={{ ...s.productRow, flexWrap: isMobile ? 'wrap' : 'nowrap' }} data-keyboard-cell-scope>
 
                 {/* Product dropdown */}
                 <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : 2 }}>
                   <StoreThemeDropdown
                     value={item.productId}
                     onChange={(nextProductId) => updateItem(item.key, 'productId', String(nextProductId))}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
+                    triggerProps={keyboardCellTriggerProps}
                     placeholder={loadingProducts ? 'Loading products...' : 'Select Product'}
                     options={[
                       { value: '', label: loadingProducts ? 'Loading products...' : 'Select Product' },
@@ -294,8 +302,10 @@ export default function RequisitionNewPage() {
                     type="number"
                     min="1"
                     max={Number.isFinite(prod?.available) ? prod.available : undefined}
+                    data-keyboard-cell
                     placeholder="Qty"
                     value={item.quantity}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={e => updateItem(item.key, 'quantity', e.target.value)}
                   />
                   {prod && Number.isFinite(prod.available) ? (
