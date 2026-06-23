@@ -1348,7 +1348,10 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="print-only" style={s.printTableWrap}>
+          <div
+            className={`print-only ${exportPattern.columns.length > 8 ? 'print-wide-report' : 'print-standard-report'}`}
+            style={s.printTableWrap}
+          >
             {exportPattern.columns.length > 0 ? (
               <table style={s.table}>
                 <thead>
@@ -1867,7 +1870,41 @@ export default function ReportsPage() {
           table {
             width: 100% !important;
             min-width: 0 !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
             page-break-inside: auto;
+          }
+
+          th,
+          td {
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+          }
+
+          th {
+            line-height: 1.15 !important;
+          }
+
+          .print-wide-report th {
+            font-size: 7.3px !important;
+            padding: 4px 4px !important;
+            letter-spacing: 0 !important;
+          }
+
+          .print-wide-report td {
+            font-size: 7.5px !important;
+            padding: 4px 4px !important;
+            line-height: 1.16 !important;
+          }
+
+          .print-standard-report th {
+            font-size: 9px !important;
+            padding: 6px 6px !important;
+          }
+
+          .print-standard-report td {
+            font-size: 9.3px !important;
+            padding: 6px 6px !important;
           }
 
           thead {
@@ -1884,7 +1921,7 @@ export default function ReportsPage() {
           }
 
           @page {
-            size: A4;
+            size: A4 landscape;
             margin: 10mm;
           }
         }
