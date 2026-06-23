@@ -38,6 +38,7 @@ function normalizeItem(raw = {}) {
     quantity: Number(raw.quantity) || 0,
     unit: String(raw.unit || 'Unit').trim() || 'Unit',
     source: String(raw.source || '').trim(),
+    comment: String(raw.comment || raw.itemComment || raw.item_comment || '').trim(),
   }
 }
 
@@ -139,7 +140,7 @@ export default function GateOutwardPage() {
         r.note,
         r.numbering,
         r.batchNumber,
-        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, it.source]),
+        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, it.source, it.comment]),
       ]
         .join(' ')
         .toLowerCase()
@@ -173,7 +174,7 @@ export default function GateOutwardPage() {
   }
 
   const exportCSV = (rows) => {
-    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
+    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Comment', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
       r.items.map((item) =>
         [
@@ -185,6 +186,7 @@ export default function GateOutwardPage() {
           item.packaging || '-',
           item.brand,
           `${item.quantity} ${item.unit}`,
+          item.comment || '-',
           r.vehicleNo,
           r.driverName,
           r.driverPhone,
@@ -226,6 +228,7 @@ export default function GateOutwardPage() {
           packaging: item.packaging || '-',
           brand: item.brand,
           quantity: `${item.quantity} ${item.unit}`,
+          comment: item.comment || '-',
           vehicle: r.vehicleNo || '-',
           driver: r.driverName || '-',
           driverPhone: r.driverPhone || '-',
@@ -325,6 +328,7 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Packaging</th>
                 <th style={s.th}>Brand</th>
                 <th style={s.th}>Qty</th>
+                <th style={s.th}>Comment</th>
                 <th style={s.th}>Source</th>
                 <th style={s.th}>Vehicle</th>
                 <th style={s.th}>Driver</th>
@@ -337,7 +341,7 @@ export default function GateOutwardPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={17} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={18} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -366,6 +370,7 @@ export default function GateOutwardPage() {
                       <td style={s.td}>{item.packaging || '-'}</td>
                       <td style={s.td}>{item.brand}</td>
                       <td style={s.td}>{item.quantity} {item.unit}</td>
+                      <td style={s.td}>{item.comment || '-'}</td>
                       <td style={s.td}>{item.source || '-'}</td>
 
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.vehicleNo || '-'}</td>}
@@ -412,6 +417,7 @@ export default function GateOutwardPage() {
               { key: 'numbering', label: 'Numbering', width: '16%' },
               { key: 'batchNumber', label: 'Batch No', width: '15%' },
               { key: 'brand', label: 'Brand', width: '20%' },
+              { key: 'comment', label: 'Comment', width: '12%' },
               { key: 'vehicle', label: 'Vehicle', rowSpan: true, width: '5%' },
               { key: 'driver', label: 'Driver', rowSpan: true, width: '6%' },
               { key: 'driverPhone', label: 'Driver Phone', rowSpan: true, width: '7%' },
@@ -446,7 +452,7 @@ export default function GateOutwardPage() {
 }
 
 const RADIUS = 20
-const TABLE_MIN_WIDTH = 1480
+const TABLE_MIN_WIDTH = 1620
 
 const s = {
   wrapper: { width: '100%' },
