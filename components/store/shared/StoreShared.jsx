@@ -411,6 +411,13 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
           theme: 'grid',
           margin,
           tableWidth: 'auto',
+          columnStyles: {
+            0: { cellWidth: (doc.internal.pageSize.getWidth() - margin.left - margin.right) / 5 },
+            1: { cellWidth: (doc.internal.pageSize.getWidth() - margin.left - margin.right) / 5 },
+            2: { cellWidth: (doc.internal.pageSize.getWidth() - margin.left - margin.right) / 5 },
+            3: { cellWidth: (doc.internal.pageSize.getWidth() - margin.left - margin.right) / 5 },
+            4: { cellWidth: (doc.internal.pageSize.getWidth() - margin.left - margin.right) / 5 },
+          },
           styles: {
             font: 'helvetica',
             fontSize: 7.4,
