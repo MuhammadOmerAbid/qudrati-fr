@@ -383,6 +383,21 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       const itemColumns = columns.filter((col) => !goKeys.includes(col.key))
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = { left: 28, right: 28 }
+      const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right
+      const itemWidthPercent = {
+        srNo: 8,
+        product: 30,
+        packaging: 15,
+        quantity: 12,
+        numbering: 18,
+        batchNumber: 10,
+        brand: 7,
+      }
+      const itemColumnStyles = itemColumns.reduce((styles, col, index) => {
+        const percent = itemWidthPercent[col.key]
+        if (percent) styles[index] = { cellWidth: usableWidth * (percent / 100) }
+        return styles
+      }, {})
       let cursorY = startY
 
       groups.forEach((group) => {
@@ -464,6 +479,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
             minCellHeight: 16,
             overflow: 'linebreak',
           },
+          columnStyles: itemColumnStyles,
           headStyles: {
             fillColor: [248, 250, 252],
             textColor: [15, 23, 42],
@@ -538,17 +554,19 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         lineColor: patientPdfTable ? [160, 160, 160] : [17, 17, 17],
         lineWidth: patientPdfTable ? 0.35 : 0.5,
         fillColor: [255, 255, 255],
-        minCellHeight: patientPdfTable ? 14 : undefined,
         valign: patientPdfTable ? 'middle' : 'top',
+        ...(patientPdfTable ? { minCellHeight: 14 } : {}),
       },
       headStyles: {
         fillColor: patientPdfTable ? [245, 247, 246] : [27, 94, 32],
         textColor: patientPdfTable ? [24, 24, 24] : [255, 255, 255],
         fontStyle: 'bold',
         lineColor: patientPdfTable ? [120, 120, 120] : [255, 255, 255],
-        lineWidth: patientPdfTable ? 0.45 : undefined,
-        fontSize: patientPdfTable ? 6.6 : undefined,
-        cellPadding: patientPdfTable ? { top: 4, right: 3, bottom: 4, left: 3 } : undefined,
+        ...(patientPdfTable ? {
+          lineWidth: 0.45,
+          fontSize: 6.6,
+          cellPadding: { top: 4, right: 3, bottom: 4, left: 3 },
+        } : {}),
       },
       bodyStyles: {
         fillColor: [255, 255, 255],
