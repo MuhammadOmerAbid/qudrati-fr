@@ -1197,9 +1197,9 @@ export default function ReportsPage() {
         head,
         body,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 4, textColor: [39, 53, 41], lineColor: [215, 225, 234], lineWidth: 0.45, fillColor: [255, 255, 255] },
-        headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: 'bold', lineColor: [215, 225, 234], lineWidth: 0.45 },
-        bodyStyles: { fillColor: [255, 255, 255], lineColor: [215, 225, 234] },
+        styles: { fontSize: 8, cellPadding: 4, textColor: [39, 53, 41], lineColor: [0, 0, 0], lineWidth: 0.45, fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.45 },
+        bodyStyles: { fillColor: [255, 255, 255], lineColor: [0, 0, 0] },
         alternateRowStyles: { fillColor: [252, 252, 252] },
         columnStyles,
         didParseCell: (data) => {
@@ -2172,7 +2172,7 @@ const s = {
     fontWeight: 500,
   },
   printTableWrap: {
-    border: '1px solid #d7e1ea',
+    border: '1px solid #000000',
     borderRadius: 0,
     overflow: 'hidden',
     marginTop: 12,
@@ -2184,7 +2184,7 @@ const s = {
     verticalAlign: 'top',
     fontWeight: 800,
     background: '#eff6fc',
-    borderRight: '1px solid #d7e1ea',
+    borderRight: '1px solid #000000',
   },
   reportHead: {
     display: 'flex',
@@ -2250,7 +2250,7 @@ const s = {
   },
   tableWrap: {
     overflow: 'auto',
-    border: '1px solid #d7e1ea',
+    border: '1px solid #000000',
     borderRadius: 12,
   },
   table: {
@@ -2267,18 +2267,17 @@ const s = {
     fontWeight: 800,
     textAlign: 'left',
     padding: '10px 10px',
-    borderRight: '1px solid #d7e1ea',
-    borderBottom: '1px solid #d7e1ea',
+    border: '1px solid #000000',
   },
-  tr: { borderTop: '1px solid #d7e1ea' },
+  tr: { borderTop: '1px solid #000000' },
   td: {
     padding: '9px 10px',
     fontSize: 12.5,
     color: '#273529',
     verticalAlign: 'top',
-    borderRight: '1px solid #d7e1ea',
+    border: '1px solid #000000',
   },
-  tFoot: { background: '#eff6fc', borderTop: '1px solid #d7e1ea', fontWeight: 800 },
+  tFoot: { background: '#eff6fc', borderTop: '1px solid #000000', fontWeight: 800 },
   emptyCell: {
     padding: '16px 10px',
     textAlign: 'center',
