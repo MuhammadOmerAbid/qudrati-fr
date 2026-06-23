@@ -6,7 +6,13 @@ import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -220,7 +226,7 @@ export default function ProductionOrderNewPage() {
           {errors.items ? <p style={s.errorBanner}>{errors.items}</p> : null}
 
           {items.map((item, idx) => (
-            <div key={`row-${idx}`} style={s.itemCard}>
+            <div key={`row-${idx}`} style={s.itemCard} data-keyboard-cell-scope>
               <div style={s.itemTop}>
                 <span style={s.itemTitle}>Item {idx + 1}</span>
                 {items.length > 1 ? (
@@ -236,7 +242,9 @@ export default function ProductionOrderNewPage() {
                   <StoreThemeDropdown
                     value={item.goods}
                     onChange={(nextValue) => updateItem(idx, 'goods', nextValue)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
+                    triggerProps={keyboardCellTriggerProps}
                     placeholder={loadingGoods ? 'Loading goods...' : 'Select goods'}
                     options={[
                       { value: '', label: loadingGoods ? 'Loading goods...' : 'Select goods' },
@@ -249,7 +257,9 @@ export default function ProductionOrderNewPage() {
                   <StoreThemeDropdown
                     value={item.packing}
                     onChange={(nextValue) => updateItem(idx, 'packing', nextValue)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
+                    triggerProps={keyboardCellTriggerProps}
                     placeholder={loadingPacking ? 'Loading packing...' : 'Select packing'}
                     options={[
                       { value: '', label: loadingPacking ? 'Loading packing...' : 'Select packing' },
@@ -263,7 +273,9 @@ export default function ProductionOrderNewPage() {
                     type="number"
                     min={0}
                     style={s.input}
+                    data-keyboard-cell
                     value={item.qty}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(idx, 'qty', e.target.value)}
                   />
                 </div>

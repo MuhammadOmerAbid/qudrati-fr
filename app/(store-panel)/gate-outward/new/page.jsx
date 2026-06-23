@@ -444,6 +444,8 @@ export default function GateOutwardNewPage() {
         if (field === 'source') {
           updated.productId = ''
           updated.packaging = ''
+          updated.numbering = ''
+          updated.batchNumber = ''
           updated.quantity = ''
           updated.weightPerCarton = ''
           updated.unit = unitOptions[0] || 'Unit'
@@ -481,6 +483,28 @@ export default function GateOutwardNewPage() {
     return [...prev, blankItem(inheritedSource)]
   })
   const removeItem = (key) => setItems((prev) => (prev.length > 1 ? prev.filter((x) => x.key !== key) : prev))
+
+  const focusNextItemCell = (fromElement) => {
+    if (typeof window === 'undefined') return
+    const current = fromElement || document.activeElement
+    const block = current?.closest?.('[data-go-item-block]')
+    if (!block) return
+
+    const cells = Array.from(block.querySelectorAll('[data-go-item-cell]'))
+      .filter((cell) => {
+        const disabled = cell.disabled || cell.getAttribute('aria-disabled') === 'true'
+        return !disabled && cell.offsetParent !== null
+      })
+    const index = cells.indexOf(current)
+    const next = cells[index >= 0 ? index + 1 : 0]
+    next?.focus?.()
+  }
+
+  const handleItemCellKeyDown = (event) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    focusNextItemCell(event.currentTarget)
+  }
 
   const validate = () => {
     const nextErrors = {}
@@ -567,9 +591,9 @@ export default function GateOutwardNewPage() {
             categoryName: product?.category || '',
             subCategory: product?.subCategory || '',
             subcategory: product?.subCategory || '',
-            numbering: row.numbering || '',
-            batchNumber: row.batchNumber || '',
-            batch_number: row.batchNumber || '',
+            numbering: row.source === SOURCE_FINISHED_GOODS ? row.numbering || '' : '',
+            batchNumber: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
+            batch_number: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
             quantity: Number(row.quantity),
             unit: row.unit || product?.unit || 'Unit',
             weightPerCarton,
@@ -597,7 +621,7 @@ export default function GateOutwardNewPage() {
 
   return (
     <DashboardLayout>
-      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1100 }}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1480 }}>
         <div style={s.pageHeader}>
           <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/gate-outward')}>
@@ -732,15 +756,23 @@ export default function GateOutwardNewPage() {
             if (product && !hasStockLimit(product)) availableText = `Unit: ${product.unit}`
 
             return (
-              <div key={item.key} style={s.itemBlock}>
-                <div style={s.itemRow}>
-                  <div style={s.itemField}>
+              <div key={item.key} style={s.itemBlock} data-go-item-block>
+                <div
+                  style={{
+                    ...s.itemRow,
+                    flexWrap: isMobile ? 'wrap' : 'nowrap',
+                    minWidth: !isMobile && item.source === SOURCE_FINISHED_GOODS ? 1360 : undefined,
+                  }}
+                >
+                    <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 170px' }}>
                     {idx === 0 && <label style={s.label}>Source</label>}
                     <StoreThemeDropdown
                       value={item.source}
                       onChange={(nextSource) => updateItem(item.key, 'source', nextSource)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       variant="input"
                       placeholder="Source"
+                      triggerProps={{ 'data-go-item-cell': true }}
                       options={[
                         { value: '', label: 'Source' },
                         ...SOURCE_OPTIONS.map((entry) => ({ value: entry.value, label: entry.label })),
@@ -748,13 +780,15 @@ export default function GateOutwardNewPage() {
                     />
                   </div>
 
-                  <div style={s.itemField}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 165px' }}>
                     {idx === 0 && <label style={s.label}>Select Product</label>}
                     <StoreThemeDropdown
                       value={item.productId}
                       onChange={(nextProductId) => updateItem(item.key, 'productId', nextProductId)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       disabled={!item.source}
                       variant="input"
+                      triggerProps={{ 'data-go-item-cell': true }}
                       placeholder={
                         !item.source
                           ? 'Select source first'
@@ -780,12 +814,14 @@ export default function GateOutwardNewPage() {
                   </div>
 
                   {item.source === SOURCE_FINISHED_GOODS && (
-                    <div style={s.itemField}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '1 1 210px', minWidth: isMobile ? undefined : 210 }}>
                       {idx === 0 && <label style={s.label}>Packaging</label>}
                       <StoreThemeDropdown
                         value={item.packaging}
                         onChange={(nextPackaging) => updateItem(item.key, 'packaging', nextPackaging)}
+                        onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                         variant="input"
+                        triggerProps={{ 'data-go-item-cell': true }}
                         placeholder={loadingOptions ? 'Loading packaging...' : 'Select Packaging'}
                         options={[
                           { value: '', label: loadingOptions ? 'Loading packaging...' : 'Select Packaging' },
@@ -795,25 +831,33 @@ export default function GateOutwardNewPage() {
                     </div>
                   )}
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
-                    {idx === 0 && <label style={s.label}>Numbering</label>}
-                    <input
-                      style={s.input}
-                      placeholder="Manual or auto"
-                      value={item.numbering}
-                      onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
-                    />
-                  </div>
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 130px' }}>
+                        {idx === 0 && <label style={s.label}>Numbering</label>}
+                        <input
+                          style={s.input}
+                          data-go-item-cell
+                          placeholder="Manual or auto"
+                          value={item.numbering}
+                          onKeyDown={handleItemCellKeyDown}
+                          onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
+                        />
+                      </div>
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
-                    {idx === 0 && <label style={s.label}>Batch No</label>}
-                    <input
-                      style={s.input}
-                      placeholder="Batch No"
-                      value={item.batchNumber}
-                      onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
-                    />
-                  </div>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 120px' }}>
+                        {idx === 0 && <label style={s.label}>Batch No</label>}
+                        <input
+                          style={s.input}
+                          data-go-item-cell
+                          placeholder="Batch No"
+                          value={item.batchNumber}
+                          onKeyDown={handleItemCellKeyDown}
+                          onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                     {idx === 0 && <label style={s.label}>Quantity</label>}
@@ -821,28 +865,32 @@ export default function GateOutwardNewPage() {
                       style={s.input}
                       type="number"
                       min="1"
+                      data-go-item-cell
                       placeholder="Quantity"
                       value={item.quantity}
+                      onKeyDown={handleItemCellKeyDown}
                       onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                     />
                   </div>
 
                   {item.source === SOURCE_FINISHED_GOODS && (
                     <>
-                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 150px' }}>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 140px' }}>
                         {idx === 0 && <label style={s.label}>Weight Per Carton</label>}
                         <input
                           style={s.input}
                           type="number"
                           min="0"
                           step="0.01"
+                          data-go-item-cell
                           placeholder="Weight / carton"
                           value={item.weightPerCarton}
+                          onKeyDown={handleItemCellKeyDown}
                           onChange={(e) => updateItem(item.key, 'weightPerCarton', e.target.value)}
                         />
                       </div>
 
-                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                         {idx === 0 && <label style={s.label}>Total Weight</label>}
                         <div style={s.readonlyInput}>
                           {Number(item.weightPerCarton || 0) > 0 && Number(item.quantity || 0) > 0
@@ -858,7 +906,9 @@ export default function GateOutwardNewPage() {
                     <StoreThemeDropdown
                       value={item.unit}
                       onChange={(nextUnit) => updateItem(item.key, 'unit', nextUnit)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       variant="input"
+                      triggerProps={{ 'data-go-item-cell': true }}
                       options={unitOptions.map((u) => ({ value: u, label: u }))}
                     />
                   </div>
@@ -900,7 +950,7 @@ export default function GateOutwardNewPage() {
 }
 
 const s = {
-  wrapper: { maxWidth: 1100, margin: '0 auto' },
+  wrapper: { maxWidth: 1480, margin: '0 auto' },
 
   pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
@@ -942,7 +992,7 @@ const s = {
   addItemBtn: { background: '#54B45B', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', boxShadow: '0 2px 8px rgba(84,180,91,0.35)' },
 
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
-  itemBlock: { marginBottom: 10 },
+  itemBlock: { marginBottom: 10, overflowX: 'auto', paddingBottom: 2 },
   itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
   itemCommentWrap: { marginTop: 8, maxWidth: 520 },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },

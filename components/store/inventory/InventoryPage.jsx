@@ -120,15 +120,17 @@ export default function InventoryPage({ isSuperUser = true }) {
     return map
   }, [])
 
+  const reportSourceRows = selected.length > 0 ? items.filter((item) => selected.includes(item.id)) : filtered
+
   const reportRows = useMemo(
-    () => [...items]
+    () => [...reportSourceRows]
       .sort((a, b) => (
         a.brand.localeCompare(b.brand)
         || a.category.localeCompare(b.category)
         || a.product.localeCompare(b.product)
       ))
       .map((row) => ({ ...row, _groupId: row.brand || `inventory-${row.id}` })),
-    [items]
+    [reportSourceRows]
   )
 
   const toggleSelectAll = () => {
