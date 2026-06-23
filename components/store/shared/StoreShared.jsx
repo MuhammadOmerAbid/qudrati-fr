@@ -436,8 +436,12 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         autoTable(doc, {
           startY: cursorY,
           head: [itemColumns.map((col) => col.label)],
-          body: group.rows.map((row) =>
-            itemColumns.map((col) => formatReportValue(col.key === dateKey ? formatDate(row[col.key]) : row[col.key]))
+          body: group.rows.map((row, index) =>
+            itemColumns.map((col) => (
+              col.key === 'srNo'
+                ? String(index + 1)
+                : formatReportValue(col.key === dateKey ? formatDate(row[col.key]) : row[col.key])
+            ))
           ),
           theme: 'grid',
           margin,

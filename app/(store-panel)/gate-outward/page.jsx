@@ -178,6 +178,11 @@ export default function GateOutwardPage() {
 
   const exportRows = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
 
+  const openSingleReport = (id) => {
+    setSelected([id])
+    setShowReportPanel(true)
+  }
+
   const exportCSV = (rows) => {
     const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
@@ -329,11 +334,12 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Customer</th>
                 <th style={s.th}>Address</th>
                 <th style={s.th}>Note</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Report</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={17} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={18} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -382,6 +388,18 @@ export default function GateOutwardPage() {
                           ) : '-'}
                         </td>
                       )}
+                      {idx === 0 && (
+                        <td style={{ ...s.td, textAlign: 'right' }} rowSpan={record.items.length}>
+                          <button
+                            type="button"
+                            style={s.singleReportBtn}
+                            onClick={() => openSingleReport(record.id)}
+                            title="Open report for this entry"
+                          >
+                            <FileText size={13} /> Report
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )
@@ -400,12 +418,13 @@ export default function GateOutwardPage() {
             columns={[
               { key: 'goNo', label: 'GO No', rowSpan: true, width: '4%' },
               { key: 'date', label: 'Date', rowSpan: true, width: '5%' },
-              { key: 'product', label: 'Product', width: '13%' },
-              { key: 'numbering', label: 'Numbering', width: '6%' },
-              { key: 'batchNumber', label: 'Batch No', width: '6%' },
-              { key: 'packaging', label: 'Packaging', width: '6%' },
-              { key: 'brand', label: 'Brand', width: '6%' },
-              { key: 'quantity', label: 'Qty', width: '5%' },
+              { key: 'srNo', label: 'Sr No', width: '5%' },
+              { key: 'product', label: 'Product', width: '20%' },
+              { key: 'packaging', label: 'Packaging', width: '14%' },
+              { key: 'quantity', label: 'Qty', width: '10%' },
+              { key: 'numbering', label: 'Numbering', width: '16%' },
+              { key: 'batchNumber', label: 'Batch No', width: '15%' },
+              { key: 'brand', label: 'Brand', width: '20%' },
               { key: 'vehicle', label: 'Vehicle', rowSpan: true, width: '5%' },
               { key: 'driver', label: 'Driver', rowSpan: true, width: '6%' },
               { key: 'driverPhone', label: 'Driver Phone', rowSpan: true, width: '7%' },
@@ -565,6 +584,21 @@ const s = {
   noteBtn: {
     display: 'inline-flex',
     alignItems: 'center',
+    gap: 5,
+    border: '1px solid #d4dfd4',
+    borderRadius: 999,
+    background: '#ffffff',
+    color: '#2d7a33',
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  singleReportBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
     border: '1px solid #d4dfd4',
     borderRadius: 999,
