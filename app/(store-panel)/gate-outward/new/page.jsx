@@ -190,6 +190,7 @@ const blankItem = (source = '') => ({
   batchNumber: '',
   quantity: '',
   unit: 'Unit',
+  weightPerCarton: '',
   comment: '',
   error: '',
 })
@@ -444,6 +445,7 @@ export default function GateOutwardNewPage() {
           updated.productId = ''
           updated.packaging = ''
           updated.quantity = ''
+          updated.weightPerCarton = ''
           updated.unit = unitOptions[0] || 'Unit'
         }
 
@@ -543,6 +545,8 @@ export default function GateOutwardNewPage() {
         status: 'Dispatched',
         items: items.map((row) => {
           const product = getProduct(row.source, row.productId)
+          const weightPerCarton = row.source === SOURCE_FINISHED_GOODS ? Number(row.weightPerCarton || 0) : 0
+          const totalWeight = weightPerCarton > 0 ? weightPerCarton * Number(row.quantity || 0) : 0
           return {
             source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
             sourceType: row.source,
@@ -568,6 +572,10 @@ export default function GateOutwardNewPage() {
             batch_number: row.batchNumber || '',
             quantity: Number(row.quantity),
             unit: row.unit || product?.unit || 'Unit',
+            weightPerCarton,
+            weight_per_carton: weightPerCarton,
+            totalWeight,
+            total_weight: totalWeight,
             comment: row.comment || '',
             itemComment: row.comment || '',
             item_comment: row.comment || '',
@@ -818,6 +826,32 @@ export default function GateOutwardNewPage() {
                       onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                     />
                   </div>
+
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 150px' }}>
+                        {idx === 0 && <label style={s.label}>Weight Per Carton</label>}
+                        <input
+                          style={s.input}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Weight / carton"
+                          value={item.weightPerCarton}
+                          onChange={(e) => updateItem(item.key, 'weightPerCarton', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
+                        {idx === 0 && <label style={s.label}>Total Weight</label>}
+                        <div style={s.readonlyInput}>
+                          {Number(item.weightPerCarton || 0) > 0 && Number(item.quantity || 0) > 0
+                            ? Number(Number(item.weightPerCarton || 0) * Number(item.quantity || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                            : '-'}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
                     {idx === 0 && <label style={s.label}>Unit</label>}

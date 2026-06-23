@@ -28,16 +28,27 @@ function parseDMYDate(value) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+function formatNumber(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number <= 0) return '-'
+  return number.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
 function normalizeItem(raw = {}) {
+  const weightPerCarton = Number(raw.weightPerCarton ?? raw.weight_per_carton ?? 0) || 0
+  const quantity = Number(raw.quantity) || 0
+  const totalWeight = Number(raw.totalWeight ?? raw.total_weight ?? 0) || (weightPerCarton * quantity)
   return {
     productName: String(raw.productName || raw.product_name || '').trim(),
     brand: String(raw.brand || '').trim(),
     numbering: String(raw.numbering || '').trim(),
     batchNumber: String(raw.batchNumber || raw.batch_number || '').trim(),
     packaging: String(raw.packaging || raw.packing || '').trim(),
-    quantity: Number(raw.quantity) || 0,
+    quantity,
     unit: String(raw.unit || 'Unit').trim() || 'Unit',
     source: String(raw.source || '').trim(),
+    weightPerCarton,
+    totalWeight,
     comment: String(raw.comment || raw.itemComment || raw.item_comment || '').trim(),
   }
 }
@@ -140,7 +151,7 @@ export default function GateOutwardPage() {
         r.note,
         r.numbering,
         r.batchNumber,
-        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, it.source, it.comment]),
+        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, formatNumber(it.weightPerCarton), formatNumber(it.totalWeight), it.source, it.comment]),
       ]
         .join(' ')
         .toLowerCase()
@@ -174,7 +185,7 @@ export default function GateOutwardPage() {
   }
 
   const exportCSV = (rows) => {
-    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Comment', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
+    const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Weight Per Carton', 'Total Weight', 'Comment', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
       r.items.map((item) =>
         [
@@ -186,6 +197,8 @@ export default function GateOutwardPage() {
           item.packaging || '-',
           item.brand,
           `${item.quantity} ${item.unit}`,
+          formatNumber(item.weightPerCarton),
+          formatNumber(item.totalWeight),
           item.comment || '-',
           r.vehicleNo,
           r.driverName,
@@ -228,6 +241,8 @@ export default function GateOutwardPage() {
           packaging: item.packaging || '-',
           brand: item.brand,
           quantity: `${item.quantity} ${item.unit}`,
+          weightPerCarton: formatNumber(item.weightPerCarton),
+          totalWeight: formatNumber(item.totalWeight),
           comment: item.comment || '-',
           vehicle: r.vehicleNo || '-',
           driver: r.driverName || '-',
@@ -328,6 +343,8 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Packaging</th>
                 <th style={s.th}>Brand</th>
                 <th style={s.th}>Qty</th>
+                <th style={s.th}>Weight Per Carton</th>
+                <th style={s.th}>Total Weight</th>
                 <th style={s.th}>Comment</th>
                 <th style={s.th}>Source</th>
                 <th style={s.th}>Vehicle</th>
@@ -341,7 +358,7 @@ export default function GateOutwardPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={18} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={20} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -370,6 +387,8 @@ export default function GateOutwardPage() {
                       <td style={s.td}>{item.packaging || '-'}</td>
                       <td style={s.td}>{item.brand}</td>
                       <td style={s.td}>{item.quantity} {item.unit}</td>
+                      <td style={s.td}>{formatNumber(item.weightPerCarton)}</td>
+                      <td style={s.td}>{formatNumber(item.totalWeight)}</td>
                       <td style={s.td}>{item.comment || '-'}</td>
                       <td style={s.td}>{item.source || '-'}</td>
 
@@ -415,6 +434,8 @@ export default function GateOutwardPage() {
               { key: 'packaging', label: 'Packaging', width: '14%' },
               { key: 'quantity', label: 'Qty', width: '10%' },
               { key: 'numbering', label: 'Numbering', width: '16%' },
+              { key: 'weightPerCarton', label: 'Weight Per Carton', width: '10%' },
+              { key: 'totalWeight', label: 'Total Weight', width: '10%' },
               { key: 'batchNumber', label: 'Batch No', width: '15%' },
               { key: 'brand', label: 'Brand', width: '20%' },
               { key: 'comment', label: 'Comment', width: '12%' },
@@ -452,7 +473,7 @@ export default function GateOutwardPage() {
 }
 
 const RADIUS = 20
-const TABLE_MIN_WIDTH = 1620
+const TABLE_MIN_WIDTH = 1820
 
 const s = {
   wrapper: { width: '100%' },
