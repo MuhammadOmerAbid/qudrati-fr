@@ -220,7 +220,7 @@ export function CommentEditorModal({ value, title = 'Edit Comment', onCancel, on
   )
 }
 
-export function ReportModal({ title, data, columns, dateKey, selectFilters = [], onClose }) {
+export function ReportModal({ title, data, columns, dateKey, selectFilters = [], pdfTableStyle = 'default', onClose }) {
   const { user } = useAuthStore()
   const generatedBy = getUserDisplayName(user)
   const [search, setSearch] = useState('')
@@ -338,6 +338,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
 
   const downloadReportPdf = async () => {
     const orientation = columns.length > 7 ? 'landscape' : 'portrait'
+    const patientPdfTable = pdfTableStyle === 'patient-records'
     const doc = new jsPDF({
       orientation,
       unit: 'pt',
@@ -377,8 +378,8 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
                 styles: {
                   valign: 'middle',
                   fontStyle: 'bold',
-                  fillColor: [242, 248, 243],
-                  textColor: [18, 52, 22],
+                  fillColor: patientPdfTable ? [255, 255, 255] : [242, 248, 243],
+                  textColor: patientPdfTable ? [35, 35, 35] : [18, 52, 22],
                 },
               })
               return cells
@@ -389,30 +390,54 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         })
       : [['No records found', ...Array(Math.max(0, columns.length - 1)).fill('')]]
 
+    const tableMargin = patientPdfTable ? { left: 24, right: 24 } : { left: 40, right: 40 }
+    const usableTableWidth = doc.internal.pageSize.getWidth() - tableMargin.left - tableMargin.right
+    const columnStyles = patientPdfTable
+      ? columns.reduce((styles, col, index) => {
+          const match = String(col.width || '').match(/^([\d.]+)%$/)
+          if (match) {
+            styles[index] = { cellWidth: usableTableWidth * (Number(match[1]) / 100) }
+          }
+          return styles
+        }, {})
+      : {}
+
     autoTable(doc, {
       startY,
       head,
       body,
       theme: 'grid',
-      margin: { left: 40, right: 40 },
+      margin: tableMargin,
       styles: {
         font: 'helvetica',
-        fontSize: 8.5,
-        cellPadding: 5,
+        fontSize: patientPdfTable ? 6.8 : 8.5,
+        cellPadding: patientPdfTable ? { top: 3.2, right: 3, bottom: 3.2, left: 3 } : 5,
         overflow: 'linebreak',
-        textColor: [31, 47, 33],
-        lineColor: [17, 17, 17],
-        lineWidth: 0.5,
+        textColor: patientPdfTable ? [38, 38, 38] : [31, 47, 33],
+        lineColor: patientPdfTable ? [160, 160, 160] : [17, 17, 17],
+        lineWidth: patientPdfTable ? 0.35 : 0.5,
         fillColor: [255, 255, 255],
+        minCellHeight: patientPdfTable ? 14 : undefined,
+        valign: patientPdfTable ? 'middle' : 'top',
       },
       headStyles: {
-        fillColor: [27, 94, 32],
-        textColor: [255, 255, 255],
+        fillColor: patientPdfTable ? [245, 247, 246] : [27, 94, 32],
+        textColor: patientPdfTable ? [24, 24, 24] : [255, 255, 255],
         fontStyle: 'bold',
-        lineColor: [255, 255, 255],
+        lineColor: patientPdfTable ? [120, 120, 120] : [255, 255, 255],
+        lineWidth: patientPdfTable ? 0.45 : undefined,
+        fontSize: patientPdfTable ? 6.6 : undefined,
+        cellPadding: patientPdfTable ? { top: 4, right: 3, bottom: 4, left: 3 } : undefined,
       },
-      bodyStyles: { fillColor: [255, 255, 255], lineColor: [17, 17, 17] },
-      alternateRowStyles: { fillColor: [255, 255, 255] },
+      bodyStyles: {
+        fillColor: [255, 255, 255],
+        lineColor: patientPdfTable ? [160, 160, 160] : [17, 17, 17],
+      },
+      alternateRowStyles: { fillColor: patientPdfTable ? [250, 250, 250] : [255, 255, 255] },
+      columnStyles,
+      tableLineColor: patientPdfTable ? [120, 120, 120] : [17, 17, 17],
+      tableLineWidth: patientPdfTable ? 0.45 : 0,
+      showHead: 'everyPage',
     })
 
     const safeName = `${title.toLowerCase().replace(/\s+/g, '-')}-report.pdf`

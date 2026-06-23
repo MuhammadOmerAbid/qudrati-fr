@@ -398,23 +398,24 @@ export default function GateOutwardPage() {
             title="Gate Outward"
             data={reportRows}
             columns={[
-              { key: 'goNo', label: 'GO No', rowSpan: true },
-              { key: 'date', label: 'Date', rowSpan: true },
-              { key: 'product', label: 'Product' },
-              { key: 'numbering', label: 'Numbering' },
-              { key: 'batchNumber', label: 'Batch No' },
-              { key: 'packaging', label: 'Packaging' },
-              { key: 'brand', label: 'Brand' },
-              { key: 'quantity', label: 'Qty' },
-              { key: 'vehicle', label: 'Vehicle', rowSpan: true },
-              { key: 'driver', label: 'Driver', rowSpan: true },
-              { key: 'driverPhone', label: 'Driver Phone', rowSpan: true },
-              { key: 'driverCnic', label: 'Driver CNIC', rowSpan: true },
-              { key: 'customer', label: 'Customer', rowSpan: true },
-              { key: 'address', label: 'Address', rowSpan: true },
-              { key: 'source', label: 'Source', rowSpan: true },
-              { key: 'note', label: 'Note', rowSpan: true },
+              { key: 'goNo', label: 'GO No', rowSpan: true, width: '4%' },
+              { key: 'date', label: 'Date', rowSpan: true, width: '5%' },
+              { key: 'product', label: 'Product', width: '13%' },
+              { key: 'numbering', label: 'Numbering', width: '6%' },
+              { key: 'batchNumber', label: 'Batch No', width: '6%' },
+              { key: 'packaging', label: 'Packaging', width: '6%' },
+              { key: 'brand', label: 'Brand', width: '6%' },
+              { key: 'quantity', label: 'Qty', width: '5%' },
+              { key: 'vehicle', label: 'Vehicle', rowSpan: true, width: '5%' },
+              { key: 'driver', label: 'Driver', rowSpan: true, width: '6%' },
+              { key: 'driverPhone', label: 'Driver Phone', rowSpan: true, width: '7%' },
+              { key: 'driverCnic', label: 'Driver CNIC', rowSpan: true, width: '7%' },
+              { key: 'customer', label: 'Customer', rowSpan: true, width: '8%' },
+              { key: 'address', label: 'Address', rowSpan: true, width: '8%' },
+              { key: 'source', label: 'Source', rowSpan: true, width: '4%' },
+              { key: 'note', label: 'Note', rowSpan: true, width: '4%' },
             ]}
+            pdfTableStyle="patient-records"
             onClose={() => setShowReportPanel(false)}
           />
         ) : null}
