@@ -34,6 +34,19 @@ function formatNumber(value) {
   return number.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
+function getAutoNumbering(items, index) {
+  const previousEnd = items
+    .slice(0, index)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
+  const cartons = Math.max(0, Math.floor(Number(items[index]?.quantity) || 0))
+  if (cartons <= 0) return '-'
+  return `${previousEnd + 1}--${previousEnd + cartons}`
+}
+
+function getDisplayNumbering(items, index) {
+  return String(items[index]?.numbering || '').trim() || getAutoNumbering(items, index)
+}
+
 function normalizeItem(raw = {}) {
   const weightPerCarton = Number(raw.weightPerCarton ?? raw.weight_per_carton ?? 0) || 0
   const quantity = Number(raw.quantity) || 0
@@ -151,7 +164,7 @@ export default function GateOutwardPage() {
         r.note,
         r.numbering,
         r.batchNumber,
-        ...r.items.flatMap((it) => [it.productName, it.brand, it.numbering, it.batchNumber, it.packaging, String(it.quantity), it.unit, formatNumber(it.weightPerCarton), formatNumber(it.totalWeight), it.source, it.comment]),
+        ...r.items.flatMap((it, idx) => [it.productName, it.brand, getDisplayNumbering(r.items, idx), it.batchNumber, it.packaging, String(it.quantity), it.unit, formatNumber(it.weightPerCarton), formatNumber(it.totalWeight), it.source, it.comment]),
       ]
         .join(' ')
         .toLowerCase()
@@ -187,12 +200,12 @@ export default function GateOutwardPage() {
   const exportCSV = (rows) => {
     const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Weight Per Carton', 'Total Weight', 'Comment', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
-      r.items.map((item) =>
+      r.items.map((item, idx) =>
         [
           r.goNo,
           r.date,
           item.productName,
-          item.numbering || '-',
+          getDisplayNumbering(r.items, idx),
           item.batchNumber || '-',
           item.packaging || '-',
           item.brand,
@@ -224,11 +237,12 @@ export default function GateOutwardPage() {
   const reportRecords = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
   const reportRows = useMemo(
     () => reportRecords.flatMap((r) =>
-      r.items.reduce((rows, item) => {
-        const previousEnd = rows.reduce((max, row) => Math.max(max, Number(row._numberEnd) || 0), 0)
+      r.items.reduce((rows, item, idx) => {
+        const previousEnd = r.items
+          .slice(0, idx)
+          .reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row.quantity) || 0)), 0)
         const cartons = Math.max(0, Math.floor(Number(item.quantity) || 0))
-        const numberStart = cartons > 0 ? previousEnd + 1 : previousEnd
-        const numberEnd = cartons > 0 ? previousEnd + cartons : previousEnd
+        const numberEnd = previousEnd + cartons
 
         rows.push({
           _groupId: r.id,
@@ -236,7 +250,7 @@ export default function GateOutwardPage() {
           goNo: r.goNo,
           date: r.date,
           product: item.productName,
-          numbering: cartons > 0 ? `${numberStart}--${numberEnd}` : '-',
+          numbering: item.numbering || getAutoNumbering(r.items, idx),
           batchNumber: item.batchNumber || '-',
           packaging: item.packaging || '-',
           brand: item.brand,
@@ -382,7 +396,7 @@ export default function GateOutwardPage() {
                       {idx === 0 && <td style={s.td} rowSpan={record.items.length}>{record.date}</td>}
 
                       <td style={s.td}>{item.productName}</td>
-                      <td style={s.td}>{item.numbering || '-'}</td>
+                      <td style={s.td}>{getDisplayNumbering(record.items, idx)}</td>
                       <td style={s.td}>{item.batchNumber || '-'}</td>
                       <td style={s.td}>{item.packaging || '-'}</td>
                       <td style={s.td}>{item.brand}</td>

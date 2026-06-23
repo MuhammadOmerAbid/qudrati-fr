@@ -799,7 +799,7 @@ export default function GateOutwardNewPage() {
                     {idx === 0 && <label style={s.label}>Numbering</label>}
                     <input
                       style={s.input}
-                      placeholder="Numbering"
+                      placeholder="Manual or auto"
                       value={item.numbering}
                       onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
                     />

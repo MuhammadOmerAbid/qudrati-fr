@@ -598,7 +598,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
 
   return (
     <div style={ui.overlay} onClick={onClose}>
-      <div style={{ ...ui.modal, maxWidth: 980 }} onClick={(e) => e.stopPropagation()}>
+      <div style={ui.reportModal} onClick={(e) => e.stopPropagation()}>
         <div style={ui.modalHeaderTop}>
           <div>
             <h3 style={ui.modalTitle}>{title} Report</h3>
@@ -610,6 +610,16 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
         </div>
 
         <div style={ui.reportToolbar}>
+          <div style={ui.searchWrapSmall}>
+            <Search size={14} color="#7a8a7a" />
+            <input
+              style={ui.searchInputBare}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search in report"
+            />
+          </div>
+
           {selectFilters.map((filter) => (
             <div key={filter.key} style={{ flex: '1 1 170px', minWidth: 0, maxWidth: 240 }}>
               <StoreThemeDropdown
@@ -622,16 +632,6 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
               />
             </div>
           ))}
-
-          <div style={ui.searchWrapSmall}>
-            <Search size={14} color="#7a8a7a" />
-            <input
-              style={ui.searchInputBare}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search in report"
-            />
-          </div>
 
           {dateKey ? (
             <>
@@ -799,28 +799,29 @@ export const ui = {
     background: '#e8eee8',
     borderBottom: '1px solid #d4dfd4',
     color: '#29472d',
-    fontSize: 12,
-    fontWeight: 700,
+    fontSize: 13,
+    fontWeight: 800,
     textAlign: 'left',
-    padding: '12px 14px',
+    padding: '14px 18px',
     whiteSpace: 'nowrap',
   },
   td: {
     borderBottom: '1px solid #e2e8e2',
     color: '#415443',
-    fontSize: 13,
-    padding: '11px 14px',
+    fontSize: 14,
+    padding: '13px 18px',
     verticalAlign: 'middle',
     background: '#ffffff',
   },
   reportGroupStartTd: {
-    borderTop: '1.5px solid #2d7a33',
+    borderTop: '1px solid #dbe5db',
   },
   reportEntryCell: {
     borderLeft: '2px solid #2d7a33',
-    background: '#f2f8f3',
+    borderRight: '2px solid #2d7a33',
+    background: '#f4faf5',
     color: '#123416',
-    fontWeight: 700,
+    fontWeight: 800,
   },
   emptyCell: {
     textAlign: 'center',
@@ -985,10 +986,11 @@ export const ui = {
     padding: 0,
   },
   iconBtnOnly: {
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 36,
     padding: 0,
     justifyContent: 'center',
+    borderRadius: 999,
   },
   brandPrimary: {
     color: '#2d7a33',
@@ -1029,6 +1031,16 @@ export const ui = {
     boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
     padding: 16,
   },
+  reportModal: {
+    width: 'min(100%, 1156px)',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    borderRadius: 24,
+    background: '#fbfdfb',
+    border: '1px solid #dfe9df',
+    boxShadow: '0 26px 72px rgba(8,18,10,0.22)',
+    padding: 20,
+  },
   modalHeaderTop: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -1039,12 +1051,12 @@ export const ui = {
   modalTitle: {
     margin: 0,
     color: '#1a3d1f',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 800,
   },
   modalSub: {
     margin: '4px 0 0 0',
-    fontSize: 12,
+    fontSize: 14,
     color: '#7a8a7a',
   },
   modalActionsEnd: {
@@ -1149,16 +1161,17 @@ export const ui = {
   },
   reportToolbar: {
     display: 'flex',
-    gap: 8,
+    gap: 10,
     flexWrap: 'wrap',
-    marginBottom: 12,
+    marginBottom: 16,
     alignItems: 'center',
     width: '100%',
   },
   reportTableWrap: {
-    border: '1px solid #e2e8e2',
-    borderRadius: 20,
+    border: '1px solid #dbe5db',
+    borderRadius: 22,
     overflow: 'auto',
+    background: '#ffffff',
   },
   metaText: {
     margin: '10px 0 0 0',

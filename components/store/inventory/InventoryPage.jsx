@@ -120,6 +120,17 @@ export default function InventoryPage({ isSuperUser = true }) {
     return map
   }, [])
 
+  const reportRows = useMemo(
+    () => [...items]
+      .sort((a, b) => (
+        a.brand.localeCompare(b.brand)
+        || a.category.localeCompare(b.category)
+        || a.product.localeCompare(b.product)
+      ))
+      .map((row) => ({ ...row, _groupId: row.brand || `inventory-${row.id}` })),
+    [items]
+  )
+
   const toggleSelectAll = () => {
     setSelected((prev) => (prev.length === filtered.length ? [] : filtered.map((row) => row.id)))
   }
@@ -302,7 +313,7 @@ export default function InventoryPage({ isSuperUser = true }) {
       {showReport ? (
         <ReportModal
           title="Inventory"
-          data={items}
+          data={reportRows}
           selectFilters={[
             {
               key: 'brand',
@@ -322,7 +333,7 @@ export default function InventoryPage({ isSuperUser = true }) {
             },
           ]}
           columns={[
-            { key: 'brand', label: 'Brand' },
+            { key: 'brand', label: 'Brand', rowSpan: true },
             { key: 'category', label: 'Category' },
             { key: 'product', label: 'Product' },
             { key: 'quantity', label: 'Quantity' },
