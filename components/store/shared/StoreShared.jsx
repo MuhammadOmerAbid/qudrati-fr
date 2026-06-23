@@ -5,7 +5,7 @@ import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, Download, X, History
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { addPdfReportHeader, getUserDisplayName, loadImageDataUrl, openReportWindow } from '@/lib/reportDesign'
+import { addPdfReportHeader, formatReportValue, getUserDisplayName, loadImageDataUrl, openReportWindow } from '@/lib/reportDesign'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
 export const BRANDS = ['Soghaat', 'Raja', 'Handi', 'Qudarti', 'General']
@@ -333,12 +333,14 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       columns,
       rows,
       generatedBy,
+      tableStyle: pdfTableStyle,
     })
   }
 
   const downloadReportPdf = async () => {
     const orientation = columns.length > 7 ? 'landscape' : 'portrait'
     const patientPdfTable = pdfTableStyle === 'patient-records'
+    const groupedGateOutwardTable = pdfTableStyle === 'gate-outward-grouped'
     const doc = new jsPDF({
       orientation,
       unit: 'pt',
@@ -360,6 +362,114 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       recordCount: rows.length,
       logoImage,
     })
+
+    if (groupedGateOutwardTable) {
+      const groups = []
+      const seen = new Map()
+      rows.forEach((row, index) => {
+        const key = row?._groupId == null ? `row-${index}` : String(row._groupId)
+        if (!seen.has(key)) {
+          const group = { key, rows: [] }
+          seen.set(key, group)
+          groups.push(group)
+        }
+        seen.get(key).rows.push(row)
+      })
+
+      const goKeys = ['goNo', 'date', 'vehicle', 'driver', 'driverPhone', 'driverCnic', 'customer', 'address', 'source', 'note']
+      const goColumns = goKeys
+        .map((key) => columns.find((col) => col.key === key))
+        .filter(Boolean)
+      const itemColumns = columns.filter((col) => !goKeys.includes(col.key))
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = { left: 28, right: 28 }
+      let cursorY = startY
+
+      groups.forEach((group) => {
+        const first = group.rows[0] || {}
+        if (cursorY > pageHeight - 120) {
+          doc.addPage()
+          cursorY = 32
+        }
+
+        const metaRows = [
+          goColumns.slice(0, 5),
+          goColumns.slice(5, 10),
+        ].filter((line) => line.length)
+
+        autoTable(doc, {
+          startY: cursorY,
+          body: metaRows.map((line) =>
+            line.map((col) => {
+              const raw = col.key === dateKey ? formatDate(first[col.key]) : first[col.key]
+              return {
+                content: `${col.label.toUpperCase()}\n${formatReportValue(raw)}`,
+                styles: { fontStyle: 'bold' },
+              }
+            })
+          ),
+          theme: 'grid',
+          margin,
+          tableWidth: 'auto',
+          styles: {
+            font: 'helvetica',
+            fontSize: 7.4,
+            cellPadding: { top: 4, right: 5, bottom: 4, left: 5 },
+            textColor: [20, 36, 52],
+            lineColor: [205, 214, 222],
+            lineWidth: 0.45,
+            fillColor: [239, 246, 252],
+            minCellHeight: 20,
+            valign: 'middle',
+            overflow: 'linebreak',
+          },
+          alternateRowStyles: { fillColor: [239, 246, 252] },
+          didParseCell: (data) => {
+            if (data.section !== 'body') return
+            const parts = String(data.cell.raw?.content || data.cell.raw || '').split('\n')
+            data.cell.text = parts
+          },
+        })
+
+        cursorY = doc.lastAutoTable.finalY
+
+        autoTable(doc, {
+          startY: cursorY,
+          head: [itemColumns.map((col) => col.label)],
+          body: group.rows.map((row) =>
+            itemColumns.map((col) => formatReportValue(col.key === dateKey ? formatDate(row[col.key]) : row[col.key]))
+          ),
+          theme: 'grid',
+          margin,
+          tableWidth: 'auto',
+          styles: {
+            font: 'helvetica',
+            fontSize: 7.2,
+            cellPadding: { top: 4, right: 5, bottom: 4, left: 5 },
+            textColor: [34, 34, 34],
+            lineColor: [205, 214, 222],
+            lineWidth: 0.45,
+            fillColor: [255, 255, 255],
+            minCellHeight: 16,
+            overflow: 'linebreak',
+          },
+          headStyles: {
+            fillColor: [248, 250, 252],
+            textColor: [15, 23, 42],
+            fontStyle: 'bold',
+            lineColor: [205, 214, 222],
+            lineWidth: 0.45,
+          },
+          alternateRowStyles: { fillColor: [252, 252, 252] },
+        })
+
+        cursorY = doc.lastAutoTable.finalY + 12
+      })
+
+      const safeName = `${title.toLowerCase().replace(/\s+/g, '-')}-report.pdf`
+      doc.save(safeName)
+      return
+    }
 
     const head = [columns.map((col) => col.label)]
     const body = rows.length

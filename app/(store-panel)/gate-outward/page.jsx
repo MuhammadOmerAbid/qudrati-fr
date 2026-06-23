@@ -415,7 +415,7 @@ export default function GateOutwardPage() {
               { key: 'source', label: 'Source', rowSpan: true, width: '4%' },
               { key: 'note', label: 'Note', rowSpan: true, width: '4%' },
             ]}
-            pdfTableStyle="patient-records"
+            pdfTableStyle="gate-outward-grouped"
             onClose={() => setShowReportPanel(false)}
           />
         ) : null}
