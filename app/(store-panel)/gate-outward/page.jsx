@@ -9,10 +9,6 @@ import {
   Eye,
   Plus,
   Search,
-  Square,
-  CheckSquare,
-  FileSpreadsheet,
-  Download,
   FileText,
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
@@ -176,13 +172,6 @@ export default function GateOutwardPage() {
     setSelected([])
   }
 
-  const exportRows = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
-
-  const openSingleReport = (id) => {
-    setSelected([id])
-    setShowReportPanel(true)
-  }
-
   const exportCSV = (rows) => {
     const headers = ['GO No', 'Date', 'Product', 'Numbering', 'Batch Number', 'Packaging', 'Brand', 'Qty', 'Vehicle', 'Driver', 'Driver Phone', 'Driver CNIC', 'Customer', 'Address', 'Source', 'Note']
     const lines = rows.flatMap((r) =>
@@ -220,25 +209,34 @@ export default function GateOutwardPage() {
   const reportRecords = selected.length > 0 ? records.filter((r) => selected.includes(r.id)) : filtered
   const reportRows = useMemo(
     () => reportRecords.flatMap((r) =>
-      r.items.map((item) => ({
-        _groupId: r.id,
-        goNo: r.goNo,
-        date: r.date,
-        product: item.productName,
-        numbering: item.numbering || '-',
-        batchNumber: item.batchNumber || '-',
-        packaging: item.packaging || '-',
-        brand: item.brand,
-        quantity: `${item.quantity} ${item.unit}`,
-        vehicle: r.vehicleNo || '-',
-        driver: r.driverName || '-',
-        driverPhone: r.driverPhone || '-',
-        driverCnic: r.driverCnic || '-',
-        customer: r.customerName || '-',
-        address: r.address || '-',
-        source: item.source || '-',
-        note: r.note || '-',
-      }))
+      r.items.reduce((rows, item) => {
+        const previousEnd = rows.reduce((max, row) => Math.max(max, Number(row._numberEnd) || 0), 0)
+        const cartons = Math.max(0, Math.floor(Number(item.quantity) || 0))
+        const numberStart = cartons > 0 ? previousEnd + 1 : previousEnd
+        const numberEnd = cartons > 0 ? previousEnd + cartons : previousEnd
+
+        rows.push({
+          _groupId: r.id,
+          _numberEnd: numberEnd,
+          goNo: r.goNo,
+          date: r.date,
+          product: item.productName,
+          numbering: cartons > 0 ? `${numberStart}--${numberEnd}` : '-',
+          batchNumber: item.batchNumber || '-',
+          packaging: item.packaging || '-',
+          brand: item.brand,
+          quantity: `${item.quantity} ${item.unit}`,
+          vehicle: r.vehicleNo || '-',
+          driver: r.driverName || '-',
+          driverPhone: r.driverPhone || '-',
+          driverCnic: r.driverCnic || '-',
+          customer: r.customerName || '-',
+          address: r.address || '-',
+          source: item.source || '-',
+          note: r.note || '-',
+        })
+        return rows
+      }, [])
     ),
     [reportRecords]
   )
@@ -312,11 +310,12 @@ export default function GateOutwardPage() {
             <thead>
               <tr style={s.thead}>
                 <th style={{ ...s.th, width: 40 }}>
-                  <button style={s.checkBtn} onClick={toggleAll}>
-                    {selected.length === filtered.length && filtered.length > 0
-                      ? <CheckSquare size={15} color="#54B45B" />
-                      : <Square size={15} color="#9ca3af" />}
-                  </button>
+                  <input
+                    type="checkbox"
+                    style={s.checkbox}
+                    checked={selected.length === filtered.length && filtered.length > 0}
+                    onChange={toggleAll}
+                  />
                 </th>
                 <th style={s.th}>Go No</th>
                 <th style={s.th}>Date</th>
@@ -334,12 +333,11 @@ export default function GateOutwardPage() {
                 <th style={s.th}>Customer</th>
                 <th style={s.th}>Address</th>
                 <th style={s.th}>Note</th>
-                <th style={{ ...s.th, textAlign: 'right' }}>Report</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={18} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
+                <tr><td colSpan={17} style={s.emptyCell}>{loading ? 'Loading...' : 'No gate outward records found.'}</td></tr>
               ) : (
                 filtered.map((record) =>
                   record.items.map((item, idx) => (
@@ -351,11 +349,12 @@ export default function GateOutwardPage() {
                     >
                       {idx === 0 && (
                         <td style={s.td} rowSpan={record.items.length}>
-                          <button style={s.checkBtn} onClick={() => toggleSelect(record.id)}>
-                            {selected.includes(record.id)
-                              ? <CheckSquare size={15} color="#54B45B" />
-                              : <Square size={15} color="#9ca3af" />}
-                          </button>
+                          <input
+                            type="checkbox"
+                            style={s.checkbox}
+                            checked={selected.includes(record.id)}
+                            onChange={() => toggleSelect(record.id)}
+                          />
                         </td>
                       )}
                       {idx === 0 && <td style={{ ...s.td, fontWeight: 600, color: '#1a2e1b' }} rowSpan={record.items.length}>{record.goNo}</td>}
@@ -386,18 +385,6 @@ export default function GateOutwardPage() {
                               <Eye size={13} /> View
                             </button>
                           ) : '-'}
-                        </td>
-                      )}
-                      {idx === 0 && (
-                        <td style={{ ...s.td, textAlign: 'right' }} rowSpan={record.items.length}>
-                          <button
-                            type="button"
-                            style={s.singleReportBtn}
-                            onClick={() => openSingleReport(record.id)}
-                            title="Open report for this entry"
-                          >
-                            <FileText size={13} /> Report
-                          </button>
                         </td>
                       )}
                     </tr>
@@ -595,21 +582,6 @@ const s = {
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
-  singleReportBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    border: '1px solid #d4dfd4',
-    borderRadius: 999,
-    background: '#ffffff',
-    color: '#2d7a33',
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
   modalOverlay: {
     position: 'fixed',
     inset: 0,
@@ -658,7 +630,12 @@ const s = {
     lineHeight: 1.6,
     whiteSpace: 'pre-wrap',
   },
-  checkBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 },
+  checkbox: {
+    width: 13,
+    height: 13,
+    cursor: 'pointer',
+    accentColor: '#2d7a33',
+  },
   emptyCell: { textAlign: 'center', padding: '56px 0', background: '#ffffff', fontSize: 14, color: '#9ca3af' },
   tableFooter: {
     minWidth: TABLE_MIN_WIDTH,
