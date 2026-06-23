@@ -1321,7 +1321,7 @@ export default function ReportsPage() {
               <div style={s.printLogoFrame}>
                 <img src="/qudarti-packaging-logo.png" alt="Qudarti Food Logo" style={s.printLogo} />
               </div>
-              <div>
+              <div style={s.printBrandText}>
                 <p style={s.printBrand}>Qudarti Food Processors</p>
                 <p style={s.printCompanySuffix}>(SMC-PVT) LTD.</p>
               </div>
@@ -1329,22 +1329,7 @@ export default function ReportsPage() {
             <div style={s.printTitleBlock}>
               <p style={s.printEyebrow}>Financial Report</p>
               <p style={s.printTitle}>{reportLabel}</p>
-            </div>
-          </div>
-          <div className="print-only" style={s.printMetaGrid}>
-            <div style={s.printMetaBox}>
-              <span style={s.printMetaLabel}>Period</span>
-              <span style={s.printMetaValue}>{fromDate || '-'} to {toDate || '-'}</span>
-            </div>
-            {activeReport === 'general-ledger' && reportData.generalLedger.selected ? (
-              <div style={s.printMetaBox}>
-                <span style={s.printMetaLabel}>Ledger Account</span>
-                <span style={s.printMetaValue}>{reportData.generalLedger.selected.code} - {reportData.generalLedger.selected.name}</span>
-              </div>
-            ) : null}
-            <div style={s.printMetaBox}>
-              <span style={s.printMetaLabel}>Generated</span>
-              <span style={s.printMetaValue}>{new Date().toLocaleString()}</span>
+              <p style={s.printedBy}>Printed By: {generatedBy}</p>
             </div>
           </div>
 
@@ -2081,7 +2066,7 @@ const s = {
     gap: 12,
   },
   printHead: {
-    background: 'linear-gradient(135deg, #123416 0%, #1b5e20 58%, #2d7a33 100%)',
+    background: '#123416',
     color: '#ffffff',
     padding: '18px 20px',
     display: 'flex',
@@ -2096,11 +2081,17 @@ const s = {
   },
   printLogoFrame: {
     width: 92,
-    height: 74,
+    height: 58,
     background: 'transparent',
     padding: 0,
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  printBrandText: {
+    minHeight: 58,
+    display: 'flex',
+    flexDirection: 'column',
     justifyContent: 'center',
   },
   printLogo: {
@@ -2139,6 +2130,12 @@ const s = {
     margin: 0,
     fontSize: 22,
     fontWeight: 800,
+    color: '#ffffff',
+  },
+  printedBy: {
+    margin: '7px 0 0',
+    fontSize: 11,
+    fontWeight: 700,
     color: '#ffffff',
   },
   printMetaGrid: {
