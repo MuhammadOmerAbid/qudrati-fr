@@ -7,6 +7,7 @@ import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { customersApi } from '@/infrastructure/api/endpoints'
 import { settingsTheme } from '@/components/settings/SettingsShared'
 import { ArrowLeft, Save, Shield } from 'lucide-react'
+import { limitPhoneNumber } from '@/lib/inputLimits'
 
 export default function CustomerNewPage() {
   const router = useRouter()
@@ -112,8 +113,10 @@ export default function CustomerNewPage() {
               type="text"
               style={s.input}
               value={form.contact}
-              placeholder="Phone / Email"
-              onChange={(e) => setField('contact', e.target.value)}
+              placeholder="Phone"
+              maxLength={11}
+              inputMode="numeric"
+              onChange={(e) => setField('contact', limitPhoneNumber(e.target.value))}
             />
           </div>
 

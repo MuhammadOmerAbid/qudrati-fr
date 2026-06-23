@@ -10,6 +10,7 @@ import {
   ActionButtons, ConfirmDelete, Toast, settingsTheme,
 } from '@/components/settings/SettingsShared'
 import { X } from 'lucide-react'
+import { limitPhoneNumber } from '@/lib/inputLimits'
 
 function CustomerModal({ open, onClose, onSave, initial }) {
   const [form, setForm] = useState({ name: '', contact: '', address: '' })
@@ -27,13 +28,19 @@ function CustomerModal({ open, onClose, onSave, initial }) {
         </div>
         {[
           { label: 'Customer Name', key: 'name', placeholder: 'Enter name' },
-          { label: 'Contact', key: 'contact', placeholder: 'Phone / Email' },
+          { label: 'Contact', key: 'contact', placeholder: 'Phone' },
           { label: 'Address', key: 'address', placeholder: 'Address' },
         ].map(({ label, key, placeholder }) => (
           <div key={key} style={{ marginBottom: 14 }}>
             <label style={lbl}>{label}</label>
-            <input value={form[key] || ''} onChange={(e) => set(key, e.target.value)}
-              placeholder={placeholder} style={inp} />
+            <input
+              value={form[key] || ''}
+              onChange={(e) => set(key, key === 'contact' ? limitPhoneNumber(e.target.value) : e.target.value)}
+              placeholder={placeholder}
+              style={inp}
+              maxLength={key === 'contact' ? 11 : undefined}
+              inputMode={key === 'contact' ? 'numeric' : undefined}
+            />
           </div>
         ))}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
