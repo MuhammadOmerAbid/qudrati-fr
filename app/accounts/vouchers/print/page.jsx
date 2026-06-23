@@ -82,7 +82,7 @@ export default function VoucherPrintPage() {
           <div style={s.sig}><div style={s.sigLine} /><p style={s.sigText}>Received By</p></div>
         </div>
 
-        <div style={s.actions}>
+        <div style={s.actions} className="no-print">
           <button type="button" style={s.secondaryBtn} onClick={() => router.push('/accounts/vouchers')}>Back</button>
           <button type="button" style={s.primaryBtn} onClick={() => window.print()}>Print Voucher</button>
         </div>
@@ -98,6 +98,30 @@ export default function VoucherPrintPage() {
       hideSave
     >
       {content}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+
+          table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+
+          th,
+          td {
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+          }
+
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+        }
+      `}</style>
     </AccountEntryPage>
   )
 }
