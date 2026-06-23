@@ -992,7 +992,7 @@ const s = {
   addItemBtn: { background: '#54B45B', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', boxShadow: '0 2px 8px rgba(84,180,91,0.35)' },
 
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
-  itemBlock: { marginBottom: 10, overflowX: 'auto', paddingBottom: 2 },
+  itemBlock: { marginBottom: 10, overflow: 'visible', paddingBottom: 2 },
   itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
   itemCommentWrap: { marginTop: 8, maxWidth: 520 },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
