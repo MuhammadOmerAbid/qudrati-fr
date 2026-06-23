@@ -761,10 +761,9 @@ export default function GateOutwardNewPage() {
                   style={{
                     ...s.itemRow,
                     flexWrap: isMobile ? 'wrap' : 'nowrap',
-                    minWidth: !isMobile && item.source === SOURCE_FINISHED_GOODS ? 1360 : undefined,
                   }}
                 >
-                    <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 170px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 145px' }}>
                     {idx === 0 && <label style={s.label}>Source</label>}
                     <StoreThemeDropdown
                       value={item.source}
@@ -780,7 +779,7 @@ export default function GateOutwardNewPage() {
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 165px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '1 1 190px', minWidth: isMobile ? undefined : 180 }}>
                     {idx === 0 && <label style={s.label}>Select Product</label>}
                     <StoreThemeDropdown
                       value={item.productId}
@@ -814,7 +813,7 @@ export default function GateOutwardNewPage() {
                   </div>
 
                   {item.source === SOURCE_FINISHED_GOODS && (
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '1 1 210px', minWidth: isMobile ? undefined : 210 }}>
+                    <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 150px' }}>
                       {idx === 0 && <label style={s.label}>Packaging</label>}
                       <StoreThemeDropdown
                         value={item.packaging}
@@ -833,7 +832,7 @@ export default function GateOutwardNewPage() {
 
                   {item.source === SOURCE_FINISHED_GOODS && (
                     <>
-                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 130px' }}>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 120px' }}>
                         {idx === 0 && <label style={s.label}>Numbering</label>}
                         <input
                           style={s.input}
@@ -859,7 +858,7 @@ export default function GateOutwardNewPage() {
                     </>
                   )}
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 105px' }}>
                     {idx === 0 && <label style={s.label}>Quantity</label>}
                     <input
                       style={s.input}
@@ -875,7 +874,7 @@ export default function GateOutwardNewPage() {
 
                   {item.source === SOURCE_FINISHED_GOODS && (
                     <>
-                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 140px' }}>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
                         {idx === 0 && <label style={s.label}>Weight Per Carton</label>}
                         <input
                           style={s.input}
@@ -890,7 +889,7 @@ export default function GateOutwardNewPage() {
                         />
                       </div>
 
-                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 105px' }}>
                         {idx === 0 && <label style={s.label}>Total Weight</label>}
                         <div style={s.readonlyInput}>
                           {Number(item.weightPerCarton || 0) > 0 && Number(item.quantity || 0) > 0
@@ -901,7 +900,7 @@ export default function GateOutwardNewPage() {
                     </>
                   )}
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 95px' }}>
                     {idx === 0 && <label style={s.label}>Unit</label>}
                     <StoreThemeDropdown
                       value={item.unit}
@@ -950,7 +949,7 @@ export default function GateOutwardNewPage() {
 }
 
 const s = {
-  wrapper: { maxWidth: 1480, margin: '0 auto' },
+  wrapper: { width: '100%', maxWidth: 1480, margin: '0 auto', boxSizing: 'border-box' },
 
   pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
@@ -962,7 +961,7 @@ const s = {
   saveBtnDisabled: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#b8dcbc', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
   cancelBtn: { border: '1.5px solid #d4dfd4', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 600, color: '#2d7a33', background: '#ffffff', cursor: 'pointer' },
 
-  card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
+  card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', boxSizing: 'border-box' },
   warningBanner: { background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, color: '#c2410c', fontSize: 12.5, padding: '8px 12px', marginBottom: 12 },
 
   topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 },
@@ -993,7 +992,7 @@ const s = {
 
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
   itemBlock: { marginBottom: 10, overflow: 'visible', paddingBottom: 2 },
-  itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
+  itemRow: { display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' },
   itemCommentWrap: { marginTop: 8, maxWidth: 520 },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
 
