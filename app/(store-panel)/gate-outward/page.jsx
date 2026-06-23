@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { limitPhoneNumber } from '@/lib/inputLimits'
 
 function toDMY(isoDate) {
   if (!isoDate) return ''
@@ -665,7 +666,7 @@ export default function GateOutwardPage() {
                   </label>
                   <label style={s.fieldGroup}>
                     <span style={s.editLabel}>Driver Phone</span>
-                    <input style={s.editInput} value={editRecord.driverPhone} onChange={(e) => updateEditField('driverPhone', e.target.value)} />
+                    <input style={s.editInput} value={editRecord.driverPhone} maxLength={11} inputMode="numeric" onChange={(e) => updateEditField('driverPhone', limitPhoneNumber(e.target.value))} />
                   </label>
                   <label style={s.fieldGroup}>
                     <span style={s.editLabel}>Driver CNIC</span>

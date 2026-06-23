@@ -7,6 +7,7 @@ import { ArrowUpFromLine, Plus, X, ArrowLeft, Save } from 'lucide-react'
 import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi, packagingApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { limitPhoneNumber } from '@/lib/inputLimits'
 import {
   CUSTOMERS,
   GATE_OUTWARD_STORAGE_KEY,
@@ -725,7 +726,7 @@ export default function GateOutwardNewPage() {
           <div style={{ ...s.driverRow, gridTemplateColumns: isMobile ? '1fr 1fr' : s.driverRow.gridTemplateColumns }}>
             <input style={s.input} placeholder="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} />
             <input style={s.input} placeholder="Driver Name" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
-            <input style={s.input} placeholder="Driver Phone" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} />
+            <input style={s.input} placeholder="Driver Phone" value={driverPhone} maxLength={11} inputMode="numeric" onChange={(e) => setDriverPhone(limitPhoneNumber(e.target.value))} />
             <input style={s.input} placeholder="Driver CNIC" value={driverCnic} onChange={(e) => setDriverCnic(e.target.value)} />
           </div>
 
