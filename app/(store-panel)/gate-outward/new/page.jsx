@@ -190,6 +190,7 @@ const blankItem = (source = '') => ({
   batchNumber: '',
   quantity: '',
   unit: 'Unit',
+  comment: '',
   error: '',
 })
 
@@ -567,6 +568,9 @@ export default function GateOutwardNewPage() {
             batch_number: row.batchNumber || '',
             quantity: Number(row.quantity),
             unit: row.unit || product?.unit || 'Unit',
+            comment: row.comment || '',
+            itemComment: row.comment || '',
+            item_comment: row.comment || '',
           }
         }),
       }
@@ -834,6 +838,16 @@ export default function GateOutwardNewPage() {
                   </div>
                 </div>
 
+                <div style={s.itemCommentWrap}>
+                  <label style={s.label}>Comment</label>
+                  <textarea
+                    style={{ ...s.input, ...s.textareaSmall }}
+                    value={item.comment}
+                    onChange={(e) => updateItem(item.key, 'comment', e.target.value)}
+                    placeholder="Comment for this product..."
+                  />
+                </div>
+
                 <p style={{ ...s.stockHint, color: item.error ? '#ef4444' : '#6b7280' }}>{item.error || availableText}</p>
               </div>
             )
@@ -896,6 +910,7 @@ const s = {
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
   itemBlock: { marginBottom: 10 },
   itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
+  itemCommentWrap: { marginTop: 8, maxWidth: 520 },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
 
   removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },

@@ -385,13 +385,14 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
       const margin = { left: 28, right: 28 }
       const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right
       const itemWidthPercent = {
-        srNo: 8,
-        product: 30,
-        packaging: 15,
-        quantity: 12,
-        numbering: 18,
+        srNo: 6,
+        product: 24,
+        packaging: 13,
+        quantity: 10,
+        numbering: 15,
         batchNumber: 10,
-        brand: 7,
+        brand: 10,
+        comment: 12,
       }
       const itemColumnStyles = itemColumns.reduce((styles, col, index) => {
         const percent = itemWidthPercent[col.key]
@@ -419,7 +420,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
               const raw = col.key === dateKey ? formatDate(first[col.key]) : first[col.key]
               return {
                 content: `${col.label.toUpperCase()}\n${formatReportValue(raw)}`,
-                styles: { fontStyle: 'bold' },
+                styles: { fontStyle: 'normal' },
               }
             })
           ),
@@ -450,6 +451,16 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
             if (data.section !== 'body') return
             const parts = String(data.cell.raw?.content || data.cell.raw || '').split('\n')
             data.cell.text = parts
+          },
+          didDrawCell: (data) => {
+            if (data.section !== 'body') return
+            const label = String(data.cell.raw?.content || '').split('\n')[0]
+            if (!label) return
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7.4)
+            doc.setTextColor(20, 36, 52)
+            doc.text(label, data.cell.x + 5, data.cell.y + 10)
+            doc.setFont('helvetica', 'normal')
           },
         })
 
