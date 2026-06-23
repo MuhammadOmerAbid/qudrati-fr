@@ -1197,17 +1197,17 @@ export default function ReportsPage() {
         head,
         body,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 4, textColor: [31, 47, 33], lineColor: [17, 17, 17], lineWidth: 0.5, fillColor: [255, 255, 255] },
-        headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [255, 255, 255] },
-        bodyStyles: { fillColor: [255, 255, 255], lineColor: [17, 17, 17] },
-        alternateRowStyles: { fillColor: [255, 255, 255] },
+        styles: { fontSize: 8, cellPadding: 4, textColor: [39, 53, 41], lineColor: [215, 225, 234], lineWidth: 0.45, fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: 'bold', lineColor: [215, 225, 234], lineWidth: 0.45 },
+        bodyStyles: { fillColor: [255, 255, 255], lineColor: [215, 225, 234] },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
         columnStyles,
         didParseCell: (data) => {
           if (data.section !== 'body') return
           const rowRef = bodyRows[data.row.index]
           if (rowRef?._summary) {
-            data.cell.styles.fillColor = [232, 243, 233]
-            data.cell.styles.textColor = [18, 52, 22]
+            data.cell.styles.fillColor = [239, 246, 252]
+            data.cell.styles.textColor = [15, 23, 42]
             data.cell.styles.fontStyle = 'bold'
             return
           }
@@ -2172,7 +2172,7 @@ const s = {
     fontWeight: 500,
   },
   printTableWrap: {
-    border: '1px solid #cfe0d0',
+    border: '1px solid #d7e1ea',
     borderRadius: 0,
     overflow: 'hidden',
     marginTop: 12,
@@ -2180,9 +2180,11 @@ const s = {
   printSummaryTd: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#123416',
+    color: '#0f172a',
     verticalAlign: 'top',
     fontWeight: 800,
+    background: '#eff6fc',
+    borderRight: '1px solid #d7e1ea',
   },
   reportHead: {
     display: 'flex',
@@ -2248,7 +2250,7 @@ const s = {
   },
   tableWrap: {
     overflow: 'auto',
-    border: '1px solid #cfe0d0',
+    border: '1px solid #d7e1ea',
     borderRadius: 12,
   },
   table: {
@@ -2257,23 +2259,26 @@ const s = {
     minWidth: 840,
   },
   th: {
-    background: '#1b5e20',
-    color: '#ffffff',
+    background: '#f8fafc',
+    color: '#0f172a',
     fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px',
-    fontWeight: 700,
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: 800,
     textAlign: 'left',
     padding: '10px 10px',
+    borderRight: '1px solid #d7e1ea',
+    borderBottom: '1px solid #d7e1ea',
   },
-  tr: { borderTop: '1px solid #e1e9e1' },
+  tr: { borderTop: '1px solid #d7e1ea' },
   td: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#1f2f21',
+    color: '#273529',
     verticalAlign: 'top',
+    borderRight: '1px solid #d7e1ea',
   },
-  tFoot: { background: '#e8f3e9', borderTop: '2px solid #2d7a33', fontWeight: 800 },
+  tFoot: { background: '#eff6fc', borderTop: '1px solid #d7e1ea', fontWeight: 800 },
   emptyCell: {
     padding: '16px 10px',
     textAlign: 'center',
