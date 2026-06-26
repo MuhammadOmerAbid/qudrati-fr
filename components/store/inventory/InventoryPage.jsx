@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, FileText, Pencil, Trash2, RefreshCw, X, History } from 'lucide-react'
 import { categoriesApi, inventoryApi } from '@/infrastructure/api/endpoints'
 import {
-  BRANDS,
-  MONTHLY_HISTORY,
   Checkbox,
   AppButton,
   TableShell,
@@ -35,6 +33,9 @@ export default function InventoryPage({ isSuperUser = true }) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState([])
   const [showHistory, setShowHistory] = useState(false)
+  const [historyData, setHistoryData] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
   const [showReport, setShowReport] = useState(false)
   const [commentEdit, setCommentEdit] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -68,6 +69,30 @@ export default function InventoryPage({ isSuperUser = true }) {
     loadInventory()
   }, [])
 
+  useEffect(() => {
+    if (!showHistory) return
+    let active = true
+    setHistoryLoading(true)
+    setHistoryError('')
+    inventoryApi.history().then((data) => {
+      if (!active) return
+      const rows = Array.isArray(data) ? data : (data?.results || [])
+      setHistoryData(rows.map((row) => ({
+        month: String(row.month || row.period || '').trim(),
+        category: String(row.category || row.category_name || '').trim(),
+        product: String(row.product || row.product_name || '').trim(),
+        outgoing: Number(row.outgoing || row.quantity || row.total || 0),
+        unit: String(row.unit || 'Unit').trim(),
+      })).filter((row) => row.month))
+    }).catch((err) => {
+      if (!active) return
+      setHistoryError(err?.message || 'Unable to load history')
+    }).finally(() => {
+      if (active) setHistoryLoading(false)
+    })
+    return () => { active = false }
+  }, [showHistory])
+
   const filtered = useMemo(() => {
     let rows = [...items].sort((a, b) => a.brand.localeCompare(b.brand))
 
@@ -84,7 +109,7 @@ export default function InventoryPage({ isSuperUser = true }) {
 
   const brandOptions = useMemo(() => {
     const fromApi = items.map((item) => item.brand).filter(Boolean)
-    return ['All Brands', ...new Set([...BRANDS, ...fromApi])]
+    return ['All Brands', ...new Set(fromApi)]
   }, [items])
 
   const categoryOptions = useMemo(() => {
@@ -113,12 +138,14 @@ export default function InventoryPage({ isSuperUser = true }) {
 
   const groupedHistory = useMemo(() => {
     const map = {}
-    MONTHLY_HISTORY.forEach((row) => {
-      if (!map[row.month]) map[row.month] = []
-      map[row.month].push(row)
+    historyData.forEach((row) => {
+      const month = String(row.month || row.period || '').trim()
+      if (!month) return
+      if (!map[month]) map[month] = []
+      map[month].push(row)
     })
     return map
-  }, [])
+  }, [historyData])
 
   const reportSourceRows = selected.length > 0 ? items.filter((item) => selected.includes(item.id)) : filtered
 
@@ -285,7 +312,13 @@ export default function InventoryPage({ isSuperUser = true }) {
                 <X size={16} />
               </AppButton>
             </div>
-            {Object.entries(groupedHistory).map(([month, rows]) => (
+            {historyLoading ? (
+              <p style={ui.modalSub}>Loading history...</p>
+            ) : historyError ? (
+              <p style={{ ...ui.modalSub, color: '#c0392b' }}>{historyError}</p>
+            ) : Object.keys(groupedHistory).length === 0 ? (
+              <p style={ui.modalSub}>No history data available.</p>
+            ) : Object.entries(groupedHistory).map(([month, rows]) => (
               <div key={month} style={ui.monthGroup}>
                 <p style={ui.monthTitle}>{month}</p>
                 <table style={ui.table}>

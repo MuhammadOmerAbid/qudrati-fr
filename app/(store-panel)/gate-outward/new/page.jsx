@@ -9,10 +9,7 @@ import { incrementStoreEntries } from '@/application/services/store/storeEntryTr
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import { limitPhoneNumber } from '@/lib/inputLimits'
 import {
-  CUSTOMERS,
   GATE_OUTWARD_STORAGE_KEY,
-  INITIAL_GATE_OUTWARD_RECORDS,
-  PRODUCTS,
   UNITS,
 } from '@/application/services/store/gateOutwardMock'
 
@@ -166,21 +163,6 @@ const uniqueProducts = (items) => {
   return list
 }
 
-const fallbackCustomers = mergeCustomers(
-  CUSTOMERS.map((entry, idx) => normalizeCustomer(entry, idx, 'mock-customer')).filter(Boolean)
-)
-
-const fallbackInventoryProducts = uniqueProducts(
-  PRODUCTS.map((entry, idx) => normalizeInventoryProduct(entry, idx, 'mock-inv')).filter(Boolean)
-)
-
-const fallbackFinishedGoodsProducts = uniqueProducts(
-  PRODUCTS.flatMap((entry, idx) => normalizeFinishedGoodEntryProducts(
-    { id: entry.id, brand: entry.name, unit: entry.unit, quantity: entry.available, products: [{ code: entry.brand }] },
-    idx,
-    'mock-fg'
-  ))
-)
 
 const blankItem = (source = '') => ({
   key: Date.now() + Math.random(),
@@ -208,14 +190,14 @@ const normalizePackagingType = (entry, idx = 0) => {
 }
 
 function loadRecords() {
-  if (typeof window === 'undefined') return INITIAL_GATE_OUTWARD_RECORDS
+  if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(GATE_OUTWARD_STORAGE_KEY)
-    if (!raw) return INITIAL_GATE_OUTWARD_RECORDS
+    if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : INITIAL_GATE_OUTWARD_RECORDS
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return INITIAL_GATE_OUTWARD_RECORDS
+    return []
   }
 }
 
@@ -283,11 +265,11 @@ export default function GateOutwardNewPage() {
   const [loadWarning, setLoadWarning] = useState('')
   const [isMobile, setIsMobile] = useState(false)
 
-  const [customers, setCustomers] = useState(fallbackCustomers)
+  const [customers, setCustomers] = useState([])
   const [manualCustomers, setManualCustomers] = useState([])
   const [productsBySource, setProductsBySource] = useState({
-    [SOURCE_INVENTORY]: fallbackInventoryProducts,
-    [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+    [SOURCE_INVENTORY]: [],
+    [SOURCE_FINISHED_GOODS]: [],
   })
   const [packagingTypes, setPackagingTypes] = useState(
     FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name }))
@@ -355,9 +337,9 @@ export default function GateOutwardNewPage() {
           .map((entry, idx) => normalizePackagingType(entry, idx))
           .filter(Boolean)
 
-        setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
+        setCustomers(mergedCustomers)
         setProductsBySource({
-          [SOURCE_INVENTORY]: inventoryProducts.length ? inventoryProducts : fallbackInventoryProducts,
+          [SOURCE_INVENTORY]: inventoryProducts,
           [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
         })
         setPackagingTypes(packagingList.length
@@ -366,13 +348,13 @@ export default function GateOutwardNewPage() {
       } catch {
         if (!active) return
 
-        setCustomers(mergeCustomers(fallbackCustomers, persistedManual))
+        setCustomers(mergeCustomers([], persistedManual))
         setProductsBySource({
-          [SOURCE_INVENTORY]: fallbackInventoryProducts,
-          [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+          [SOURCE_INVENTORY]: [],
+          [SOURCE_FINISHED_GOODS]: [],
         })
         setPackagingTypes(FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name })))
-        setLoadWarning('Unable to fetch latest Settings data. Showing fallback options.')
+        setLoadWarning('Unable to fetch latest data. Options may be limited.')
       } finally {
         if (active) setLoadingOptions(false)
       }

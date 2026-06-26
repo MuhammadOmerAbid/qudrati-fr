@@ -7,8 +7,6 @@ import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { brandsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import {
-  PRODUCTS,
-  PACKINGS,
   getWordCount,
 } from '@/components/store/shared/StoreShared'
 import {
@@ -22,12 +20,6 @@ import {
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
-
-const fallbackProductOptions = Object.values(PRODUCTS)
-  .flat()
-  .map((name, idx) => ({ id: `fallback-product-${idx}`, name, label: name }))
-
-const fallbackPackingOptions = PACKINGS.map((name, idx) => ({ id: `fallback-packing-${idx}`, name }))
 
 function normalizeFinishedGoodProduct(entry, idx = 0) {
   const meta = Array.isArray(entry?.products)
@@ -76,8 +68,8 @@ export default function FinishedGoodsNewPage() {
   const [items, setItems] = useState([blankItem()])
   const [brandOptions, setBrandOptions] = useState([])
   const [loadingBrands, setLoadingBrands] = useState(true)
-  const [productOptions, setProductOptions] = useState(fallbackProductOptions)
-  const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
+  const [productOptions, setProductOptions] = useState([])
+  const [packingOptions, setPackingOptions] = useState([])
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
@@ -112,13 +104,13 @@ export default function FinishedGoodsNewPage() {
           .map((entry, idx) => normalizePacking(entry, idx))
           .filter(Boolean)
 
-        setProductOptions(nextProducts.length ? uniqueByName(nextProducts) : fallbackProductOptions)
-        setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+        setProductOptions(uniqueByName(nextProducts))
+        setPackingOptions(uniqueByName(nextPacking))
       } catch {
         if (!active) return
-        setProductOptions(fallbackProductOptions)
-        setPackingOptions(fallbackPackingOptions)
-        setLoadWarning('Unable to load Settings products/packing. Showing fallback options.')
+        setProductOptions([])
+        setPackingOptions([])
+        setLoadWarning('Unable to load products/packing from Settings.')
       } finally {
         if (active) setLoadingOptions(false)
       }

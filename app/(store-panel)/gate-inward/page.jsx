@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { categoriesApi, gateInwardApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, categoriesApi, gateInwardApi, productsApi, suppliersApi, unitsApi } from '@/infrastructure/api/endpoints'
 import {
   ArrowDownToLine, Plus, Eye, Trash2, RotateCcw,
   FileText, Download, Search, Calendar,
@@ -14,31 +14,7 @@ import {
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
-const MOCK_SUPPLIERS = [
-  { id: 1, name: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore' },
-  { id: 2, name: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi' },
-  { id: 3, name: 'Hassan & Sons', address: 'Block C, Gulberg III, Lahore' },
-]
-const MOCK_BRANDS = [
-  { id: 1, name: 'Soghat' },
-  { id: 2, name: 'General' },
-  { id: 3, name: 'Premium' },
-]
-const MOCK_CATEGORIES = [
-  { id: 1, brandId: 2, name: 'Seal' },
-  { id: 2, brandId: 1, name: 'Bottle' },
-  { id: 3, brandId: 1, name: 'Sticker' },
-  { id: 4, brandId: 3, name: 'Carton' },
-]
-const MOCK_PRODUCTS = [
-  { id: 1, categoryId: 1, name: '69 mm Seal' },
-  { id: 2, categoryId: 1, name: '72 MM Seal' },
-  { id: 3, categoryId: 2, name: '500ml Bottle' },
-  { id: 4, categoryId: 2, name: '1L Bottle' },
-  { id: 5, categoryId: 3, name: 'Front Sticker' },
-  { id: 6, categoryId: 4, name: 'Standard Carton' },
-]
-const MOCK_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
+
 
 function toDMY(isoDate) {
   if (!isoDate) return ''
@@ -356,6 +332,10 @@ export default function GateInwardPage() {
   const [categoryOptions, setCategoryOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [editModalSuppliers, setEditModalSuppliers] = useState([])
+  const [editModalBrands, setEditModalBrands] = useState([])
+  const [editModalProducts, setEditModalProducts] = useState([])
+  const [editModalUnits, setEditModalUnits] = useState(['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre'])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -379,17 +359,31 @@ export default function GateInwardPage() {
       setLoading(true)
       setLoadError('')
       try {
-        const [recordsRes, categoriesRes] = await Promise.all([
+        const [recordsRes, categoriesRes, suppliersRes, brandsRes, productsRes, unitsRes] = await Promise.all([
           gateInwardApi.list(),
           categoriesApi.list(),
+          suppliersApi.list(),
+          brandsApi.list(),
+          productsApi.list(),
+          unitsApi.list(),
         ])
         if (!active) return
 
         const recordsList = Array.isArray(recordsRes) ? recordsRes : (recordsRes?.results || [])
         const categoriesList = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.results || [])
+        const suppliersList = Array.isArray(suppliersRes) ? suppliersRes : (suppliersRes?.results || [])
+        const brandsList = Array.isArray(brandsRes) ? brandsRes : (brandsRes?.results || [])
+        const productsList = Array.isArray(productsRes) ? productsRes : (productsRes?.results || [])
+        const unitsList = Array.isArray(unitsRes) ? unitsRes : (unitsRes?.results || [])
 
         setRecords(recordsList.map(normalizeGateInwardRecord).filter((row) => row.id != null))
         setCategoryOptions(categoriesList.filter((entry) => entry.status !== false))
+        setEditModalSuppliers(suppliersList.filter((s) => s.id && s.name))
+        setEditModalBrands(brandsList.filter((b) => b.status !== false && b.id && b.name))
+        setEditModalProducts(productsList.filter((p) => p.status !== false && p.id && p.name))
+        if (unitsList.length > 0) {
+          setEditModalUnits(unitsList.map((u) => String(u.name || u).trim()).filter(Boolean))
+        }
       } catch (err) {
         if (active) {
           setRecords([])
@@ -641,7 +635,7 @@ export default function GateInwardPage() {
           onClose={() => setShowReportPanel(false)}
         />
       ) : null}
-      {editRecord && isSuperUser && <EditModal record={editRecord} suppliers={MOCK_SUPPLIERS} brands={MOCK_BRANDS} categories={MOCK_CATEGORIES} products={MOCK_PRODUCTS} units={MOCK_UNITS} onClose={() => setEditRecord(null)} onSave={handleSaveEdit} />}
+      {editRecord && isSuperUser && <EditModal record={editRecord} suppliers={editModalSuppliers} brands={editModalBrands} categories={categoryOptions} products={editModalProducts} units={editModalUnits} onClose={() => setEditRecord(null)} onSave={handleSaveEdit} />}
     </DashboardLayout>
   )
 }

@@ -6,8 +6,6 @@ import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw, X } fro
 import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
-  PRODUCTS,
-  PACKINGS,
   formatDate,
   getWordCount,
   Checkbox,
@@ -81,18 +79,12 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
   }, [entries])
 
   const productOptions = useMemo(() => {
-    const products = [
-      ...Object.values(PRODUCTS).flat(),
-      ...entries.flatMap((entry) => entry.products.map((product) => product.product)),
-    ].filter(Boolean)
+    const products = entries.flatMap((entry) => entry.products.map((product) => product.product)).filter(Boolean)
     return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
   }, [entries])
 
   const packingOptions = useMemo(() => {
-    const packings = [
-      ...PACKINGS,
-      ...entries.flatMap((entry) => entry.products.map((product) => product.packing)),
-    ].filter(Boolean)
+    const packings = entries.flatMap((entry) => entry.products.map((product) => product.packing)).filter(Boolean)
     return Array.from(new Set(packings)).sort((a, b) => a.localeCompare(b))
   }, [entries])
 
