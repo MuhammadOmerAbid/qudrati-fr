@@ -226,7 +226,20 @@ api.interceptors.response.use(
   }
 )
 
-export const get = (url, params) => api.get(url, { params }).then(r => r.data)
+const unwrapResponse = (data) => {
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    Array.isArray(data.results) &&
+    typeof data.count === 'number'
+  ) {
+    return data.results
+  }
+  return data
+}
+
+export const get = (url, params) => api.get(url, { params }).then(r => unwrapResponse(r.data))
 export const post = (url, body) => api.post(url, body).then(r => r.data)
 export const put = (url, body) => api.put(url, body).then(r => r.data)
 export const patch = (url, body) => api.patch(url, body).then(r => r.data)
