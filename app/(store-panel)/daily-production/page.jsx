@@ -12,14 +12,6 @@ import {
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
-const INITIAL_RECORDS = [
-  { id: 1, product: 'Seal Packing Line A', startTime: '08:00', endTime: '14:00', noOfLabour: 12, date: '27/05/2025', note: 'Morning shift, full capacity run.' },
-  { id: 2, product: 'Bottle Filling Unit', startTime: '09:00', endTime: '13:30', noOfLabour: 8,  date: '27/05/2025', note: '' },
-  { id: 3, product: 'Sticker Application', startTime: '10:00', endTime: '16:00', noOfLabour: 5,  date: '27/05/2025', note: 'Machine maintenance at 12:00 - 30 min stop.' },
-  { id: 4, product: 'Seal Packing Line B', startTime: '07:30', endTime: '15:30', noOfLabour: 10, date: '03/06/2025', note: '' },
-  { id: 5, product: 'Carton Assembly',     startTime: '08:00', endTime: '12:00', noOfLabour: 6,  date: '03/06/2025', note: 'Short run - material shortage.' },
-  { id: 6, product: 'Bottle Filling Unit', startTime: '13:00', endTime: '18:00', noOfLabour: 9,  date: '08/04/2026', note: '' },
-]
 
 const DAILY_TABLE_COLS = ['56px', '320px', '130px', '130px', '140px', '130px', '130px']
 

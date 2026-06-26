@@ -4,9 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, X } from 'lucide-react'
 import {
-  PRODUCTION_INITIAL,
-  PRODUCTS,
-  PACKINGS,
   STATUS_COLORS,
   formatDate,
   Checkbox,
@@ -17,7 +14,7 @@ import {
   ui,
 } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { productionOrderApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
 const normalizeOrder = (order = {}, index = 0) => ({
@@ -44,7 +41,7 @@ function parseDateValue(value) {
 
 export default function ProductionOrderPage({ isSuperUser = true }) {
   const router = useRouter()
-  const [orders, setOrders] = useState(PRODUCTION_INITIAL)
+  const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('All Status')
   const [filterGoods, setFilterGoods] = useState('All Goods')
@@ -61,10 +58,42 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     date: new Date().toISOString().slice(0, 10),
     items: [{ sr: 1, goods: '', packing: '', qty: '', status: 'Pending' }],
   })
+  const [editorGoodsOptions, setEditorGoodsOptions] = useState([])
+  const [editorPackingOptions, setEditorPackingOptions] = useState([])
 
   useEffect(() => {
     loadOrders()
   }, [])
+
+  useEffect(() => {
+    if (!showEditor) return
+    let active = true
+    Promise.all([finishedGoodsApi.list(), packagingApi.list()]).then(([goodsRes, packingRes]) => {
+      if (!active) return
+      const goods = toList(goodsRes)
+        .map((entry) => {
+          const name = String(entry?.brand || entry?.name || '').trim()
+          return name ? { value: name, label: name } : null
+        })
+        .filter(Boolean)
+      const seen = new Set()
+      const uniqueGoods = goods.filter(({ value }) => {
+        const k = value.toLowerCase()
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
+      const packing = toList(packingRes)
+        .map((entry) => {
+          const name = String(entry?.name || entry?.packing || entry || '').trim()
+          return name ? { value: name, label: name } : null
+        })
+        .filter(Boolean)
+      setEditorGoodsOptions(uniqueGoods)
+      setEditorPackingOptions(packing)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [showEditor])
 
   const loadOrders = async () => {
     setLoading(true)
@@ -72,9 +101,8 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     try {
       const data = await productionOrderApi.list()
       const loaded = toList(data).map(normalizeOrder).filter((order) => order.items.length > 0)
-      setOrders(loaded.length ? loaded : PRODUCTION_INITIAL)
+      setOrders(loaded)
     } catch (err) {
-      setOrders(PRODUCTION_INITIAL)
       setLoadError(err?.message || 'Unable to load production orders')
     } finally {
       setLoading(false)
@@ -428,7 +456,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                       placeholder="Select goods"
                       options={[
                         { value: '', label: 'Select goods' },
-                        ...[...new Set(Object.values(PRODUCTS).flat())].map((entry) => ({ value: entry, label: entry })),
+                        ...editorGoodsOptions,
                       ]}
                     />
                   </div>
@@ -448,7 +476,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                       placeholder="Select packing"
                       options={[
                         { value: '', label: 'Select packing' },
-                        ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                        ...editorPackingOptions,
                       ]}
                     />
                   </div>

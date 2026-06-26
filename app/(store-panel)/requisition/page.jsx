@@ -11,48 +11,6 @@ import {
 } from 'lucide-react'
 import { ReportModal } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-const PRODUCTS = [
-  { id: 1, name: '69 mm Seal',      brand: 'General', category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
-  { id: 2, name: '72 MM Seal',      brand: 'General', category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
-  { id: 3, name: '500ml Bottle',    brand: 'General', category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
-  { id: 4, name: '1L Bottle',       brand: 'General', category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
-  { id: 5, name: 'Front Sticker',   brand: 'General', category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
-  { id: 6, name: 'Standard Carton', brand: 'General', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
-]
-
-const INITIAL_RECORDS = [
-  {
-    id: 1, receiverName: 'SAJJAD', entryBy: 'Demo Account', entryDate: '22/05/2025',
-    comment: '',
-    items: [{ productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 1000, unit: 'Unit', returned: 0 }],
-  },
-  {
-    id: 2, receiverName: 'HAMID', entryBy: 'Demo Account', entryDate: '27/05/2025',
-    comment: 'Urgent requirement for production line.',
-    items: [{ productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 2000, unit: 'Unit', returned: 200 }],
-  },
-  {
-    id: 3, receiverName: 'GULFAM', entryBy: 'Demo Account', entryDate: '27/05/2025',
-    comment: '',
-    items: [{ productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 1100, unit: 'Unit', returned: 0 }],
-  },
-  {
-    id: 4, receiverName: 'xyz', entryBy: 'Demo Account', entryDate: '28/05/2025',
-    comment: 'Mixed order for two departments. Please ensure careful handling.',
-    items: [
-      { productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 100 },
-      { productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 0 },
-    ],
-  },
-  {
-    id: 5, receiverName: 'ADNAN', entryBy: 'Demo Account', entryDate: '03/06/2025',
-    comment: '',
-    items: [
-      { productId: 2, productName: '72 MM Seal', brand: 'General', subCategory: '72mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 50 },
-      { productId: 1, productName: '69 mm seal', brand: 'General', subCategory: '69mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 0 },
-    ],
-  },
-]
 
 function parseDMYDate(value) {
   const [d, m, y] = String(value || '').split('/')

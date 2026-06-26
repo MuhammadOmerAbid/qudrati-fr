@@ -15,15 +15,6 @@ import {
 import { brandsApi, inventoryApi, requisitionApi } from '@/infrastructure/api/endpoints'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 
-/* ─── Mock Data — replace with real API calls ─── */
-const FALLBACK_PRODUCTS = [
-  { id: 1, name: '69 mm Seal',      brand: 'General', category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
-  { id: 2, name: '72 MM Seal',      brand: 'General', category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
-  { id: 3, name: '500ml Bottle',    brand: 'General', category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
-  { id: 4, name: '1L Bottle',       brand: 'General', category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
-  { id: 5, name: 'Front Sticker',   brand: 'General', category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
-  { id: 6, name: 'Standard Carton', brand: 'General', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
-]
 
 const todayISO = () => new Date().toISOString().split('T')[0]
 const blankItem = () => ({ key: Date.now() + Math.random(), productId: '', quantity: '' })
@@ -97,7 +88,7 @@ export default function RequisitionNewPage() {
       unit: p.unit || 'Unit',
       available: Number(p.quantity),
     }))
-    return apiOptions.length ? apiOptions : FALLBACK_PRODUCTS
+    return apiOptions
   }, [brands, products])
 
   const getProduct = (id) => productOptions.find(p => String(p.id) === String(id))

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
-import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import {
   StoreThemeDatePicker,
@@ -17,13 +16,6 @@ import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastruc
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
-
-const fallbackGoodsOptions = [...new Set(Object.values(PRODUCTS).flat())].map((name, idx) => ({
-  id: `fallback-good-${idx}`,
-  name,
-  label: name,
-}))
-const fallbackPackingOptions = PACKINGS.map((name, idx) => ({ id: `fallback-packing-${idx}`, name }))
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
 
 function normalizeFinishedGoodProduct(entry, idx = 0) {
@@ -70,8 +62,8 @@ export default function ProductionOrderNewPage() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem(1)])
-  const [goodsOptions, setGoodsOptions] = useState(fallbackGoodsOptions)
-  const [packingOptions, setPackingOptions] = useState(fallbackPackingOptions)
+  const [goodsOptions, setGoodsOptions] = useState([])
+  const [packingOptions, setPackingOptions] = useState([])
   const [loadingGoods, setLoadingGoods] = useState(true)
   const [loadingPacking, setLoadingPacking] = useState(true)
   const [loadWarning, setLoadWarning] = useState('')
@@ -106,14 +98,14 @@ export default function ProductionOrderNewPage() {
           .map((entry, idx) => normalizePacking(entry, idx))
           .filter(Boolean)
         if (active) {
-          setGoodsOptions(nextGoods.length ? uniqueByName(nextGoods) : fallbackGoodsOptions)
-          setPackingOptions(nextPacking.length ? uniqueByName(nextPacking) : fallbackPackingOptions)
+          setGoodsOptions(uniqueByName(nextGoods))
+          setPackingOptions(uniqueByName(nextPacking))
         }
       } catch {
         if (active) {
-          setGoodsOptions(fallbackGoodsOptions)
-          setPackingOptions(fallbackPackingOptions)
-          setLoadWarning('Unable to load goods/packing from Settings. Showing fallback options.')
+          setGoodsOptions([])
+          setPackingOptions([])
+          setLoadWarning('Unable to load goods/packing from Settings.')
         }
       } finally {
         if (active) setLoadingGoods(false)
