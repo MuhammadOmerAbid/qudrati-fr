@@ -679,7 +679,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
             <thead>
               <tr>
                 {columns.map((col) => (
-                  <th key={col.key} style={ui.th}>{col.label}</th>
+                  <th key={col.key} style={ui.reportTh}>{col.label}</th>
                 ))}
               </tr>
             </thead>
@@ -704,7 +704,7 @@ export function ReportModal({ title, data, columns, dateKey, selectFilters = [],
                         <td
                           key={col.key}
                           style={{
-                            ...ui.td,
+                            ...ui.reportTd,
                             ...(groupKey && firstInGroup ? ui.reportGroupStartTd : {}),
                             ...(entryCell ? ui.reportEntryCell : {}),
                           }}
@@ -797,7 +797,8 @@ export const ui = {
   },
   th: {
     background: '#e8eee8',
-    border: '1px solid #000000',
+    border: 'none',
+    borderBottom: '1px solid #d4dfd4',
     color: '#29472d',
     fontSize: 13,
     fontWeight: 800,
@@ -806,6 +807,25 @@ export const ui = {
     whiteSpace: 'nowrap',
   },
   td: {
+    border: 'none',
+    borderBottom: '1px solid #e2e8e2',
+    color: '#415443',
+    fontSize: 14,
+    padding: '13px 18px',
+    verticalAlign: 'middle',
+    background: '#ffffff',
+  },
+  reportTh: {
+    background: '#e8eee8',
+    border: '1px solid #000000',
+    color: '#29472d',
+    fontSize: 13,
+    fontWeight: 800,
+    textAlign: 'left',
+    padding: '14px 18px',
+    whiteSpace: 'nowrap',
+  },
+  reportTd: {
     border: '1px solid #000000',
     color: '#415443',
     fontSize: 14,
