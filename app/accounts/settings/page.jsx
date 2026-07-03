@@ -5,15 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import AccountLayout from '@/presentation/layouts/AccountLayout'
 import AccountPermissionMatrix, { ACCOUNT_PERMISSION_SECTIONS } from '@/components/accounts/AccountPermissionMatrix'
-import { AlertTriangle, KeyRound, Lock, Plus, RefreshCcw, Settings, Shield } from 'lucide-react'
+import { KeyRound, Lock, Plus, RefreshCcw, Settings, Shield } from 'lucide-react'
 import { panelPasswordApi } from '@/infrastructure/api/endpoints'
 import {
   loadAuditLogsFromStorage,
   loadClosedAccountingPeriodsFromStorage,
-  resetAccountsStateOnBackend,
 } from '@/application/services/accounts/accountsWorkflow'
 
-const RESET_CONFIRM_PHRASE = 'RESET ACCOUNTS'
 const DEFAULT_ACCOUNT_USER_PERMISSIONS = ACCOUNT_PERMISSION_SECTIONS.map((section) => section.id)
 
 function currentPeriodLabel() {
@@ -39,9 +37,7 @@ export default function AccountsSettingsPage() {
   const [closedPeriods, setClosedPeriods] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
   const [auditSearch, setAuditSearch] = useState('')
-  const [showResetModal, setShowResetModal] = useState(false)
   const [showPanelPwModal, setShowPanelPwModal] = useState(false)
-  const [resetConfirmText, setResetConfirmText] = useState('')
   const [noticeText, setNoticeText] = useState('')
   const [errorText, setErrorText] = useState('')
   const [rolePreview, setRolePreview] = useState('user')
@@ -66,24 +62,6 @@ export default function AccountsSettingsPage() {
     closedPeriods.some((item) => toKey(item.periodLabel) === toKey(currentPeriod))
   ), [closedPeriods, currentPeriod])
 
-  const resetStats = useMemo(() => {
-    if (!showResetModal) return { keys: [], count: 0 }
-    if (typeof window === 'undefined') return { keys: [], count: 0 }
-    const accountKeys = []
-    const collectKeys = (storageRef) => {
-      for (let i = 0; i < storageRef.length; i += 1) {
-        const key = storageRef.key(i)
-        if (key && key.startsWith('accounts:')) accountKeys.push(key)
-      }
-    }
-    collectKeys(sessionStorage)
-    collectKeys(localStorage)
-    return {
-      keys: accountKeys,
-      count: accountKeys.length,
-    }
-  }, [showResetModal])
-
   const filteredAudit = useMemo(() => {
     const needle = toKey(auditSearch)
     if (!needle) return auditLogs
@@ -99,22 +77,6 @@ export default function AccountsSettingsPage() {
       return haystack.includes(needle)
     })
   }, [auditLogs, auditSearch])
-
-  const handleResetAccountingData = async () => {
-    if (resetConfirmText !== RESET_CONFIRM_PHRASE) return
-
-    try {
-      await resetAccountsStateOnBackend()
-      setClosedPeriods([])
-      setAuditLogs([])
-      setResetConfirmText('')
-      setShowResetModal(false)
-      setNoticeText('Accounting data reset completed. Panel is now at clean initial state.')
-      setErrorText('')
-    } catch (error) {
-      setErrorText(error?.message || 'Unable to reset accounting data')
-    }
-  }
 
   if (!isSuperuser) {
     return (
@@ -301,42 +263,6 @@ export default function AccountsSettingsPage() {
           <div style={s.card}>
             <h3 style={s.cardTitle}>General Controls</h3>
             <p style={s.cardSub}>Danger zone actions for superuser only.</p>
-
-            <div style={s.resetCard}>
-              <div>
-                <p style={s.resetTitle}>Reset All Accounting Data</p>
-                <p style={s.resetSub}>This will clear COA, ledger, modules, reports cache, and audit records.</p>
-              </div>
-              <button style={s.resetBtn} onClick={() => setShowResetModal(true)}>Reset Data</button>
-            </div>
-          </div>
-        ) : null}
-
-        {showResetModal ? (
-          <div style={s.modalOverlay} onClick={() => setShowResetModal(false)}>
-            <div style={s.modal} onClick={(event) => event.stopPropagation()}>
-              <div style={s.modalHeader}>
-                <AlertTriangle size={24} color="#dc2626" />
-                <h3 style={s.modalTitle}>Confirm Data Reset</h3>
-              </div>
-              <p style={s.modalDesc}>
-                This action will reset accounting panel to zero state. Detected keys: <strong>{resetStats.count}</strong>.
-              </p>
-              <div style={s.field}>
-                <label style={s.label}>Type {RESET_CONFIRM_PHRASE} to confirm</label>
-                <input style={s.input} value={resetConfirmText} onChange={(event) => setResetConfirmText(event.target.value)} placeholder={RESET_CONFIRM_PHRASE} />
-              </div>
-              <div style={s.modalActions}>
-                <button style={s.cancelBtn} onClick={() => setShowResetModal(false)}>Cancel</button>
-                <button
-                  style={{ ...s.confirmBtn, opacity: resetConfirmText === RESET_CONFIRM_PHRASE ? 1 : 0.45, cursor: resetConfirmText === RESET_CONFIRM_PHRASE ? 'pointer' : 'not-allowed' }}
-                  disabled={resetConfirmText !== RESET_CONFIRM_PHRASE}
-                  onClick={handleResetAccountingData}
-                >
-                  Confirm Reset
-                </button>
-              </div>
-            </div>
           </div>
         ) : null}
       </div>
@@ -464,20 +390,5 @@ const s = {
   empty: { margin: 0, padding: '14px 10px', color: '#64748b', fontSize: 12.5, textAlign: 'center' },
   auditToolbar: { marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' },
   searchInput: { border: '1px solid #d1d5db', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, color: '#111827', width: '100%', maxWidth: 320, fontFamily: 'inherit' },
-  resetCard: { border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  resetTitle: { margin: 0, fontSize: 14, fontWeight: 800, color: '#7f1d1d' },
-  resetSub: { margin: '4px 0 0', fontSize: 12.5, color: '#991b1b' },
-  resetBtn: { border: '1px solid #ef4444', background: '#dc2626', color: '#fff', borderRadius: 999, padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 12.5 },
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: 16, padding: 18, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' },
-  modalHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
-  modalTitle: { margin: 0, fontSize: 17, fontWeight: 800, color: '#111827' },
-  modalDesc: { margin: '0 0 10px', fontSize: 12.5, color: '#374151', lineHeight: 1.5 },
-  field: { display: 'flex', flexDirection: 'column', gap: 5 },
-  label: { fontSize: 11.5, color: '#6b7280', fontWeight: 700 },
-  input: { padding: '9px 10px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 12.5, color: '#111827', fontFamily: 'inherit' },
-  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
-  cancelBtn: { padding: '9px 12px', borderRadius: 999, border: '1px solid #d1d5db', background: '#ffffff', color: '#374151', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' },
-  confirmBtn: { padding: '9px 12px', borderRadius: 999, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 700 },
 }
 
