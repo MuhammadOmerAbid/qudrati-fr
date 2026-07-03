@@ -25,6 +25,7 @@ export default function AccountsUserNewPage() {
     username: '',
     email: '',
     password: '',
+    panel_password: '',
     role: 'user',
     permissions: ACCOUNT_PERMISSION_SECTIONS.map((section) => section.id),
   })
@@ -38,6 +39,7 @@ export default function AccountsUserNewPage() {
     const next = {}
     if (!form.username.trim()) next.username = 'Username is required'
     if (!form.password) next.password = 'Password is required'
+    if (!form.panel_password) next.panel_password = 'Panel password is required'
     if (!hasFullAccessRole(form.role) && form.permissions.length === 0) {
       next.permissions = 'Select at least one account permission'
     }
@@ -55,6 +57,7 @@ export default function AccountsUserNewPage() {
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,
+        panel_password: form.panel_password,
         role: normalizeRoleForApi(form.role),
         permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
@@ -138,6 +141,21 @@ export default function AccountsUserNewPage() {
               {errors.password ? <span style={s.errorText}>{errors.password}</span> : null}
             </div>
 
+            <div style={s.fieldWrap}>
+              <label style={s.label}>Panel Password *</label>
+              <input
+                type="password"
+                style={{ ...s.input, ...(errors.panel_password ? s.inputError : {}) }}
+                value={form.panel_password}
+                placeholder="Panel access password"
+                onChange={(event) => setField('panel_password', event.target.value)}
+              />
+              {errors.panel_password ? <span style={s.errorText}>{errors.panel_password}</span> : null}
+            </div>
+          </div>
+
+          <div style={s.grid2}>
+            <div style={{ display: 'none' }} />
             <div style={s.fieldWrap}>
               <label style={s.label}>Role</label>
               <select
