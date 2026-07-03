@@ -4,14 +4,69 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { usersApi } from '@/infrastructure/api/endpoints'
+import { usersApi, panelPasswordApi } from '@/infrastructure/api/endpoints'
 import { ConfirmDelete, SettingsSelect, Toast, settingsTheme } from '@/components/settings/SettingsShared'
 import StorePermissionMatrix, { STORE_PERMISSION_SECTIONS } from '@/components/settings/StorePermissionMatrix'
-import { X, Shield, Pencil, Trash2, Plus, ChevronDown, ChevronUp, RefreshCw, ArrowLeft } from 'lucide-react'
+import { X, Shield, Pencil, Trash2, Plus, ChevronDown, ChevronUp, RefreshCw, ArrowLeft, KeyRound } from 'lucide-react'
 
 const FULL_ACCESS_ROLES = new Set(['superuser', 'admin', 'administrator'])
 const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').trim().toLowerCase())
 const normalizeRoleForApi = (role) => (hasFullAccessRole(role) ? 'superuser' : 'user')
+
+function ResetOwnPanelPasswordModal({ open, onClose, onSuccess }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (open) { setPassword(''); setConfirm(''); setError('') }
+  }, [open])
+
+  if (!open) return null
+
+  const handleSave = async () => {
+    if (!password) return setError('Password is required')
+    if (password !== confirm) return setError('Passwords do not match')
+    setSaving(true)
+    setError('')
+    try {
+      await panelPasswordApi.setOwn(password)
+      onSuccess()
+      onClose()
+    } catch {
+      setError('Failed to update panel password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={overlay}>
+      <div style={{ ...modal, width: 380 }}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>Reset My Panel Password</h3>
+          <button onClick={onClose} style={closeBtn} type="button"><X size={18} color={settingsTheme.textMuted} /></button>
+        </div>
+        {error && <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fff1f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12.5, color: '#b91c1c' }}>{error}</div>}
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>New Panel Password *</label>
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="New panel password" style={inputStyle} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Confirm Panel Password *</label>
+          <input value={confirm} onChange={(e) => setConfirm(e.target.value)} type="password" placeholder="Confirm panel password" style={inputStyle} />
+        </div>
+        <div style={modalActions}>
+          <button onClick={onClose} style={secondaryBtn} type="button">Cancel</button>
+          <button onClick={handleSave} style={primaryBtn} type="button" disabled={saving}>
+            {saving ? 'Saving...' : 'Update Password'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function UserModal({ open, onClose, onSave, initial }) {
   const [form, setForm] = useState({ username: '', email: '', password: '', panel_password: '', role: 'user', permissions: [] })
@@ -147,6 +202,7 @@ export default function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [resetPanelPwOpen, setResetPanelPwOpen] = useState(false)
 
   const showToast = (message, type = 'success') => setToast({ message, type })
 
@@ -258,6 +314,9 @@ export default function UsersPage() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
             <button onClick={load} style={iconBtn} type="button" title="Refresh">
               <RefreshCw size={16} color={settingsTheme.textMuted} />
+            </button>
+            <button onClick={() => setResetPanelPwOpen(true)} style={{ ...iconBtn, width: 'auto', padding: '0 14px', gap: 6, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: settingsTheme.textMuted }} type="button" title="Reset my panel password">
+              <KeyRound size={15} /> {isMobile ? '' : 'My Panel Password'}
             </button>
             <button onClick={() => router.push('/settings/users/new')} style={{ ...addBtn, padding: isMobile ? '10px 16px' : '11px 20px' }} type="button">
               <Plus size={15} /> Add User
@@ -402,6 +461,11 @@ export default function UsersPage() {
       </div>
 
       <UserModal open={modal !== null} onClose={() => setModal(null)} onSave={handleSave} initial={modal} />
+      <ResetOwnPanelPasswordModal
+        open={resetPanelPwOpen}
+        onClose={() => setResetPanelPwOpen(false)}
+        onSuccess={() => showToast('Panel password updated')}
+      />
       <ConfirmDelete
         open={!!deleteTarget}
         name={deleteTarget?.username}

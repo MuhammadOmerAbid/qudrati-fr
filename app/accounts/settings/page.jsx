@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import AccountLayout from '@/presentation/layouts/AccountLayout'
 import AccountPermissionMatrix, { ACCOUNT_PERMISSION_SECTIONS } from '@/components/accounts/AccountPermissionMatrix'
-import { AlertTriangle, Lock, Plus, RefreshCcw, Settings, Shield } from 'lucide-react'
+import { AlertTriangle, KeyRound, Lock, Plus, RefreshCcw, Settings, Shield } from 'lucide-react'
+import { panelPasswordApi } from '@/infrastructure/api/endpoints'
 import {
   loadAuditLogsFromStorage,
   loadClosedAccountingPeriodsFromStorage,
@@ -39,6 +40,7 @@ export default function AccountsSettingsPage() {
   const [auditLogs, setAuditLogs] = useState([])
   const [auditSearch, setAuditSearch] = useState('')
   const [showResetModal, setShowResetModal] = useState(false)
+  const [showPanelPwModal, setShowPanelPwModal] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
   const [noticeText, setNoticeText] = useState('')
   const [errorText, setErrorText] = useState('')
@@ -137,9 +139,14 @@ export default function AccountsSettingsPage() {
               <p style={s.subtitle}>Period locks, permissions, audit trail, and reset controls.</p>
             </div>
           </div>
-          <button style={s.refreshBtn} onClick={refreshState}>
-            <RefreshCcw size={14} /> Refresh
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={{ ...s.refreshBtn, gap: 6 }} onClick={() => setShowPanelPwModal(true)}>
+              <KeyRound size={14} /> My Panel Password
+            </button>
+            <button style={s.refreshBtn} onClick={refreshState}>
+              <RefreshCcw size={14} /> Refresh
+            </button>
+          </div>
         </section>
 
         {noticeText ? <p style={s.noticeText}>{noticeText}</p> : null}
@@ -333,7 +340,63 @@ export default function AccountsSettingsPage() {
           </div>
         ) : null}
       </div>
+
+      {showPanelPwModal && (
+        <ResetPanelPasswordModal
+          onClose={() => setShowPanelPwModal(false)}
+          onSuccess={() => setNoticeText('Panel password updated successfully.')}
+        />
+      )}
     </AccountLayout>
+  )
+}
+
+function ResetPanelPasswordModal({ onClose, onSuccess }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    if (!password) return setError('Password is required')
+    if (password !== confirm) return setError('Passwords do not match')
+    setSaving(true)
+    setError('')
+    try {
+      await panelPasswordApi.setOwn(password)
+      onSuccess()
+      onClose()
+    } catch {
+      setError('Failed to update panel password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 40px rgba(0,0,0,0.12)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#14532d' }}>Reset My Panel Password</h3>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: '#6b7280' }}>✕</button>
+        </div>
+        {error && <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fff1f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12.5, color: '#b91c1c' }}>{error}</div>}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5 }}>New Panel Password *</label>
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="New panel password" style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5 }}>Confirm Panel Password *</label>
+          <input value={confirm} onChange={(e) => setConfirm(e.target.value)} type="password" placeholder="Confirm panel password" style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', border: '1.5px solid #d1d5db', borderRadius: 10, background: '#fff', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', color: '#166534' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', border: 'none', borderRadius: 10, background: '#14532d', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : 'Update Password'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
