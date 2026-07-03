@@ -14,7 +14,7 @@ const hasFullAccessRole = (role) => FULL_ACCESS_ROLES.has(String(role || '').tri
 const normalizeRoleForApi = (role) => (hasFullAccessRole(role) ? 'superuser' : 'user')
 
 function UserModal({ open, onClose, onSave, initial }) {
-  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user', permissions: [] })
+  const [form, setForm] = useState({ username: '', email: '', password: '', panel_password: '', role: 'user', permissions: [] })
   const [showPerm, setShowPerm] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -25,10 +25,11 @@ function UserModal({ open, onClose, onSave, initial }) {
             username: initial.username,
             email: initial.email || '',
             password: '',
+            panel_password: '',
             role: initial.role || 'user',
             permissions: initial.permissions || [],
           }
-        : { username: '', email: '', password: '', role: 'user', permissions: [] })
+        : { username: '', email: '', password: '', panel_password: '', role: 'user', permissions: [] })
       setShowPerm(true)
     }
   }, [open, initial])
@@ -71,6 +72,14 @@ function UserModal({ open, onClose, onSave, initial }) {
             <label style={labelStyle}>{initial?.id ? 'New Password (optional)' : 'Password *'}</label>
             <input value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="********" type="password" style={inputStyle} />
           </div>
+          <div>
+            <label style={labelStyle}>Panel Password {initial?.id ? '(leave blank to keep)' : '*'}</label>
+            <input value={form.panel_password} onChange={(e) => set('panel_password', e.target.value)} placeholder="Panel access password" type="password" style={inputStyle} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'none' }} />
           <div>
             <label style={labelStyle}>Role</label>
             <SettingsSelect value={form.role} onChange={(e) => set('role', e.target.value)} wrapperStyle={{ width: '100%' }} selectStyle={selectInputStyle}>
@@ -179,6 +188,7 @@ export default function UsersPage() {
         permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
       if (form.password) payload.password = form.password
+      if (form.panel_password) payload.panel_password = form.panel_password
 
       if (modal?.id) {
         await usersApi.update(modal.id, payload)

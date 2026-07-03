@@ -12,6 +12,13 @@ export const usersApi = {
   create: (data) => post('/users/', data),
   update: (id, data) => patch(`/users/${id}/`, data),
   delete: (id) => del(`/users/${id}/`),
+  setPanelPassword: (id, panel_password) => post(`/users/${id}/set_panel_password/`, { panel_password }),
+}
+
+// ── Panel Password ───────────────────────────────────────────
+export const panelPasswordApi = {
+  verify: (panel_password) => post('/auth/verify-panel-password/', { panel_password }),
+  setOwn: (panel_password) => post('/auth/set-panel-password/', { panel_password }),
 }
 
 // ── Brands ───────────────────────────────────────────────────
