@@ -63,11 +63,20 @@ export default function FinishedGoodProductsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const isDuplicateName = (name, excludeId = null) => items.some((item) => (
+    item.id !== excludeId && item.name.trim().toLowerCase() === name.trim().toLowerCase()
+  ))
+
   const handleAdd = async () => {
-    if (!newName.trim()) return
+    const name = newName.trim()
+    if (!name) return
+    if (isDuplicateName(name)) {
+      showToast('A finished good product with this name already exists', 'error')
+      return
+    }
     try {
       await finishedGoodsApi.create({
-        brand: newName.trim(),
+        brand: name,
         date: todayISO(),
         status: 'Completed',
         products: [],
@@ -82,9 +91,14 @@ export default function FinishedGoodProductsPage() {
   }
 
   const handleEdit = async (id) => {
-    if (!editVal.trim()) return
+    const name = editVal.trim()
+    if (!name) return
+    if (isDuplicateName(name, id)) {
+      showToast('A finished good product with this name already exists', 'error')
+      return
+    }
     try {
-      await finishedGoodsApi.update(id, { brand: editVal.trim() })
+      await finishedGoodsApi.update(id, { brand: name })
       setEditId(null)
       setEditVal('')
       showToast('Entry updated')
