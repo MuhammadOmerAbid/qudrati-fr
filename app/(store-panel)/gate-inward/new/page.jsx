@@ -107,6 +107,7 @@ export default function GateInwardNewPage() {
 
         const normalizedProducts = productsListRaw.map((entry) => ({
           ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
           categoryId: String(entry.category ?? entry.category_id ?? ''),
         }))
 
@@ -364,8 +365,13 @@ export default function GateInwardNewPage() {
           {errors.items && <div style={s.itemsError}>{errors.items}</div>}
 
           {items.map((item, idx) => {
-                      const brandCats = categories.filter((entry) => !entry.brandId || String(entry.brandId) === String(item.brandId))
-            const catProds = products.filter((entry) => String(entry.categoryId) === String(item.categoryId))
+            const brandCats = categories.filter((entry) => (
+              !entry.brandId || String(entry.brandId) === String(item.brandId)
+            ))
+            const catProds = products.filter((entry) => (
+              String(entry.categoryId) === String(item.categoryId)
+              && (!entry.brandId || String(entry.brandId) === String(item.brandId))
+            ))
 
             return (
               <div key={item.key} style={s.itemRow} data-keyboard-cell-scope>
