@@ -370,11 +370,21 @@ export default function GateInwardPage() {
         if (!active) return
 
         const recordsList = Array.isArray(recordsRes) ? recordsRes : (recordsRes?.results || [])
-        const categoriesList = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.results || [])
+        const categoriesListRaw = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.results || [])
         const suppliersList = Array.isArray(suppliersRes) ? suppliersRes : (suppliersRes?.results || [])
         const brandsList = Array.isArray(brandsRes) ? brandsRes : (brandsRes?.results || [])
-        const productsList = Array.isArray(productsRes) ? productsRes : (productsRes?.results || [])
+        const productsListRaw = Array.isArray(productsRes) ? productsRes : (productsRes?.results || [])
         const unitsList = Array.isArray(unitsRes) ? unitsRes : (unitsRes?.results || [])
+
+        const categoriesList = categoriesListRaw.map((entry) => ({
+          ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
+        }))
+        const productsList = productsListRaw.map((entry) => ({
+          ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
+          categoryId: String(entry.category ?? entry.category_id ?? ''),
+        }))
 
         setRecords(recordsList.map(normalizeGateInwardRecord).filter((row) => row.id != null))
         setCategoryOptions(categoriesList.filter((entry) => entry.status !== false))
@@ -723,8 +733,13 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
           </div>
 
           {form.items.map((item, i) => {
-            const brandCats = categories.filter(c => c.brandId === Number(item.brandId))
-            const catProds = products.filter(p => p.categoryId === Number(item.categoryId))
+            const brandCats = categories.filter((entry) => (
+              !entry.brandId || String(entry.brandId) === String(item.brandId)
+            ))
+            const catProds = products.filter((entry) => (
+              String(entry.categoryId) === String(item.categoryId)
+              && (!entry.brandId || String(entry.brandId) === String(item.brandId))
+            ))
             return (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 80px 32px', gap: 8, marginBottom: 8, alignItems: 'end' }}>
                 <div>
@@ -1145,4 +1160,3 @@ const s = {
   cancelBtn: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '9px 20px', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer' },
   saveBtn: { background: '#1a3d1f', border: 'none', borderRadius: 40, padding: '9px 24px', fontSize: 13.5, fontWeight: 600, color: '#fff', cursor: 'pointer' },
 }
-
