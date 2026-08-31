@@ -4,7 +4,7 @@ const RESOLVE_ENDPOINT = '/api/backend-base'
 const RESOLVE_TIMEOUT_MS = 4000
 const DEFAULT_BASES = ['http://localhost:8000/api', 'http://localhost:8001/api']
 const API_URL = process.env.NEXT_PUBLIC_API_URL
-const RAILWAY_FALLBACK = 'https://qudarti-foods-10-production.up.railway.app/api'
+const RAILWAY_FALLBACK = 'https://api.qudartierp.com/api'
 
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '')
 const isValidApiBase = (value) => {

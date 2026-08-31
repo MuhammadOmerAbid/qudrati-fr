@@ -1,6 +1,6 @@
 ﻿const DEFAULT_BASES = ['http://localhost:8000/api', 'http://localhost:8001/api']
 const PROBE_TIMEOUT_MS = 2500
-const RAILWAY_FALLBACK = 'https://qudarti-foods-10-production.up.railway.app/api'
+const RAILWAY_FALLBACK = 'https://api.qudartierp.com/api'
 
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '')
 const isValidApiBase = (value) => {
@@ -63,7 +63,7 @@ const probeBase = async (base) => {
         signal: controller.signal,
       })
 
-      if (response.status < 500) return true
+      if (response.ok || [401, 403, 405].includes(response.status)) return true
     } catch {
       // try next probe path
     } finally {
