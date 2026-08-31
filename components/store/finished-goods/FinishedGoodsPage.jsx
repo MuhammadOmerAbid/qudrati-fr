@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw, X } from 'lucide-react'
-import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodProductsApi, finishedGoodsApi } from '@/infrastructure/api/endpoints'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
   formatDate,
@@ -54,6 +54,7 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
   const [savingEdit, setSavingEdit] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [masterProductOptions, setMasterProductOptions] = useState([])
 
   const loadEntries = async () => {
     setLoading(true)
@@ -73,15 +74,35 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
     loadEntries()
   }, [])
 
+  useEffect(() => {
+    let active = true
+    finishedGoodProductsApi.list({ status: 'active' })
+      .then((data) => {
+        if (!active) return
+        const names = toList(data)
+          .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry?.name || '').trim())
+          .filter(Boolean)
+        setMasterProductOptions(names)
+      })
+      .catch(() => {
+        if (active) setMasterProductOptions([])
+      })
+    return () => { active = false }
+  }, [])
+
   const brandOptions = useMemo(() => {
     const brands = entries.map((entry) => entry.brand).filter(Boolean)
     return Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b))
   }, [entries])
 
   const productOptions = useMemo(() => {
-    const products = entries.flatMap((entry) => entry.products.map((product) => product.product)).filter(Boolean)
+    const products = [
+      ...masterProductOptions,
+      ...entries.flatMap((entry) => entry.products.map((product) => product.product)),
+    ].filter(Boolean)
     return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
-  }, [entries])
+  }, [entries, masterProductOptions])
 
   const packingOptions = useMemo(() => {
     const packings = entries.flatMap((entry) => entry.products.map((product) => product.packing)).filter(Boolean)

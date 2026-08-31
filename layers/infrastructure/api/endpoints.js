@@ -158,10 +158,18 @@ export const productionOrderApi = {
 
 // ── Finished Goods ───────────────────────────────────────────
 export const finishedGoodsApi = {
-  list: (params) => get('/finished-goods/', params),
+  list: (params) => get('/finished-goods/', { transactions_only: true, ...(params || {}) }),
   create: (data) => post('/finished-goods/', data),
   update: (id, data) => patch(`/finished-goods/${id}/`, data),
   delete: (id) => del(`/finished-goods/${id}/`),
+}
+
+// Finished Good Products (master data used by product selectors)
+export const finishedGoodProductsApi = {
+  list: (params) => get('/finished-good-products/', params),
+  create: (data) => post('/finished-good-products/', data),
+  update: (id, data) => patch(`/finished-good-products/${id}/`, data),
+  delete: (id) => del(`/finished-good-products/${id}/`),
 }
 
 // ── Recipes ──────────────────────────────────────────────────

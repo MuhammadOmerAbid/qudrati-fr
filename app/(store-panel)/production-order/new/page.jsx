@@ -12,26 +12,22 @@ import {
   handleKeyboardCellEnter,
   keyboardCellTriggerProps,
 } from '@/components/store/shared/StoreThemeControls'
-import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodProductsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
 
 function normalizeFinishedGoodProduct(entry, idx = 0) {
-  const meta = Array.isArray(entry?.products)
-    ? (entry.products[0] || {})
-    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
   const status = String(entry?.status || '').toLowerCase()
   if (status === 'inactive' || entry?.status === false) return null
 
-  const name = String(entry?.brand || entry?.name || meta?.product || meta?.name || '').trim()
+  const name = String(entry?.name || '').trim()
   if (!name) return null
-  const details = [meta?.code, meta?.description].map((part) => String(part || '').trim()).filter(Boolean)
   return {
     id: String(entry?.id ?? `fg-good-${idx}`),
     name,
-    label: details.length ? `${name} (${details.join(' - ')})` : name,
+    label: name,
   }
 }
 
@@ -88,7 +84,7 @@ export default function ProductionOrderNewPage() {
       setLoadWarning('')
       try {
         const [goodsRes, packingRes] = await Promise.all([
-          finishedGoodsApi.list(),
+          finishedGoodProductsApi.list({ status: 'active' }),
           packagingApi.list(),
         ])
         const nextGoods = toList(goodsRes)
@@ -489,5 +485,4 @@ const s = {
     padding: '8px 12px',
   },
 }
-
 

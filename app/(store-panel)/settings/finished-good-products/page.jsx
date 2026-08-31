@@ -3,24 +3,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodProductsApi } from '@/infrastructure/api/endpoints'
 import {
   SettingsPageShell, SettingsTable, Toggle,
   ActionButtons, InlineInput, ConfirmDelete, Toast, settingsTheme,
 } from '@/components/settings/SettingsShared'
 
-const todayISO = () => new Date().toISOString().split('T')[0]
-
 const normalizeEntry = (entry) => {
-  const statusValue = entry.status || 'Completed'
-  const isActive = String(statusValue).toLowerCase() !== 'inactive'
+  const statusValue = entry?.status ?? true
+  const isActive = statusValue !== false && String(statusValue).toLowerCase() !== 'inactive'
 
   return {
     id: entry.id,
-    name: entry.brand || '',
+    name: entry.name || '',
     isActive,
-    statusValue,
-    date: entry.date || todayISO(),
   }
 }
 
@@ -51,11 +47,11 @@ export default function FinishedGoodProductsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await finishedGoodsApi.list()
+      const data = await finishedGoodProductsApi.list()
       const records = Array.isArray(data) ? data : data?.results || []
       setItems(records.map(normalizeEntry))
-    } catch {
-      showToast('Failed to load finished good products', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to load finished good products', 'error')
     } finally {
       setLoading(false)
     }
@@ -75,18 +71,13 @@ export default function FinishedGoodProductsPage() {
       return
     }
     try {
-      await finishedGoodsApi.create({
-        brand: name,
-        date: todayISO(),
-        status: 'Completed',
-        products: [],
-      })
+      await finishedGoodProductsApi.create({ name, status: true })
       setNewName('')
       setAdding(false)
       showToast('Finished good product added')
       load()
-    } catch {
-      showToast('Failed to add entry', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to add entry', 'error')
     }
   }
 
@@ -98,36 +89,36 @@ export default function FinishedGoodProductsPage() {
       return
     }
     try {
-      await finishedGoodsApi.update(id, { brand: name })
+      await finishedGoodProductsApi.update(id, { name })
       setEditId(null)
       setEditVal('')
       showToast('Entry updated')
       load()
-    } catch {
-      showToast('Failed to update', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to update', 'error')
     }
   }
 
   const handleToggle = async (item) => {
     if (!canEdit) return
 
-    const nextStatus = item.isActive ? 'Inactive' : 'Completed'
+    const nextStatus = !item.isActive
     try {
-      await finishedGoodsApi.update(item.id, { status: nextStatus })
+      await finishedGoodProductsApi.update(item.id, { status: nextStatus })
       load()
-    } catch {
-      showToast('Failed to update status', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to update status', 'error')
     }
   }
 
   const handleDelete = async () => {
     try {
-      await finishedGoodsApi.delete(deleteTarget.id)
+      await finishedGoodProductsApi.delete(deleteTarget.id)
       setDeleteTarget(null)
       showToast('Entry deleted')
       load()
-    } catch {
-      showToast('Failed to delete entry', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete entry', 'error')
     }
   }
 
