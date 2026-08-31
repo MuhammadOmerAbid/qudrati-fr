@@ -14,7 +14,7 @@ import {
   ui,
 } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import { finishedGoodsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
+import { finishedGoodProductsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
 const normalizeOrder = (order = {}, index = 0) => ({
@@ -68,11 +68,12 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
   useEffect(() => {
     if (!showEditor) return
     let active = true
-    Promise.all([finishedGoodsApi.list(), packagingApi.list()]).then(([goodsRes, packingRes]) => {
+    Promise.all([finishedGoodProductsApi.list({ status: 'active' }), packagingApi.list()]).then(([goodsRes, packingRes]) => {
       if (!active) return
       const goods = toList(goodsRes)
         .map((entry) => {
-          const name = String(entry?.brand || entry?.name || '').trim()
+          if (entry?.status === false || String(entry?.status || '').toLowerCase() === 'inactive') return null
+          const name = String(entry?.name || '').trim()
           return name ? { value: name, label: name } : null
         })
         .filter(Boolean)

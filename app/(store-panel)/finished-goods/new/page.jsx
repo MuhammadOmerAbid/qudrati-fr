@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { brandsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, finishedGoodProductsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import {
   getWordCount,
 } from '@/components/store/shared/StoreShared'
@@ -22,20 +22,16 @@ const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
 const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
 
 function normalizeFinishedGoodProduct(entry, idx = 0) {
-  const meta = Array.isArray(entry?.products)
-    ? (entry.products[0] || {})
-    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
   const status = String(entry?.status || '').toLowerCase()
   if (status === 'inactive' || entry?.status === false) return null
 
-  const name = String(entry?.brand || entry?.name || meta?.product || meta?.name || '').trim()
+  const name = String(entry?.name || '').trim()
   if (!name) return null
 
-  const details = [meta?.code, meta?.description].map((part) => String(part || '').trim()).filter(Boolean)
   return {
     id: String(entry?.id ?? `fg-product-${idx}`),
     name,
-    label: details.length ? `${name} (${details.join(' - ')})` : name,
+    label: name,
   }
 }
 
@@ -92,7 +88,7 @@ export default function FinishedGoodsNewPage() {
       setLoadWarning('')
       try {
         const [productsRes, packingRes] = await Promise.all([
-          finishedGoodsApi.list(),
+          finishedGoodProductsApi.list({ status: 'active' }),
           packagingApi.list(),
         ])
         if (!active) return
@@ -176,7 +172,8 @@ export default function FinishedGoodsNewPage() {
       })
       incrementStoreEntries('finished-goods')
       router.push('/finished-goods')
-    } catch {
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, form: err?.message || 'Unable to save finished goods entry' }))
       setSaving(false)
     }
   }
@@ -201,6 +198,7 @@ export default function FinishedGoodsNewPage() {
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
           {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+          {errors.form ? <p style={s.errorBanner}>{errors.form}</p> : null}
 
           <div style={s.formRow}>
             <div style={s.formCol}>
@@ -551,5 +549,4 @@ const s = {
     padding: '8px 12px',
   },
 }
-
 
