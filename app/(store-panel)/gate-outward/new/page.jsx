@@ -4,14 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowUpFromLine, Plus, X, ArrowLeft, Save } from 'lucide-react'
-import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi, packagingApi } from '@/infrastructure/api/endpoints'
+import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi, packagingApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import { limitPhoneNumber } from '@/lib/inputLimits'
-import {
-  GATE_OUTWARD_STORAGE_KEY,
-  UNITS,
-} from '@/application/services/store/gateOutwardMock'
+import { GATE_OUTWARD_STORAGE_KEY } from '@/application/services/store/gateOutwardMock'
 
 const SOURCE_INVENTORY = 'inventory'
 const SOURCE_FINISHED_GOODS = 'finished_goods'
@@ -21,8 +18,6 @@ const SOURCE_OPTIONS = [
   { value: SOURCE_INVENTORY, label: 'Inventory' },
   { value: SOURCE_FINISHED_GOODS, label: 'Finished Goods' },
 ]
-
-const FALLBACK_PACKAGING_TYPES = ['Box', 'Bag', 'Carton', 'Wrap', 'Bundle']
 
 const todayISO = () => new Date().toISOString().split('T')[0]
 
@@ -60,7 +55,7 @@ const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
     brand: String(entry?.brand || entry?.brand_name || '').trim(),
     category: String(entry?.category || entry?.category_name || '').trim(),
     subCategory: String(entry?.subcategory || entry?.subCategory || entry?.sub_category || '').trim(),
-    unit: String(entry?.unit || 'Unit').trim() || 'Unit',
+    unit: String(entry?.unit || '').trim(),
     available: toNumberOrNull(entry?.quantity ?? entry?.available),
   }
 }
@@ -108,7 +103,7 @@ const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta
     category: String(entry?.category || firstMeta?.category || '').trim(),
     subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
     packing,
-    unit: String(entry?.unit || 'Carton').trim() || 'Carton',
+    unit: String(entry?.unit || '').trim(),
     available,
   }
 }
@@ -172,7 +167,7 @@ const blankItem = (source = '') => ({
   numbering: '',
   batchNumber: '',
   quantity: '',
-  unit: 'Unit',
+  unit: '',
   weightPerCarton: '',
   comment: '',
   error: '',
@@ -187,6 +182,13 @@ const normalizePackagingType = (entry, idx = 0) => {
     id: String(entry?.id ?? name ?? idx),
     name,
   }
+}
+
+const normalizeUnit = (entry) => {
+  const name = String(entry?.name || entry || '').trim()
+  if (!name) return null
+  const isInactive = entry && typeof entry === 'object' && (entry.status === false || entry.status === 'inactive')
+  return isInactive ? null : name
 }
 
 function loadRecords() {
@@ -271,9 +273,8 @@ export default function GateOutwardNewPage() {
     [SOURCE_INVENTORY]: [],
     [SOURCE_FINISHED_GOODS]: [],
   })
-  const [packagingTypes, setPackagingTypes] = useState(
-    FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name }))
-  )
+  const [packagingTypes, setPackagingTypes] = useState([])
+  const [unitOptions, setUnitOptions] = useState([])
 
   useEffect(() => {
     let active = true
@@ -310,11 +311,12 @@ export default function GateOutwardNewPage() {
       setLoadWarning('')
 
       try {
-        const [customersRes, inventoryRes, finishedGoodsRes, packagingRes] = await Promise.all([
+        const [customersRes, inventoryRes, finishedGoodsRes, packagingRes, unitsRes] = await Promise.all([
           customersApi.list(),
           inventoryApi.list(),
           finishedGoodsApi.list(),
-          packagingApi.list(),
+          packagingApi.list({ status: 'active' }),
+          unitsApi.list({ status: 'active' }),
         ])
 
         if (!active) return
@@ -336,15 +338,25 @@ export default function GateOutwardNewPage() {
         const packagingList = toList(packagingRes)
           .map((entry, idx) => normalizePackagingType(entry, idx))
           .filter(Boolean)
+        const unitsList = Array.from(new Set(
+          toList(unitsRes).map(normalizeUnit).filter(Boolean)
+        ))
 
         setCustomers(mergedCustomers)
         setProductsBySource({
           [SOURCE_INVENTORY]: inventoryProducts,
           [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
         })
-        setPackagingTypes(packagingList.length
-          ? packagingList
-          : FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name })))
+        setPackagingTypes(packagingList)
+        setUnitOptions(unitsList)
+        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || unitsList[0] || '' })))
+        if (!packagingList.length || !unitsList.length) {
+          const missingSettings = [
+            !packagingList.length ? 'packaging' : '',
+            !unitsList.length ? 'units' : '',
+          ].filter(Boolean).join(' and ')
+          setLoadWarning(`No active ${missingSettings} found in Settings.`)
+        }
       } catch {
         if (!active) return
 
@@ -353,7 +365,8 @@ export default function GateOutwardNewPage() {
           [SOURCE_INVENTORY]: [],
           [SOURCE_FINISHED_GOODS]: [],
         })
-        setPackagingTypes(FALLBACK_PACKAGING_TYPES.map((name, idx) => ({ id: String(idx + 1), name })))
+        setPackagingTypes([])
+        setUnitOptions([])
         setLoadWarning('Unable to fetch latest data. Options may be limited.')
       } finally {
         if (active) setLoadingOptions(false)
@@ -365,15 +378,6 @@ export default function GateOutwardNewPage() {
       active = false
     }
   }, [])
-
-  const unitOptions = useMemo(() => {
-    const all = new Set(UNITS)
-    Object.values(productsBySource).flat().forEach((entry) => {
-      const unitName = String(entry?.unit || '').trim()
-      if (unitName) all.add(unitName)
-    })
-    return Array.from(all)
-  }, [productsBySource])
 
   const customer = useMemo(
     () => customers.find((entry) => String(entry.id) === String(customerId)) || null,
@@ -431,12 +435,12 @@ export default function GateOutwardNewPage() {
           updated.batchNumber = ''
           updated.quantity = ''
           updated.weightPerCarton = ''
-          updated.unit = unitOptions[0] || 'Unit'
+          updated.unit = unitOptions[0] || ''
         }
 
         if (field === 'productId') {
           const product = getProduct(updated.source, value)
-          updated.unit = product?.unit || row.unit
+          updated.unit = product?.unit || row.unit || unitOptions[0] || ''
           if (updated.source === SOURCE_FINISHED_GOODS) {
             updated.packaging = product?.packing || ''
           }
@@ -495,9 +499,9 @@ export default function GateOutwardNewPage() {
     if (!date) nextErrors.date = 'Please select a date'
     if (!customerId) nextErrors.customer = 'Please select a customer'
 
-    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0)
+    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0 || !row.unit)
     const missingPackaging = items.some((row) => row.source === SOURCE_FINISHED_GOODS && !row.packaging)
-    if (missing) nextErrors.items = 'Please complete source, product, and quantity for all rows'
+    if (missing) nextErrors.items = 'Please complete source, product, quantity, and unit for all rows'
     if (!missing && missingPackaging) nextErrors.items = 'Please select packaging for finished goods rows'
 
     const overLimitRow = items.find((row) => {
@@ -578,7 +582,7 @@ export default function GateOutwardNewPage() {
             batchNumber: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
             batch_number: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
             quantity: Number(row.quantity),
-            unit: row.unit || product?.unit || 'Unit',
+            unit: row.unit || product?.unit || '',
             weightPerCarton,
             weight_per_carton: weightPerCarton,
             totalWeight,
@@ -730,6 +734,10 @@ export default function GateOutwardNewPage() {
               ...packagingTypes
                 .filter((entry) => String(entry.name) !== String(product?.packing || ''))
                 .map((entry) => ({ value: entry.name, label: entry.name })),
+            ]
+            const rowUnitOptions = [
+              ...unitOptions,
+              ...(item.unit && !unitOptions.includes(item.unit) ? [item.unit] : []),
             ]
 
             let availableText = 'Select source first'
@@ -891,7 +899,7 @@ export default function GateOutwardNewPage() {
                       onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       variant="input"
                       triggerProps={{ 'data-go-item-cell': true }}
-                      options={unitOptions.map((u) => ({ value: u, label: u }))}
+                      options={rowUnitOptions.map((u) => ({ value: u, label: u }))}
                     />
                   </div>
 
@@ -983,6 +991,3 @@ const s = {
 
   formFooter: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6' },
 }
-
-
-

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
-import { gateOutwardApi } from '@/infrastructure/api/endpoints'
+import { gateOutwardApi, unitsApi } from '@/infrastructure/api/endpoints'
 import {
   RotateCcw,
   Eye,
@@ -69,7 +69,7 @@ function normalizeItem(raw = {}) {
     batchNumber: String(raw.batchNumber || raw.batch_number || '').trim(),
     packaging: String(raw.packaging || raw.packing || '').trim(),
     quantity,
-    unit: String(raw.unit || 'Unit').trim() || 'Unit',
+    unit: String(raw.unit || '').trim(),
     source: String(raw.source || '').trim(),
     sourceType: String(raw.sourceType || raw.source_type || '').trim(),
     productId: raw.productId ?? raw.product_id ?? null,
@@ -134,6 +134,7 @@ export default function GateOutwardPage() {
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [editUnitOptions, setEditUnitOptions] = useState([])
 
   useEffect(() => {
     let active = true
@@ -152,6 +153,24 @@ export default function GateOutwardPage() {
       }
     }
     load()
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    unitsApi.list({ status: 'active' })
+      .then((data) => {
+        if (!active) return
+        const rows = Array.isArray(data) ? data : (data?.results || [])
+        const names = rows
+          .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry?.name || entry || '').trim())
+          .filter(Boolean)
+        setEditUnitOptions(Array.from(new Set(names)))
+      })
+      .catch(() => {
+        if (active) setEditUnitOptions([])
+      })
     return () => { active = false }
   }, [])
 
@@ -267,9 +286,9 @@ export default function GateOutwardPage() {
       setEditError('Please select a date')
       return
     }
-    const invalidItem = editRecord.items.some((item) => !item.productName || Number(item.quantity) <= 0)
+    const invalidItem = editRecord.items.some((item) => !item.productName || Number(item.quantity) <= 0 || !item.unit)
     if (invalidItem) {
-      setEditError('Please complete product name and quantity for all rows')
+      setEditError('Please complete product name, quantity, and unit for all rows')
       return
     }
 
@@ -312,7 +331,7 @@ export default function GateOutwardPage() {
             batchNumber: item.batchNumber || '',
             batch_number: item.batchNumber || '',
             quantity,
-            unit: item.unit || 'Unit',
+            unit: item.unit || '',
             weightPerCarton,
             weight_per_carton: weightPerCarton,
             totalWeight,
@@ -711,7 +730,16 @@ export default function GateOutwardPage() {
                         </label>
                         <label style={s.fieldGroup}>
                           <span style={s.editLabel}>Unit</span>
-                          <input style={s.editInput} value={item.unit} onChange={(e) => updateEditItem(idx, 'unit', e.target.value)} />
+                          <StoreThemeDropdown
+                            value={item.unit}
+                            onChange={(value) => updateEditItem(idx, 'unit', value)}
+                            variant="input"
+                            placeholder="Select unit"
+                            options={[
+                              ...editUnitOptions,
+                              ...(item.unit && !editUnitOptions.includes(item.unit) ? [item.unit] : []),
+                            ].map((unit) => ({ value: unit, label: unit }))}
+                          />
                         </label>
                         <label style={s.fieldGroup}>
                           <span style={s.editLabel}>Numbering</span>

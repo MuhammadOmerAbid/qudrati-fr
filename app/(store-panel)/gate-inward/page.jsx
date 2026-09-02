@@ -43,7 +43,7 @@ function normalizeGateInwardItem(raw = {}) {
     productId: raw.productId ?? raw.product_id ?? raw.product ?? '',
     productName: raw.productName || raw.product_name || '',
     quantity: raw.quantity ?? '',
-    unit: raw.unit || 'Unit',
+    unit: raw.unit || '',
   }
 }
 
@@ -335,7 +335,7 @@ export default function GateInwardPage() {
   const [editModalSuppliers, setEditModalSuppliers] = useState([])
   const [editModalBrands, setEditModalBrands] = useState([])
   const [editModalProducts, setEditModalProducts] = useState([])
-  const [editModalUnits, setEditModalUnits] = useState(['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre'])
+  const [editModalUnits, setEditModalUnits] = useState([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -365,7 +365,7 @@ export default function GateInwardPage() {
           suppliersApi.list(),
           brandsApi.list(),
           productsApi.list(),
-          unitsApi.list(),
+          unitsApi.list({ status: 'active' }),
         ])
         if (!active) return
 
@@ -391,9 +391,10 @@ export default function GateInwardPage() {
         setEditModalSuppliers(suppliersList.filter((s) => s.id && s.name))
         setEditModalBrands(brandsList.filter((b) => b.status !== false && b.id && b.name))
         setEditModalProducts(productsList.filter((p) => p.status !== false && p.id && p.name))
-        if (unitsList.length > 0) {
-          setEditModalUnits(unitsList.map((u) => String(u.name || u).trim()).filter(Boolean))
-        }
+        setEditModalUnits(unitsList
+          .filter((u) => u?.status !== false && String(u?.status || '').toLowerCase() !== 'inactive')
+          .map((u) => String(u.name || u).trim())
+          .filter(Boolean))
       } catch (err) {
         if (active) {
           setRecords([])
@@ -471,7 +472,7 @@ export default function GateInwardPage() {
         productId: Number(item.productId) || null,
         productName: item.productName || '',
         quantity: Number(item.quantity) || 0,
-        unit: item.unit || 'Unit',
+        unit: item.unit || '',
       })),
     }
     try {
@@ -679,6 +680,7 @@ function ViewModal({ record, onClose }) {
 
 function EditModal({ record, suppliers, brands, categories, products, units, onClose, onSave }) {
   const [form, setForm] = useState({ ...record, items: record.items.map(i => ({ ...i })) })
+  const [formError, setFormError] = useState('')
 
   const updateItem = (idx, field, value) => {
     const items = form.items.map((it, i) => i === idx ? { ...it, [field]: value } : it)
@@ -686,6 +688,16 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
     if (field === 'categoryId') { const c = categories.find(c => c.id === Number(value)); items[idx].categoryName = c?.name || ''; items[idx].productId = ''; items[idx].productName = '' }
     if (field === 'productId') { const p = products.find(p => p.id === Number(value)); items[idx].productName = p?.name || '' }
     setForm(f => ({ ...f, items }))
+    setFormError('')
+  }
+
+  const submit = () => {
+    if (form.items.some((item) => !item.unit)) {
+      setFormError('Please select a unit from Unit Settings for every item.')
+      return
+    }
+    setFormError('')
+    onSave(form)
   }
 
   return (
@@ -696,6 +708,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
           <button style={s.modalClose} onClick={onClose}><X size={18} /></button>
         </div>
         <div style={s.modalBody}>
+          {formError ? <div style={s.errorBanner}>{formError}</div> : null}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div><label style={s.label}>GR Number</label><input style={s.input} value={form.grNo} onChange={e => setForm(f => ({ ...f, grNo: e.target.value }))} /></div>
             <div><label style={s.label}>Receive Date</label><input style={s.input} value={form.receiveDate} onChange={e => setForm(f => ({ ...f, receiveDate: e.target.value }))} /></div>
@@ -729,7 +742,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151' }}>Items</p>
-            <button style={s.addItemBtn} onClick={() => setForm(f => ({ ...f, items: [...f.items, { brandId: '', brandName: '', categoryId: '', categoryName: '', productId: '', productName: '', quantity: '', unit: 'Unit' }] }))}><Plus size={13} /> Add Item</button>
+            <button style={s.addItemBtn} onClick={() => setForm(f => ({ ...f, items: [...f.items, { brandId: '', brandName: '', categoryId: '', categoryName: '', productId: '', productName: '', quantity: '', unit: units[0] || '' }] }))}><Plus size={13} /> Add Item</button>
           </div>
 
           {form.items.map((item, i) => {
@@ -740,6 +753,10 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
               String(entry.categoryId) === String(item.categoryId)
               && (!entry.brandId || String(entry.brandId) === String(item.brandId))
             ))
+            const rowUnitOptions = [
+              ...units,
+              ...(item.unit && !units.includes(item.unit) ? [item.unit] : []),
+            ]
             return (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 80px 32px', gap: 8, marginBottom: 8, alignItems: 'end' }}>
                 <div>
@@ -790,7 +807,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
                     value={item.unit}
                     onChange={(nextValue) => updateItem(i, 'unit', nextValue)}
                     placeholder="Unit"
-                    options={units.map((entry) => ({ value: entry, label: entry }))}
+                    options={rowUnitOptions.map((entry) => ({ value: entry, label: entry }))}
                     wrapStyle={{ minWidth: 0 }}
                   />
                 </div>
@@ -801,7 +818,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
 
           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
             <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button style={s.saveBtn} onClick={() => onSave(form)}>Save Changes</button>
+            <button style={s.saveBtn} onClick={submit}>Save Changes</button>
           </div>
         </div>
       </div>
@@ -1146,6 +1163,7 @@ const s = {
   modalSub: { fontSize: 12.5, color: '#7a8a7a', margin: '4px 0 0' },
   modalClose: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 10, padding: 6, cursor: 'pointer', color: '#607062', display: 'flex' },
   modalBody: { padding: '20px 24px', overflowY: 'auto', flex: 1 },
+  errorBanner: { marginBottom: 12, padding: '9px 12px', border: '1px solid #fecaca', borderRadius: 9, background: '#fef2f2', color: '#b91c1c', fontSize: 12.5, fontWeight: 600 },
   detailGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px', marginBottom: 20 },
   detailLabel: { fontSize: 11, fontWeight: 700, color: '#7a8a7a', textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 4px' },
   detailValue: { fontSize: 13.5, color: '#1f2f21', fontWeight: 600, margin: 0, padding: '7px 10px', background: '#ffffff', borderRadius: 9, border: '1px solid #d4dfd4' },
