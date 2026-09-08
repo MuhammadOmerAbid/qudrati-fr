@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { cbmProductsApi } from '@/infrastructure/api/endpoints'
-import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save } from 'lucide-react'
+import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save, Pencil, X } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 
 const UNITS = ['Inch', 'CM', 'MM']
@@ -97,6 +97,8 @@ export default function CBMCalculatorPage() {
   const { user } = useAuthStore()
   const isSuperuser = user?.role === 'superuser'
   const [rows, setRows] = useState([emptyRow()])
+  const [editingIds, setEditingIds] = useState(new Set())
+  const [originalRows, setOriginalRows] = useState(new Map())
   const [containerType, setContainerType] = useState('40ft')
   const [containerCapacity, setContainerCapacity] = useState(CONTAINER_PRESETS['40ft'].capacity)
   const [containerMaxWeight, setContainerMaxWeight] = useState(CONTAINER_PRESETS['40ft'].weight)
@@ -116,13 +118,15 @@ export default function CBMCalculatorPage() {
         ? await cbmProductsApi.create(payload)
         : await cbmProductsApi.update(id, payload)
       setRows((prev) => prev.map((row) => row.id === id ? normalizeRow(saved) : row))
+      setEditingIds((prev) => { const next = new Set(prev); next.delete(saved.id); return next })
+      setOriginalRows((prev) => { const next = new Map(prev); next.delete(saved.id); return next })
       return saved
     } catch {
       // Keep the local row editable if the network/API call fails.
       return null
     }
   }
-  const isEditing = (id) => isLocalRow(id)
+  const isEditing = (id) => isLocalRow(id) || editingIds.has(id)
   const updateRow = (id, field, value, shouldSave = false) => {
     let nextTarget = null
     setRows((prev) => prev.map((row) => {
@@ -133,6 +137,22 @@ export default function CBMCalculatorPage() {
     if (shouldSave && nextTarget) {
       window.setTimeout(() => saveRow(id, nextTarget), 0)
     }
+  }
+
+  const startEditing = (id) => {
+    const row = rows.find((r) => r.id === id)
+    if (!row || isLocalRow(id)) return
+    setOriginalRows((prev) => new Map(prev).set(id, { ...row }))
+    setEditingIds((prev) => new Set(prev).add(id))
+  }
+
+  const cancelEditing = (id) => {
+    const original = originalRows.get(id)
+    if (original) {
+      setRows((prev) => prev.map((row) => (row.id === id ? { ...original } : row)))
+    }
+    setEditingIds((prev) => { const next = new Set(prev); next.delete(id); return next })
+    setOriginalRows((prev) => { const next = new Map(prev); next.delete(id); return next })
   }
 
   const addRow = () => {
@@ -423,6 +443,16 @@ export default function CBMCalculatorPage() {
                         <Save size={13} />
                       </button>
                     ) : null}
+                    {isEditing(row.id) && !isLocalRow(row.id) ? (
+                      <button onClick={() => cancelEditing(row.id)} style={cancelIconBtn} type="button" title="Cancel">
+                        <X size={13} />
+                      </button>
+                    ) : null}
+                    {!isEditing(row.id) && isSuperuser ? (
+                      <button onClick={() => startEditing(row.id)} style={editIconBtn} type="button" title="Edit">
+                        <Pencil size={13} />
+                      </button>
+                    ) : null}
                     {isSuperuser ? (
                       <button onClick={() => removeRow(row.id)} style={deleteIconBtn} type="button" title="Delete">
                         <Trash2 size={13} />
@@ -648,6 +678,16 @@ export default function CBMCalculatorPage() {
                         {editing ? (
                           <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
                             <Save size={13} />
+                          </button>
+                        ) : null}
+                        {editing && !isLocalRow(row.id) ? (
+                          <button onClick={() => cancelEditing(row.id)} style={cancelIconBtn} type="button" title="Cancel">
+                            <X size={13} />
+                          </button>
+                        ) : null}
+                        {!editing && isSuperuser ? (
+                          <button onClick={() => startEditing(row.id)} style={editIconBtn} type="button" title="Edit">
+                            <Pencil size={13} />
                           </button>
                         ) : null}
                         {isSuperuser ? (
@@ -949,6 +989,20 @@ const deleteIconBtn = {
   color: settingsTheme.danger,
 }
 
+const editIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #bde0fe',
+  background: '#e8f4fd',
+  color: '#1976D2',
+}
+
+const cancelIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #fed7aa',
+  background: '#fff7ed',
+  color: '#e65100',
+}
+
 const primaryBtn = {
   display: 'flex',
   alignItems: 'center',
@@ -998,4 +1052,3 @@ const formulaNote = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 10,
 }
-
