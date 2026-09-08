@@ -4,7 +4,7 @@ const RESOLVE_ENDPOINT = '/api/backend-base'
 const RESOLVE_TIMEOUT_MS = 4000
 const DEFAULT_BASES = ['http://localhost:8000/api', 'http://localhost:8001/api']
 const API_URL = process.env.NEXT_PUBLIC_API_URL
-const RAILWAY_FALLBACK = 'https://qudarti-foods-10-production.up.railway.app/api'
+const RAILWAY_FALLBACK = 'https://api.qudartierp.com/api'
 
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '')
 const isValidApiBase = (value) => {
@@ -101,6 +101,18 @@ const isAuthPath = (url = '') => {
   return normalized.includes('/auth/login/') || normalized.includes('/auth/token/refresh/')
 }
 
+const responseErrorMessage = (err) => {
+  const data = err?.response?.data
+  if (typeof data === 'string') {
+    if (data.trim().startsWith('<')) return err?.response?.status ? `Server error (${err.response.status})` : 'Server error'
+    return data
+  }
+  return data?.detail
+    || Object.values(data || {}).flat().join(', ')
+    || err.message
+    || 'Request failed'
+}
+
 export const api = axios.create({
   baseURL: explicitBase || '',
   headers: { 'Content-Type': 'application/json' },
@@ -173,11 +185,7 @@ api.interceptors.response.use(
     }
 
     if (isAuthPath(requestUrl)) {
-      const msg = err.response?.data?.detail
-        || Object.values(err.response?.data || {}).flat().join(', ')
-        || err.message
-        || 'Request failed'
-      return Promise.reject(new Error(msg))
+      return Promise.reject(new Error(responseErrorMessage(err)))
     }
 
     if (err.response?.status === 401 && !orig._retry) {
@@ -214,15 +222,24 @@ api.interceptors.response.use(
         return Promise.reject(new Error('Session expired. Please sign in again.'))
       }
     }
-    const msg = err.response?.data?.detail
-      || Object.values(err.response?.data || {}).flat().join(', ')
-      || err.message
-      || 'Request failed'
-    return Promise.reject(new Error(msg))
+    return Promise.reject(new Error(responseErrorMessage(err)))
   }
 )
 
-export const get = (url, params) => api.get(url, { params }).then(r => r.data)
+const unwrapResponse = (data) => {
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    Array.isArray(data.results) &&
+    typeof data.count === 'number'
+  ) {
+    return data.results
+  }
+  return data
+}
+
+export const get = (url, params) => api.get(url, { params }).then(r => unwrapResponse(r.data))
 export const post = (url, body) => api.post(url, body).then(r => r.data)
 export const put = (url, body) => api.put(url, body).then(r => r.data)
 export const patch = (url, body) => api.patch(url, body).then(r => r.data)

@@ -1,14 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { gateInwardApi, suppliersApi, brandsApi, categoriesApi, productsApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { Plus, X, ArrowLeft, Save, ChevronDown } from 'lucide-react'
-import { StoreThemeDatePicker } from '@/components/store/shared/StoreThemeControls'
-
-const DEFAULT_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
+import { Plus, X, ArrowLeft, Save } from 'lucide-react'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 
 /* Auto-generate GR number */
 const getNextGR = () => `QUD${Math.floor(Math.random() * 900) + 100}`
@@ -17,7 +21,7 @@ const getNextGR = () => `QUD${Math.floor(Math.random() * 900) + 100}`
 const todayISO = () => new Date().toISOString().split('T')[0]
 
 /* Fresh blank item row */
-const blankItem = (defaultUnit = 'Unit') => ({
+const blankItem = (defaultUnit = '') => ({
   key: Date.now() + Math.random(),
   brandId: '', brandName: '',
   categoryId: '', categoryName: '',
@@ -33,74 +37,18 @@ function DropdownField({
   disabled = false,
   hasError = false,
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-
-  const selected = useMemo(
-    () => options.find((opt) => String(opt.value) === String(value)),
-    [options, value]
-  )
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false)
-    }
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [])
-
   return (
-    <div ref={rootRef} style={s.dropdownWrap} className="store-theme-dropdown">
-      <button
-        type="button"
-        className="store-theme-dropdown-trigger"
-        style={{
-          ...s.dropdownTrigger,
-          ...(disabled ? s.dropdownDisabled : {}),
-          ...(hasError ? s.inputError : {}),
-        }}
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-      >
-        <span style={selected ? s.dropdownValue : s.dropdownPlaceholder}>
-          {selected?.label || placeholder}
-        </span>
-        <ChevronDown
-          size={14}
-          style={{ ...s.dropdownChevron, transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
-      </button>
-
-      {open && !disabled ? (
-        <div style={s.dropdownMenu} className="store-theme-dropdown-menu">
-          {options.map((option) => {
-            const active = String(option.value) === String(value)
-            return (
-              <button
-                key={String(option.value)}
-                type="button"
-                className={`store-theme-dropdown-item${active ? ' store-theme-dropdown-item-active' : ''}`}
-                style={{ ...s.dropdownItem, ...(active ? s.dropdownItemActive : {}) }}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
+    <StoreThemeDropdown
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      hasError={hasError}
+      variant="input"
+      triggerProps={keyboardCellTriggerProps}
+      onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
+    />
   )
 }
 
@@ -123,7 +71,7 @@ export default function GateInwardNewPage() {
   const [brands, setBrands] = useState([])
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
-  const [units, setUnits] = useState(DEFAULT_UNITS)
+  const [units, setUnits] = useState([])
 
   useEffect(() => {
     let active = true
@@ -139,7 +87,7 @@ export default function GateInwardNewPage() {
           brandsApi.list(),
           categoriesApi.list(),
           productsApi.list(),
-          unitsApi.list(),
+          unitsApi.list({ status: 'active' }),
         ])
 
         if (!active) return
@@ -157,26 +105,27 @@ export default function GateInwardNewPage() {
 
         const normalizedProducts = productsListRaw.map((entry) => ({
           ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
           categoryId: String(entry.category ?? entry.category_id ?? ''),
         }))
 
         const unitNames = Array.from(
           new Set(
             unitsListRaw
+              .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
               .map((entry) => String(entry?.name || '').trim())
               .filter(Boolean)
           )
         )
-
-        const resolvedUnits = unitNames.length ? unitNames : DEFAULT_UNITS
 
         setGrNo(nextGrRes?.gr_no || getNextGR())
         setSuppliers(suppliersList)
         setBrands(brandsList)
         setCategories(normalizedCategories)
         setProducts(normalizedProducts)
-        setUnits(resolvedUnits)
-        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || resolvedUnits[0] || 'Unit' })))
+        setUnits(unitNames)
+        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || unitNames[0] || '' })))
+        if (!unitNames.length) setLoadError('No active units are available in Unit Settings.')
       } catch {
         if (!active) return
         setLoadError('Failed to load settings data. Please refresh and try again.')
@@ -249,7 +198,7 @@ export default function GateInwardNewPage() {
     setErrors((err) => ({ ...err, items: undefined }))
   }
 
-  const addItem = () => setItems((prev) => [...prev, blankItem(units[0] || 'Unit')])
+  const addItem = () => setItems((prev) => [...prev, blankItem(units[0] || '')])
   const removeItem = (key) => setItems((prev) => prev.filter((entry) => entry.key !== key))
 
   /* Validate */
@@ -414,11 +363,16 @@ export default function GateInwardNewPage() {
           {errors.items && <div style={s.itemsError}>{errors.items}</div>}
 
           {items.map((item, idx) => {
-                      const brandCats = categories.filter((entry) => !entry.brandId || String(entry.brandId) === String(item.brandId))
-            const catProds = products.filter((entry) => String(entry.categoryId) === String(item.categoryId))
+            const brandCats = categories.filter((entry) => (
+              !entry.brandId || String(entry.brandId) === String(item.brandId)
+            ))
+            const catProds = products.filter((entry) => (
+              String(entry.categoryId) === String(item.categoryId)
+              && (!entry.brandId || String(entry.brandId) === String(item.brandId))
+            ))
 
             return (
-              <div key={item.key} style={s.itemRow}>
+              <div key={item.key} style={s.itemRow} data-keyboard-cell-scope>
                 {/* Brand */}
                 <div style={s.itemField}>
                   {idx === 0 && <label style={s.label}>Select Brand</label>}
@@ -471,8 +425,10 @@ export default function GateInwardNewPage() {
                     style={s.input}
                     type="number"
                     min="1"
+                    data-keyboard-cell
                     placeholder="Quantity"
                     value={item.quantity}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                   />
                 </div>

@@ -9,21 +9,18 @@ import {
   CheckSquare, Square, FileSpreadsheet, Download, FileText,
   ChevronDown, ChevronUp, Calendar
 } from 'lucide-react'
+import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
-const INITIAL_RECORDS = [
-  { id: 1, product: 'Seal Packing Line A', startTime: '08:00', endTime: '14:00', noOfLabour: 12, date: '27/05/2025', note: 'Morning shift, full capacity run.' },
-  { id: 2, product: 'Bottle Filling Unit', startTime: '09:00', endTime: '13:30', noOfLabour: 8,  date: '27/05/2025', note: '' },
-  { id: 3, product: 'Sticker Application', startTime: '10:00', endTime: '16:00', noOfLabour: 5,  date: '27/05/2025', note: 'Machine maintenance at 12:00 - 30 min stop.' },
-  { id: 4, product: 'Seal Packing Line B', startTime: '07:30', endTime: '15:30', noOfLabour: 10, date: '03/06/2025', note: '' },
-  { id: 5, product: 'Carton Assembly',     startTime: '08:00', endTime: '12:00', noOfLabour: 6,  date: '03/06/2025', note: 'Short run - material shortage.' },
-  { id: 6, product: 'Bottle Filling Unit', startTime: '13:00', endTime: '18:00', noOfLabour: 9,  date: '08/04/2026', note: '' },
-]
 
 const DAILY_TABLE_COLS = ['56px', '320px', '130px', '130px', '140px', '130px', '130px']
 
 function parseDMY(str) {
+  if (!str) return null
   const [d, m, y] = str.split('/')
-  return new Date(`${y}-${m}-${d}`)
+  if (!d || !m || !y) return null
+  const date = new Date(`${y}-${m}-${d}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function calcHours(start, end) {
@@ -41,6 +38,9 @@ export default function DailyProductionPage() {
 
   const [records, setRecords] = useState([])
   const [search, setSearch]   = useState('')
+  const [filterProduct, setFilterProduct] = useState('All Products')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [viewRecord, setViewRecord] = useState(null)
   const [showReport, setShowReport] = useState(false)
@@ -63,7 +63,7 @@ export default function DailyProductionPage() {
     endTime: String(entry?.endTime || entry?.end_time || '').trim(),
     noOfLabour: Number(entry?.noOfLabour || entry?.no_of_labour) || 0,
     date: toDMY(parent.date),
-    note: String(parent.note || '').trim(),
+    note: String(entry?.note || parent.note || '').trim(),
   })
 
   const loadFromApi = async () => {
@@ -86,14 +86,36 @@ export default function DailyProductionPage() {
   }
 
   useEffect(() => { loadFromApi() }, [])
+
+  const productOptions = useMemo(() => {
+    const products = records.map((record) => record.product).filter(Boolean)
+    return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
   const filtered = useMemo(() => {
-    if (!search) return records
     const q = search.toLowerCase()
-    return records.filter(r =>
-      [r.product, r.startTime, r.endTime, r.noOfLabour, r.date, r.note]
-        .join(' ').toLowerCase().includes(q)
-    )
-  }, [records, search])
+    return records.filter(r => {
+      const text = [r.product, r.startTime, r.endTime, r.noOfLabour, r.date, r.note]
+        .join(' ').toLowerCase()
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesProduct = filterProduct === 'All Products' || r.product === filterProduct
+      const rowDate = parseDMY(r.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesProduct && matchesFrom && matchesTo
+    })
+  }, [records, search, filterProduct, filterDateFrom, filterDateTo])
+
+  const resetFilters = () => {
+    setSearch('')
+    setFilterProduct('All Products')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setSelected([])
+  }
+
   const grouped = useMemo(() => {
     const map = {}
     filtered.forEach(r => {
@@ -101,11 +123,20 @@ export default function DailyProductionPage() {
       map[r.date].push(r)
     })
     // Sort dates descending
-    return Object.entries(map).sort((a, b) => parseDMY(b[0]) - parseDMY(a[0]))
+    return Object.entries(map).sort((a, b) => (parseDMY(b[0]) || 0) - (parseDMY(a[0]) || 0))
   }, [filtered])
   const toggleSelect  = (id)  => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll     = ()    => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
   const toggleDate    = (date) => setCollapsedDates(p => ({ ...p, [date]: !p[date] }))
+  const toggleDateBatch = (dateRecords) => {
+    const ids = dateRecords.map((row) => row.id)
+    const allSelected = ids.every((id) => selected.includes(id))
+    setSelected((prev) => (
+      allSelected
+        ? prev.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...prev, ...ids]))
+    ))
+  }
   const handleDelete = async (id) => {
     const target = records.find((row) => row.id === id)
     if (!target) return
@@ -149,11 +180,11 @@ export default function DailyProductionPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'daily-production.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Daily Production Report</title><style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}.date-row{background:#f9fafb;font-weight:700;color:#374151;padding:8px;font-size:13px}</style></head><body><h2>Daily Production Report</h2><p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p><table><tr><th>Product</th><th>Start</th><th>End</th><th>Hours</th><th>Labour</th><th>Date</th><th>Note</th></tr>${rows.map(r => `<tr><td>${r.product}</td><td>${r.startTime}</td><td>${r.endTime}</td><td>${calcHours(r.startTime, r.endTime)}</td><td>${r.noOfLabour}</td><td>${r.date}</td><td>${r.note || '-'}</td></tr>`).join('')}</table></body></html>`)
-    win.document.close(); win.print()
-  }
+  const reportRows = useMemo(() => exportRows.map((r) => ({
+    ...r,
+    hours: calcHours(r.startTime, r.endTime),
+    note: r.note || '-',
+  })), [exportRows])
 
   return (
     <DashboardLayout>
@@ -166,8 +197,8 @@ export default function DailyProductionPage() {
             <p style={s.pageSubtitle}>View and manage production entries.</p>
           </div>
           <div style={s.headerActions}>
-            <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReport(v => !v)}><Eye size={15} /> View Report</button>
+            <button style={s.iconBtn} title="Reset" onClick={resetFilters}><RotateCcw size={16} /></button>
+            <button style={s.reportBtn} onClick={() => setShowReport(true)}><FileText size={14} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/daily-production/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>
@@ -183,25 +214,27 @@ export default function DailyProductionPage() {
           </div>
         ) : null}
 
-        {/* Report Panel */}
-        {showReport && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}><FileText size={14} color="#2d7a33" />Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:</span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Search */}
-        <div style={s.searchWrap}>
-          <Search size={15} color="#7a8a7a" />
-          <input style={s.searchInput} placeholder="Search by product..." value={search} onChange={e => setSearch(e.target.value)} />
-          {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+        <div style={s.controlsCard}>
+          <div style={s.filtersRow}>
+            <StoreThemeDropdown
+              value={filterProduct}
+              onChange={setFilterProduct}
+              placeholder="All Products"
+              variant="pill"
+              options={[
+                { value: 'All Products', label: 'All Products' },
+                ...productOptions.map((product) => ({ value: product, label: product })),
+              ]}
+            />
+            <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+            <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+          </div>
+          <div style={s.searchWrap}>
+            <Search size={15} color="#7a8a7a" />
+            <input style={s.searchInput} placeholder="Search by product..." value={search} onChange={e => setSearch(e.target.value)} />
+            {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+          </div>
         </div>
 
         {/* Table */}
@@ -243,12 +276,34 @@ export default function DailyProductionPage() {
             const isCollapsed = collapsedDates[date]
             const totalLabour = dateRecords.reduce((sum, r) => sum + Number(r.noOfLabour), 0)
             const dateSelected = dateRecords.filter(r => selected.includes(r.id)).length
+            const dateAllSelected = dateSelected === dateRecords.length && dateRecords.length > 0
 
             return (
               <div key={date} style={s.dateGroup}>
                 {/* Date Section Header */}
                 <button style={s.dateSectionBtn} onClick={() => toggleDate(date)}>
                   <div style={s.dateSectionLeft}>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={dateAllSelected ? 'Unselect this date batch' : 'Select this date batch'}
+                      style={s.dateBatchSelect}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleDateBatch(dateRecords)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          toggleDateBatch(dateRecords)
+                        }
+                      }}
+                    >
+                      {dateAllSelected
+                        ? <CheckSquare size={15} color="#54B45B" />
+                        : <Square size={15} color="#9ca3af" />}
+                    </span>
                     <Calendar size={14} color="#2d7a33" />
                     <span style={s.dateSectionLabel}>{date}</span>
                     <span style={s.dateSectionCount}>{dateRecords.length} {dateRecords.length === 1 ? 'entry' : 'entries'}</span>
@@ -306,6 +361,22 @@ export default function DailyProductionPage() {
         </div>
       </div>
 
+      {showReport ? (
+        <ReportModal
+          title="Daily Production"
+          data={reportRows}
+          columns={[
+            { key: 'product', label: 'Product' },
+            { key: 'startTime', label: 'Start' },
+            { key: 'endTime', label: 'End' },
+            { key: 'hours', label: 'Hours' },
+            { key: 'noOfLabour', label: 'Labour' },
+            { key: 'date', label: 'Date' },
+            { key: 'note', label: 'Note' },
+          ]}
+          onClose={() => setShowReport(false)}
+        />
+      ) : null}
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
     </DashboardLayout>
   )
@@ -443,6 +514,20 @@ const s = {
     color: '#ef4444',
     cursor: 'pointer',
   },
+  controlsCard: {
+    backgroundColor: '#f2f4f2',
+    borderRadius: RADIUS,
+    padding: '14px 16px',
+    border: '1px solid #e2e8e2',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+    marginBottom: 14,
+  },
+  filtersRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 12,
+    marginBottom: 14,
+  },
   searchWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -451,7 +536,6 @@ const s = {
     border: '1px solid #d4dfd4',
     borderRadius: 40,
     padding: '10px 14px',
-    marginBottom: 14,
   },
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
   clearBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#7a8a7a', display: 'flex', padding: 0 },
@@ -476,6 +560,18 @@ const s = {
   dateGroup: { borderBottom: '1px solid #d4dfd4' },
   dateSectionBtn: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#e8eee8', border: 'none', cursor: 'pointer', borderBottom: '1px solid #d4dfd4' },
   dateSectionLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  dateBatchSelect: {
+    width: 24,
+    height: 24,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    background: '#ffffff',
+    border: '1px solid #d4dfd4',
+    cursor: 'pointer',
+    flex: '0 0 auto',
+  },
   dateSectionLabel: { fontSize: 13.5, fontWeight: 700, color: '#1f2f21' },
   dateSectionCount: { fontSize: 11.5, color: '#2d7a33', background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '2px 8px', fontWeight: 700 },
   dateSectionLabour: { fontSize: 12, color: '#607062' },

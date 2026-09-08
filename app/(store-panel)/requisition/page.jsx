@@ -9,54 +9,25 @@ import {
   Search, X, ChevronDown, ChevronUp, CheckSquare,
   Square, CornerUpLeft, FileSpreadsheet, Download, FileText
 } from 'lucide-react'
-const PRODUCTS = [
-  { id: 1, name: '69 mm Seal',      category: 'Seal',    subCategory: '69mm',     unit: 'Unit' },
-  { id: 2, name: '72 MM Seal',      category: 'Seal',    subCategory: '72mm',     unit: 'Unit' },
-  { id: 3, name: '500ml Bottle',    category: 'Bottle',  subCategory: '500ml',    unit: 'Unit' },
-  { id: 4, name: '1L Bottle',       category: 'Bottle',  subCategory: '1L',       unit: 'Unit' },
-  { id: 5, name: 'Front Sticker',   category: 'Sticker', subCategory: 'Front',    unit: 'Unit' },
-  { id: 6, name: 'Standard Carton', category: 'Carton',  subCategory: 'Standard', unit: 'Unit' },
-]
+import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
-const INITIAL_RECORDS = [
-  {
-    id: 1, receiverName: 'SAJJAD', entryBy: 'Demo Account', entryDate: '22/05/2025',
-    comment: '',
-    items: [{ productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 1000, unit: 'Unit', returned: 0 }],
-  },
-  {
-    id: 2, receiverName: 'HAMID', entryBy: 'Demo Account', entryDate: '27/05/2025',
-    comment: 'Urgent requirement for production line.',
-    items: [{ productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 2000, unit: 'Unit', returned: 200 }],
-  },
-  {
-    id: 3, receiverName: 'GULFAM', entryBy: 'Demo Account', entryDate: '27/05/2025',
-    comment: '',
-    items: [{ productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 1100, unit: 'Unit', returned: 0 }],
-  },
-  {
-    id: 4, receiverName: 'xyz', entryBy: 'Demo Account', entryDate: '28/05/2025',
-    comment: 'Mixed order for two departments. Please ensure careful handling.',
-    items: [
-      { productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 100 },
-      { productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 100, unit: 'Unit', returned: 0 },
-    ],
-  },
-  {
-    id: 5, receiverName: 'ADNAN', entryBy: 'Demo Account', entryDate: '03/06/2025',
-    comment: '',
-    items: [
-      { productId: 2, productName: '72 MM Seal', subCategory: '72mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 50 },
-      { productId: 1, productName: '69 mm seal', subCategory: '69mm', category: 'Seal', quantity: 500, unit: 'Unit', returned: 0 },
-    ],
-  },
-]
+function parseDMYDate(value) {
+  const [d, m, y] = String(value || '').split('/')
+  if (!d || !m || !y) return null
+  const date = new Date(`${y}-${m}-${d}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
 export default function RequisitionPage() {
   const router = useRouter()
 
   const [records, setRecords]             = useState([])
   const [search, setSearch]               = useState('')
+  const [filterReceiver, setFilterReceiver] = useState('All Receivers')
+  const [filterCategory, setFilterCategory] = useState('All Categories')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected]           = useState([])
   const [expandedComment, setExpandedComment] = useState(null)
   const [returnModal, setReturnModal]     = useState(null)   // { record, itemIdx }
@@ -75,6 +46,7 @@ export default function RequisitionPage() {
   const normalizeItem = (item) => ({
     productId: item?.productId ?? item?.product_id ?? '',
     productName: String(item?.productName || item?.product_name || '').trim(),
+    brand: String(item?.brand || item?.brandName || item?.brand_name || 'General').trim() || 'General',
     subCategory: String(item?.subCategory || item?.sub_category || '').trim(),
     category: String(item?.category || '').trim(),
     quantity: Number(item?.quantity) || 0,
@@ -106,16 +78,45 @@ export default function RequisitionPage() {
   }
 
   useEffect(() => { loadFromApi() }, [])
+
+  const receiverOptions = useMemo(() => {
+    const receivers = records.map((record) => record.receiverName).filter(Boolean)
+    return Array.from(new Set(receivers)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
+  const categoryOptions = useMemo(() => {
+    const categories = records.flatMap((record) => record.items.map((item) => item.category)).filter(Boolean)
+    return Array.from(new Set(categories)).sort((a, b) => a.localeCompare(b))
+  }, [records])
+
   const filtered = useMemo(() => {
-    if (!search) return records
     const q = search.toLowerCase()
-    return records.filter(r =>
-      [
+    return records.filter(r => {
+      const text = [
         r.receiverName, r.entryBy, r.entryDate, r.comment,
-        ...r.items.flatMap(i => [i.productName, i.subCategory, i.category, String(i.quantity), i.unit, String(i.returned), String(i.quantity - i.returned)])
-      ].join(' ').toLowerCase().includes(q)
-    )
-  }, [records, search])
+        ...r.items.flatMap(i => [i.productName, i.brand, i.subCategory, i.category, String(i.quantity), i.unit, String(i.returned), String(i.quantity - i.returned)])
+      ].join(' ').toLowerCase()
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesReceiver = filterReceiver === 'All Receivers' || r.receiverName === filterReceiver
+      const matchesCategory = filterCategory === 'All Categories' || r.items.some((item) => item.category === filterCategory)
+      const rowDate = parseDMYDate(r.entryDate)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesReceiver && matchesCategory && matchesFrom && matchesTo
+    })
+  }, [records, search, filterReceiver, filterCategory, filterDateFrom, filterDateTo])
+
+  const resetFilters = () => {
+    setSearch('')
+    setFilterReceiver('All Receivers')
+    setFilterCategory('All Categories')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setSelected([])
+  }
+
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll    = () => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
   const handleDelete = async (id) => {
@@ -147,20 +148,20 @@ export default function RequisitionPage() {
       const updated = await requisitionApi.returnGoods({ record_id: recordId, item_idx: itemIdx, return_qty: returnQty })
       const normalized = normalizeRecord(updated)
       setRecords(prev => prev.map(r => (r.id === normalized.id ? normalized : r)))
+      setLoadError('')
       setReturnModal(null)
     } catch (err) {
-      setLoadError(err?.message || 'Unable to record return')
-      setReturnModal(null)
+      throw new Error(err?.message || 'Unable to record return')
     }
   }
   const exportRows = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
 
   const exportCSV = (rows) => {
-    const headers = ['Receiver Name', 'Entry By', 'Entry Date', 'Product', 'Sub-Category', 'Category', 'Issued Qty', 'Returned Qty', 'Net Qty', 'Unit', 'Comment']
+    const headers = ['Receiver Name', 'Entry By', 'Entry Date', 'Product', 'Brand', 'Sub-Category', 'Category', 'Issued Qty', 'Returned Qty', 'Net Qty', 'Unit', 'Comment']
     const lines = rows.flatMap(r =>
       r.items.map(item => [
         r.receiverName, r.entryBy, r.entryDate,
-        item.productName, item.subCategory, item.category,
+        item.productName, item.brand, item.subCategory, item.category,
         item.quantity, item.returned, item.quantity - item.returned,
         item.unit, r.comment
       ].map(v => `"${v}"`).join(','))
@@ -171,17 +172,20 @@ export default function RequisitionPage() {
     a.download = 'goods-requisition.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Goods Requisition Report</title>
-    <style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}</style>
-    </head><body><h2>Goods Requisition Report</h2>
-    <p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p>
-    <table><tr><th>Receiver</th><th>Entry By</th><th>Date</th><th>Product</th><th>Sub-Category</th><th>Category</th><th>Issued</th><th>Returned</th><th>Net</th><th>Comment</th></tr>
-    ${rows.flatMap(r => r.items.map(item => `<tr><td>${r.receiverName}</td><td>${r.entryBy}</td><td>${r.entryDate}</td><td>${item.productName}</td><td>${item.subCategory}</td><td>${item.category}</td><td>${item.quantity} ${item.unit}</td><td>${item.returned} ${item.unit}</td><td>${item.quantity - item.returned} ${item.unit}</td><td>${r.comment || '-'}</td></tr>`)).join('')}
-    </table></body></html>`)
-    win.document.close(); win.print()
-  }
+  const reportRecords = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
+  const reportRows = useMemo(() => reportRecords.flatMap((r) => r.items.map((item) => ({
+      _groupId: r.id,
+      receiver: r.receiverName,
+      entryBy: r.entryBy,
+      date: r.entryDate,
+      product: item.productName,
+      brand: item.brand,
+      category: item.category,
+      issued: `${item.quantity} ${item.unit}`,
+      returned: `${item.returned} ${item.unit}`,
+      net: `${item.quantity - item.returned} ${item.unit}`,
+      comment: r.comment || '-',
+    }))), [reportRecords])
 
   return (
     <DashboardLayout>
@@ -194,11 +198,11 @@ export default function RequisitionPage() {
             <p style={s.pageSubtitle}>View and manage requisition entries.</p>
           </div>
           <div style={s.headerActions}>
-            <button style={s.iconBtn} title="Reset" onClick={() => { setSearch(''); setSelected([]) }}>
+            <button style={s.iconBtn} title="Reset" onClick={resetFilters}>
               <RotateCcw size={16} />
             </button>
-            <button style={s.reportBtn} onClick={() => setShowReport(v => !v)}>
-              <Eye size={15} /> View Report
+            <button style={s.reportBtn} onClick={() => setShowReport(true)}>
+              <FileText size={14} /> View Report
             </button>
             <button style={s.addBtn} onClick={() => router.push('/requisition/new')}>
               <Plus size={16} /> Add New Entry
@@ -217,35 +221,42 @@ export default function RequisitionPage() {
           </div>
         ) : null}
 
-        {/* Report Panel */}
-        {showReport && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}>
-                <FileText size={14} color="#2d7a33" />
-                Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:
-              </span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && (
-                  <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Keyword Search */}
-        <div style={s.searchWrap}>
-          <Search size={15} color="#7a8a7a" />
-          <input
-            style={s.searchInput}
-            placeholder="Search by receiver / entry by / date / product / sub-category / category / comment..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+        <div style={s.controlsCard}>
+          <div style={s.filtersRow}>
+            <StoreThemeDropdown
+              value={filterReceiver}
+              onChange={setFilterReceiver}
+              placeholder="All Receivers"
+              variant="pill"
+              options={[
+                { value: 'All Receivers', label: 'All Receivers' },
+                ...receiverOptions.map((receiver) => ({ value: receiver, label: receiver })),
+              ]}
+            />
+            <StoreThemeDropdown
+              value={filterCategory}
+              onChange={setFilterCategory}
+              placeholder="All Categories"
+              variant="pill"
+              options={[
+                { value: 'All Categories', label: 'All Categories' },
+                ...categoryOptions.map((category) => ({ value: category, label: category })),
+              ]}
+            />
+            <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+            <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+          </div>
+          <div style={s.searchWrap}>
+            <Search size={15} color="#7a8a7a" />
+            <input
+              style={s.searchInput}
+              placeholder="Search by receiver / entry by / date / product / sub-category / category / comment..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && <button style={s.clearBtn} onClick={() => setSearch('')}><X size={14} /></button>}
+          </div>
         </div>
 
         {/* Table */}
@@ -264,6 +275,7 @@ export default function RequisitionPage() {
                 <th style={s.th}>Entry By</th>
                 <th style={s.th}>Entry Date</th>
                 <th style={s.th}>Product</th>
+                <th style={s.th}>Brand</th>
                 <th style={s.th}>Sub-Category</th>
                 <th style={s.th}>Qty / Returned / Net</th>
                 <th style={s.th}>
@@ -276,7 +288,7 @@ export default function RequisitionPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={s.emptyCell}>
+                <tr><td colSpan={10} style={s.emptyCell}>
                   <div style={s.emptyState}>
                     <ClipboardList size={32} color="#d1d5db" />
                     <p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>No records found</p>
@@ -312,6 +324,11 @@ export default function RequisitionPage() {
                     {/* Product */}
                     <td style={s.td}>
                       <span style={s.productName}>{item.productName}</span>
+                    </td>
+
+                    {/* Brand */}
+                    <td style={s.td}>
+                      <span style={s.brandBadge}>{item.brand}</span>
                     </td>
 
                     {/* Sub-Category */}
@@ -406,6 +423,26 @@ export default function RequisitionPage() {
       {/* View Modal */}
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
 
+      {showReport ? (
+        <ReportModal
+          title="Goods Requisition"
+          data={reportRows}
+          columns={[
+            { key: 'receiver', label: 'Receiver', rowSpan: true },
+            { key: 'entryBy', label: 'Entry By', rowSpan: true },
+            { key: 'date', label: 'Date', rowSpan: true },
+            { key: 'product', label: 'Product' },
+            { key: 'brand', label: 'Brand' },
+            { key: 'category', label: 'Category' },
+            { key: 'issued', label: 'Issued' },
+            { key: 'returned', label: 'Returned' },
+            { key: 'net', label: 'Net' },
+            { key: 'comment', label: 'Comment', rowSpan: true },
+          ]}
+          onClose={() => setShowReport(false)}
+        />
+      ) : null}
+
       {/* Return Modal */}
       {returnModal && (
         <ReturnModal
@@ -440,7 +477,7 @@ function ViewModal({ record, onClose }) {
           <table style={s.innerTable}>
             <thead>
               <tr>
-                {['Product', 'Sub-Category', 'Category', 'Issued', 'Returned', 'Net'].map(h => (
+                {['Product', 'Brand', 'Sub-Category', 'Category', 'Issued', 'Returned', 'Net'].map(h => (
                   <th key={h} style={s.innerTh}>{h}</th>
                 ))}
               </tr>
@@ -449,6 +486,7 @@ function ViewModal({ record, onClose }) {
               {record.items.map((item, i) => (
                 <tr key={i}>
                   <td style={s.innerTd}>{item.productName}</td>
+                  <td style={s.innerTd}><span style={s.brandBadge}>{item.brand}</span></td>
                   <td style={s.innerTd}><span style={s.subCatBadge}>{item.subCategory}</span></td>
                   <td style={s.innerTd}>{item.category}</td>
                   <td style={s.innerTd}>{item.quantity} {item.unit}</td>
@@ -466,14 +504,23 @@ function ViewModal({ record, onClose }) {
 function ReturnModal({ record, itemIdx, onClose, onReturn }) {
   const item = record.items[itemIdx]
   const maxReturn = item.quantity - item.returned
-  const [qty, setQty]     = useState('')
-  const [error, setError] = useState('')
+  const [qty, setQty]             = useState('')
+  const [error, setError]         = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const n = Number(qty)
     if (!qty || isNaN(n) || n <= 0) { setError('Enter a valid quantity'); return }
     if (n > maxReturn) { setError(`Max returnable: ${maxReturn} ${item.unit}`); return }
-    onReturn(record.id, itemIdx, n)
+    setSubmitting(true)
+    setError('')
+    try {
+      await onReturn(record.id, itemIdx, n)
+    } catch (err) {
+      setError(err?.message || 'Unable to record return')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -488,7 +535,7 @@ function ReturnModal({ record, itemIdx, onClose, onReturn }) {
         </div>
         <div style={s.modalBody}>
           <div style={s.returnInfo}>
-            <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Product</span><span style={s.returnInfoVal}>{item.productName} ({item.subCategory})</span></div>
+            <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Product</span><span style={s.returnInfoVal}>{item.productName} ({item.brand} / {item.subCategory})</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Category</span><span style={s.returnInfoVal}>{item.category}</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Issued</span><span style={s.returnInfoVal}>{item.quantity} {item.unit}</span></div>
             <div style={s.returnInfoRow}><span style={s.returnInfoLabel}>Already Returned</span><span style={{ ...s.returnInfoVal, color: '#ef4444' }}>{item.returned} {item.unit}</span></div>
@@ -507,9 +554,13 @@ function ReturnModal({ record, itemIdx, onClose, onReturn }) {
             Returning will add goods back to stock and reduce the net consumed quantity.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-            <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button style={s.confirmReturnBtn} onClick={handleSubmit}>
-              <CornerUpLeft size={14} /> Confirm Return
+            <button style={s.cancelBtn} onClick={onClose} disabled={submitting}>Cancel</button>
+            <button
+              style={{ ...s.confirmReturnBtn, ...(submitting ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              <CornerUpLeft size={14} /> {submitting ? 'Returning...' : 'Confirm Return'}
             </button>
           </div>
         </div>
@@ -621,6 +672,20 @@ const s = {
     color: '#ef4444',
     cursor: 'pointer',
   },
+  controlsCard: {
+    backgroundColor: '#f2f4f2',
+    borderRadius: RADIUS,
+    padding: '14px 16px',
+    border: '1px solid #e2e8e2',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+    marginBottom: 14,
+  },
+  filtersRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 12,
+    marginBottom: 14,
+  },
   searchWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -629,7 +694,6 @@ const s = {
     border: '1px solid #d4dfd4',
     borderRadius: 40,
     padding: '10px 14px',
-    marginBottom: 14,
   },
   searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: '#1f2f21', background: 'transparent' },
   clearBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#7a8a7a', display: 'flex', padding: 0 },
@@ -640,12 +704,13 @@ const s = {
     overflowX: 'auto',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
   },
-  table: { width: '100%', minWidth: 1120, borderCollapse: 'collapse' },
+  table: { width: '100%', minWidth: 1220, borderCollapse: 'collapse' },
   thead: { background: '#e8eee8' },
   th: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: '#29472d', textAlign: 'left', borderBottom: '1px solid #d4dfd4', whiteSpace: 'nowrap', letterSpacing: '0.1px' },
   tr: { transition: 'background 0.15s' },
   td: { padding: '10px 14px', fontSize: 13, color: '#415443', borderBottom: '1px solid #e2e8e2', verticalAlign: 'top', background: '#ffffff' },
   productName: { fontSize: 13, fontWeight: 600, color: '#1f2f21' },
+  brandBadge: { display: 'inline-block', background: '#ffffff', border: '1px solid #cfe0d0', color: '#123416', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 800 },
   subCatBadge: { display: 'inline-block', background: '#eef2ee', border: '1px solid #d4dfd4', color: '#2d7a33', borderRadius: 40, padding: '2px 9px', fontSize: 11.5, fontWeight: 700 },
   qtyGroup: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   qtyIssued: { fontSize: 12.5, color: '#374151', fontWeight: 500 },

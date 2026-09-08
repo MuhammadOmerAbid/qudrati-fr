@@ -135,8 +135,8 @@ export default function ProductsPage() {
       }
       setModal(null)
       load()
-    } catch {
-      showToast('Failed to save product', 'error')
+    } catch (err) {
+      showToast(err?.message || 'Failed to save product', 'error')
     }
   }
 

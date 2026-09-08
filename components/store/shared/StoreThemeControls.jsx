@@ -20,6 +20,30 @@ function isSameValue(a, b) {
   return String(a ?? '') === String(b ?? '')
 }
 
+export const keyboardCellTriggerProps = { 'data-keyboard-cell': true }
+
+export function focusNextKeyboardCell(fromElement) {
+  if (typeof document === 'undefined') return
+  const current = fromElement || document.activeElement
+  const scope = current?.closest?.('[data-keyboard-cell-scope]')
+  if (!scope) return
+
+  const cells = Array.from(scope.querySelectorAll('[data-keyboard-cell]'))
+    .filter((cell) => {
+      const disabled = cell.disabled || cell.getAttribute('aria-disabled') === 'true'
+      return !disabled && cell.offsetParent !== null
+    })
+  const index = cells.indexOf(current)
+  const next = cells[index >= 0 ? index + 1 : 0]
+  next?.focus?.()
+}
+
+export function handleKeyboardCellEnter(event) {
+  if (event.key !== 'Enter') return
+  event.preventDefault()
+  focusNextKeyboardCell(event.currentTarget)
+}
+
 export function StoreThemeDropdown({
   value,
   onChange,
@@ -31,15 +55,45 @@ export function StoreThemeDropdown({
   variant = 'input',
   wrapStyle,
   triggerStyle,
+  triggerProps,
+  onSelectComplete,
 }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
   const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+  const searchRef = useRef(null)
   const normalizedOptions = useMemo(() => normalizeOptions(options), [options])
+  const filteredOptions = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return normalizedOptions
+    return normalizedOptions.filter((option) => (
+      String(option.label ?? '').toLowerCase().includes(needle) ||
+      String(option.value ?? '').toLowerCase().includes(needle)
+    ))
+  }, [normalizedOptions, query])
 
   const selected = useMemo(
     () => normalizedOptions.find((opt) => isSameValue(opt.value, value)),
     [normalizedOptions, value]
   )
+
+  const selectOption = (option) => {
+    if (!option) return
+    onChange(option.value)
+    setOpen(false)
+    setQuery('')
+    triggerRef.current?.focus()
+    if (onSelectComplete) {
+      window.setTimeout(() => onSelectComplete(option.value, option, triggerRef.current), 0)
+    }
+  }
+
+  const openMenu = () => {
+    if (disabled) return
+    setOpen(true)
+  }
 
   useEffect(() => {
     const onOutside = (event) => {
@@ -56,11 +110,68 @@ export function StoreThemeDropdown({
     }
   }, [])
 
+  useEffect(() => {
+    if (!open) return
+    const selectedIndex = normalizedOptions.findIndex((option) => isSameValue(option.value, value))
+    setQuery('')
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+    window.setTimeout(() => searchRef.current?.focus(), 0)
+  }, [open])
+
+  useEffect(() => {
+    setActiveIndex((prev) => {
+      if (!filteredOptions.length) return 0
+      return Math.min(prev, filteredOptions.length - 1)
+    })
+  }, [filteredOptions.length])
+
+  const handleTriggerKeyDown = (event) => {
+    if (disabled) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      openMenu()
+      setActiveIndex((prev) => {
+        if (!filteredOptions.length) return 0
+        if (event.key === 'ArrowDown') return Math.min(prev + 1, filteredOptions.length - 1)
+        return Math.max(prev - 1, 0)
+      })
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      if (open) {
+        selectOption(filteredOptions[activeIndex])
+      } else {
+        openMenu()
+      }
+    }
+  }
+
+  const handleSearchKeyDown = (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((prev) => Math.min(prev + 1, Math.max(filteredOptions.length - 1, 0)))
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((prev) => Math.max(prev - 1, 0))
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      selectOption(filteredOptions[activeIndex])
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+  }
+
   const triggerBase = variant === 'pill' ? styles.dropdownTriggerPill : styles.dropdownTriggerInput
 
   return (
     <div ref={rootRef} style={{ ...styles.dropdownWrap, ...(wrapStyle || {}) }} className="store-theme-dropdown">
       <button
+        ref={triggerRef}
         type="button"
         className="store-theme-dropdown-trigger"
         style={{
@@ -71,7 +182,11 @@ export function StoreThemeDropdown({
           ...(triggerStyle || {}),
         }}
         onClick={() => !disabled && setOpen((prev) => !prev)}
+        onKeyDown={handleTriggerKeyDown}
         disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        {...(triggerProps || {})}
       >
         <span style={selected ? styles.dropdownValue : styles.dropdownPlaceholder}>
           {selected?.label || placeholder}
@@ -86,24 +201,45 @@ export function StoreThemeDropdown({
       </button>
 
       {open && !disabled ? (
-        <div style={styles.dropdownMenu} className="store-theme-dropdown-menu">
-          {normalizedOptions.map((option) => {
+        <div style={styles.dropdownMenu} className="store-theme-dropdown-menu" role="listbox">
+          <div style={styles.dropdownSearchWrap}>
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setActiveIndex(0)
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search..."
+              style={styles.dropdownSearchInput}
+              className="store-theme-dropdown-search"
+            />
+          </div>
+          {filteredOptions.length ? filteredOptions.map((option, index) => {
             const active = isSameValue(option.value, value)
+            const highlighted = index === activeIndex
             return (
               <button
                 key={String(option.value)}
                 type="button"
                 className={`store-theme-dropdown-item${active ? ' store-theme-dropdown-item-active' : ''}`}
-                style={{ ...styles.dropdownItem, ...(active ? styles.dropdownItemActive : {}) }}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
+                style={{
+                  ...styles.dropdownItem,
+                  ...(highlighted ? styles.dropdownItemHighlighted : {}),
+                  ...(active ? styles.dropdownItemActive : {}),
                 }}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => selectOption(option)}
+                role="option"
+                aria-selected={active}
               >
                 {option.label}
               </button>
             )
-          })}
+          }) : (
+            <div style={styles.dropdownEmpty}>No results</div>
+          )}
         </div>
       ) : null}
     </div>
@@ -475,10 +611,37 @@ const styles = {
     color: '#1f2f21',
     cursor: 'pointer',
   },
+  dropdownSearchWrap: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    background: '#fff',
+    padding: '4px 4px 6px',
+  },
+  dropdownSearchInput: {
+    width: '100%',
+    border: '1px solid #d4dfd4',
+    borderRadius: 8,
+    background: '#f8faf8',
+    color: '#1f2f21',
+    fontSize: 12.5,
+    outline: 'none',
+    padding: '8px 9px',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  dropdownItemHighlighted: {
+    background: '#f1f6f1',
+  },
   dropdownItemActive: {
     background: '#e8f0e8',
     color: '#1f7a2b',
     fontWeight: 700,
+  },
+  dropdownEmpty: {
+    padding: '10px',
+    color: '#7a8a7a',
+    fontSize: 12.5,
   },
   dropdownDisabled: {
     background: '#f4f6f4',

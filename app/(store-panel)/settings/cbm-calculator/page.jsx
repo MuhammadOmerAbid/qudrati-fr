@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { cbmProductsApi } from '@/infrastructure/api/endpoints'
-import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save, Pencil, X, Printer } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
+import { openReportWindow, getUserDisplayName } from '@/lib/reportDesign'
 
 const UNITS = ['Inch', 'CM', 'MM']
 const WEIGHT_UNITS = ['Kg', 'Gram', 'Lb']
+const CONTAINER_PRESETS = {
+  '40ft': { capacity: '66', weight: '26500' },
+  '20ft': { capacity: '33', weight: '13500' },
+}
 
 function toCM(value, unit) {
   const num = parseFloat(value) || 0
@@ -93,27 +98,36 @@ export default function CBMCalculatorPage() {
   const { user } = useAuthStore()
   const isSuperuser = user?.role === 'superuser'
   const [rows, setRows] = useState([emptyRow()])
+  const [editingIds, setEditingIds] = useState(new Set())
+  const [originalRows, setOriginalRows] = useState(new Map())
   const [containerType, setContainerType] = useState('40ft')
+  const [containerCapacity, setContainerCapacity] = useState(CONTAINER_PRESETS['40ft'].capacity)
+  const [containerMaxWeight, setContainerMaxWeight] = useState(CONTAINER_PRESETS['40ft'].weight)
   const [isMobile, setIsMobile] = useState(false)
   const [loadingRows, setLoadingRows] = useState(false)
 
-  const containerCBM = containerType === '40ft' ? 66 : 33
-  const containerWeight = containerType === '40ft' ? 26500 : 13500
+  const containerCBM = parseFloat(containerCapacity) || 0
+  const containerWeight = parseFloat(containerMaxWeight) || 0
 
   const saveRow = async (id, rowOverride = null) => {
     const target = rowOverride || rows.find((row) => row.id === id)
     const payload = target ? rowPayload(target) : null
-    if (!payload) return
+    if (!payload) return null
 
     try {
       const saved = isLocalRow(id)
         ? await cbmProductsApi.create(payload)
         : await cbmProductsApi.update(id, payload)
       setRows((prev) => prev.map((row) => row.id === id ? normalizeRow(saved) : row))
+      setEditingIds((prev) => { const next = new Set(prev); next.delete(saved.id); return next })
+      setOriginalRows((prev) => { const next = new Map(prev); next.delete(saved.id); return next })
+      return saved
     } catch {
       // Keep the local row editable if the network/API call fails.
+      return null
     }
   }
+  const isEditing = (id) => isLocalRow(id) || editingIds.has(id)
   const updateRow = (id, field, value, shouldSave = false) => {
     let nextTarget = null
     setRows((prev) => prev.map((row) => {
@@ -126,7 +140,26 @@ export default function CBMCalculatorPage() {
     }
   }
 
-  const addRow = () => setRows((prev) => [...prev, emptyRow()])
+  const startEditing = (id) => {
+    const row = rows.find((r) => r.id === id)
+    if (!row || isLocalRow(id)) return
+    setOriginalRows((prev) => new Map(prev).set(id, { ...row }))
+    setEditingIds((prev) => new Set(prev).add(id))
+  }
+
+  const cancelEditing = (id) => {
+    const original = originalRows.get(id)
+    if (original) {
+      setRows((prev) => prev.map((row) => (row.id === id ? { ...original } : row)))
+    }
+    setEditingIds((prev) => { const next = new Set(prev); next.delete(id); return next })
+    setOriginalRows((prev) => { const next = new Map(prev); next.delete(id); return next })
+  }
+
+  const addRow = () => {
+    const row = emptyRow()
+    setRows((prev) => [...prev, row])
+  }
   const removeRow = async (id) => {
     if (!isSuperuser) return
     if (!isLocalRow(id)) {
@@ -136,17 +169,26 @@ export default function CBMCalculatorPage() {
         return
       }
     }
-    setRows((prev) => prev.length > 1 ? prev.filter((row) => row.id !== id) : prev)
+    setRows((prev) => {
+      const nextRows = prev.filter((row) => row.id !== id)
+      return nextRows.length ? nextRows : [emptyRow()]
+    })
   }
   const resetRows = async () => {
     if (!isSuperuser) return
-    const persistedRows = rows.filter((row) => !isLocalRow(row.id))
+    const nextRows = rows.map((row) => ({ ...row, quantity: '' }))
+    const persistedRows = nextRows.filter((row) => !isLocalRow(row.id))
     try {
-      await Promise.all(persistedRows.map((row) => cbmProductsApi.delete(row.id)))
+      await Promise.all(
+        persistedRows
+          .map((row) => ({ id: row.id, payload: rowPayload(row) }))
+          .filter((row) => row.payload)
+          .map((row) => cbmProductsApi.update(row.id, row.payload))
+      )
     } catch {
       return
     }
-    setRows([emptyRow()])
+    setRows(nextRows)
   }
   const loadSample = async () => {
     const existingItems = new Set(rows.map((row) => String(row.item || '').trim().toLowerCase()).filter(Boolean))
@@ -173,8 +215,77 @@ export default function CBMCalculatorPage() {
   const totalWeightUsed = computed.reduce((sum, row) => sum + row.totalWeight, 0)
   const hasWeightInput = rows.some((row) => String(row.weightPerCarton || '').trim() !== '')
   const cbmRemaining = containerCBM - totalCBMUsed
-  const cbmPct = Math.min((totalCBMUsed / containerCBM) * 100, 100)
-  const weightPct = totalWeightUsed > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
+  const cbmPct = containerCBM > 0 ? Math.min((totalCBMUsed / containerCBM) * 100, 100) : 0
+  const weightPct = totalWeightUsed > 0 && containerWeight > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
+
+  const printableRows = computed.filter((row) => (parseFloat(row.quantity) || 0) > 0)
+
+  const printReport = () => {
+    if (!printableRows.length) return
+    const printTotalCBM = printableRows.reduce((sum, row) => sum + row.totalCBM, 0)
+    const printTotalWeight = printableRows.reduce((sum, row) => sum + row.totalWeight, 0)
+    const printCbmRemaining = containerCBM - printTotalCBM
+
+    const columns = [
+      { key: 'srNo', label: 'SR.NO', width: '5%' },
+      { key: 'item', label: 'Item', width: '18%' },
+      { key: 'dimensions', label: 'Dimensions (L × W × H)', width: '16%' },
+      { key: 'dimUnit', label: 'Unit', width: '6%' },
+      { key: 'quantity', label: 'Quantity', width: '8%' },
+      { key: 'weightPerCarton', label: 'Wt/Carton', width: '8%' },
+      { key: 'weightUnit', label: 'Wt Unit', width: '6%' },
+      { key: 'cbmPerCarton', label: 'CBM/Carton', width: '11%' },
+      { key: 'totalCBM', label: 'Total CBM', width: '11%' },
+      { key: 'totalWeight', label: 'Total Wt (Kg)', width: '11%' },
+    ]
+
+    const reportRows = printableRows.map((row, idx) => ({
+      srNo: idx + 1,
+      item: row.item || '-',
+      dimensions: `${row.length || '-'} × ${row.width || '-'} × ${row.height || '-'}`,
+      dimUnit: row.dimUnit || 'Inch',
+      quantity: row.quantity,
+      weightPerCarton: row.weightPerCarton || '-',
+      weightUnit: row.weightUnit || 'Kg',
+      cbmPerCarton: row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-',
+      totalCBM: row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-',
+      totalWeight: row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-',
+    }))
+
+    reportRows.push({
+      srNo: ' ',
+      item: 'TOTAL',
+      dimensions: ' ',
+      dimUnit: ' ',
+      quantity: printableRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0), 0),
+      weightPerCarton: ' ',
+      weightUnit: ' ',
+      cbmPerCarton: ' ',
+      totalCBM: printTotalCBM.toFixed(6),
+      totalWeight: printTotalWeight > 0 ? printTotalWeight.toFixed(2) : '-',
+    })
+
+    reportRows.push({
+      srNo: ' ',
+      item: `CBM REMAINING (${containerType.toUpperCase()} - ${containerCBM} m³)`,
+      dimensions: ' ',
+      dimUnit: ' ',
+      quantity: ' ',
+      weightPerCarton: ' ',
+      weightUnit: ' ',
+      cbmPerCarton: ' ',
+      totalCBM: printCbmRemaining.toFixed(6),
+      totalWeight: ' ',
+    })
+
+    openReportWindow({
+      title: 'CBM + Weight Calculator',
+      subtitle: `${containerType.toUpperCase()} Container — Capacity: ${containerCBM} m³ / ${containerWeight} Kg`,
+      columns,
+      rows: reportRows,
+      generatedBy: getUserDisplayName(user),
+    })
+  }
 
   const summaryCards = [
     {
@@ -195,11 +306,25 @@ export default function CBMCalculatorPage() {
     },
     {
       label: 'Capacity',
-      value: containerCBM.toFixed(2),
+      value: containerCapacity,
       unit: 'm3',
       color: settingsTheme.textMuted,
       bg: '#f6f9f6',
       border: settingsTheme.border,
+      editable: true,
+      onChange: setContainerCapacity,
+      inputWidth: 86,
+    },
+    {
+      label: 'Weight Available',
+      value: containerMaxWeight,
+      unit: 'Kg',
+      color: settingsTheme.textMuted,
+      bg: '#f6f9f6',
+      border: settingsTheme.border,
+      editable: true,
+      onChange: setContainerMaxWeight,
+      inputWidth: 110,
     },
     ...(isMobile && !hasWeightInput ? [] : [{
       label: 'Total Weight',
@@ -213,12 +338,12 @@ export default function CBMCalculatorPage() {
 
   const progressCards = [
     {
-      label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM} m3`,
+      label: `CBM Used: ${totalCBMUsed.toFixed(3)} / ${containerCBM || 0} m3`,
       pct: cbmPct,
       color: cbmPct > 90 ? settingsTheme.danger : settingsTheme.primarySoft,
     },
     ...(hasWeightInput ? [{
-      label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight} Kg` : 'Enter weight per carton'}`,
+      label: `Weight: ${totalWeightUsed > 0 ? `${totalWeightUsed.toFixed(1)} / ${containerWeight || 0} Kg` : 'Enter weight per carton'}`,
       pct: weightPct,
       color: weightPct > 90 ? settingsTheme.danger : settingsTheme.primary,
     }] : []),
@@ -288,7 +413,15 @@ export default function CBMCalculatorPage() {
           </div>
           <SettingsSelect
             value={containerType}
-            onChange={(e) => setContainerType(e.target.value)}
+            onChange={(e) => {
+              const nextType = e.target.value
+              const preset = CONTAINER_PRESETS[nextType]
+              setContainerType(nextType)
+              if (preset) {
+                setContainerCapacity(preset.capacity)
+                setContainerMaxWeight(preset.weight)
+              }
+            }}
             wrapperStyle={{
               minWidth: isMobile ? 0 : 180,
               width: isMobile ? '100%' : 'auto',
@@ -309,12 +442,26 @@ export default function CBMCalculatorPage() {
         </div>
 
         <div style={{ ...summaryGrid, gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : summaryGrid.gridTemplateColumns }}>
-          {summaryCards.map(({ label, value, unit, color, bg, border }) => (
+          {summaryCards.map(({ label, value, unit, color, bg, border, editable, onChange, inputWidth }) => (
             <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 18px' }}>
               <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: settingsTheme.textMuted }}>{label}</p>
-              <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
-                {value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unit}</span>
-              </p>
+              {editable ? (
+                <div style={editableSummaryValue}>
+                  <input
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={{ ...summaryInput, width: inputWidth }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color }}>{unit}</span>
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>
+                  {value} <span style={{ fontSize: 13, fontWeight: 500 }}>{unit}</span>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -347,6 +494,21 @@ export default function CBMCalculatorPage() {
               <RotateCcw size={14} /> Reset
             </button>
           ) : null}
+          <button
+            onClick={printReport}
+            disabled={!printableRows.length}
+            style={{
+              ...outlineBtn,
+              color: printableRows.length ? settingsTheme.primarySoft : settingsTheme.textMuted,
+              borderColor: printableRows.length ? settingsTheme.primarySoft : settingsTheme.border,
+              opacity: printableRows.length ? 1 : 0.6,
+              cursor: printableRows.length ? 'pointer' : 'not-allowed',
+            }}
+            type="button"
+            title={printableRows.length ? `Print ${printableRows.length} item(s) with quantities` : 'Enter quantities to print'}
+          >
+            <Printer size={14} /> Print {printableRows.length > 0 ? `(${printableRows.length})` : ''}
+          </button>
         </div>
         {loadingRows ? (
           <div style={{ marginBottom: 12, fontSize: 12.5, fontWeight: 600, color: settingsTheme.textMuted }}>
@@ -360,64 +522,112 @@ export default function CBMCalculatorPage() {
               <div key={row.id} style={mobileRowCard}>
                 <div style={mobileRowHead}>
                   <span style={mobileRowIndex}>Row {idx + 1}</span>
-                  {isSuperuser && computed.length > 1 ? (
-                    <button
-                      onClick={() => removeRow(row.id)}
-                      style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      type="button"
-                    >
-                      <Trash2 size={13} color={settingsTheme.danger} />
-                    </button>
-                  ) : null}
+                  <div style={actionGroup}>
+                    {isEditing(row.id) ? (
+                      <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                        <Save size={13} />
+                      </button>
+                    ) : null}
+                    {isEditing(row.id) && !isLocalRow(row.id) ? (
+                      <button onClick={() => cancelEditing(row.id)} style={cancelIconBtn} type="button" title="Cancel">
+                        <X size={13} />
+                      </button>
+                    ) : null}
+                    {!isEditing(row.id) && isSuperuser ? (
+                      <button onClick={() => startEditing(row.id)} style={editIconBtn} type="button" title="Edit">
+                        <Pencil size={13} />
+                      </button>
+                    ) : null}
+                    {isSuperuser ? (
+                      <button onClick={() => removeRow(row.id)} style={deleteIconBtn} type="button" title="Delete">
+                        <Trash2 size={13} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div style={mobileFieldsGrid}>
                   <div style={mobileFieldFull}>
                     <label style={mobileLabel}>Item</label>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.item || '-'}</span>
+                    )}
                   </div>
 
                   <div>
                     <label style={mobileLabel}>Length</label>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.length || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Width</label>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.width || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Height</label>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.height || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Unit</label>
-                    <SettingsSelect
-                      value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
-                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
+                    {isEditing(row.id) ? (
+                      <SettingsSelect
+                        value={row.dimUnit}
+                        onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                        wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                        selectStyle={select({ width: '100%' })}
+                      >
+                        {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      </SettingsSelect>
+                    ) : (
+                      <span style={mobileReadCell}>{row.dimUnit}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Quantity</label>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input()} />
+                    <input
+                      value={row.quantity}
+                      onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                      onBlur={() => !isLocalRow(row.id) && saveRow(row.id)}
+                      placeholder="0"
+                      type="number"
+                      style={input()}
+                    />
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt/Carton</label>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Optional" type="number" style={input()} />
+                    {isEditing(row.id) ? (
+                      <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="Optional" type="number" style={input()} />
+                    ) : (
+                      <span style={mobileReadCell}>{row.weightPerCarton || '-'}</span>
+                    )}
                   </div>
                   <div>
                     <label style={mobileLabel}>Wt Unit</label>
-                    <SettingsSelect
-                      value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
-                      wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
+                    {isEditing(row.id) ? (
+                      <SettingsSelect
+                        value={row.weightUnit}
+                        onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                        wrapperStyle={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
+                        selectStyle={select({ width: '100%' })}
+                      >
+                        {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      </SettingsSelect>
+                    ) : (
+                      <span style={mobileReadCell}>{row.weightUnit}</span>
+                    )}
                   </div>
                 </div>
 
@@ -474,72 +684,112 @@ export default function CBMCalculatorPage() {
               </tr>
             </thead>
             <tbody>
-              {computed.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  style={{ borderBottom: `1px solid ${settingsTheme.borderSoft}` }}
-                >
-                  <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
-                  <td style={{ ...td, minWidth: 160 }}>
-                    <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="Item name" style={input()} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="L" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="W" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="H" type="number" style={input({ width: 68 })} />
-                  </td>
-                  <td style={td}>
-                    <SettingsSelect
-                      value={row.dimUnit}
-                      onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value, true)}
-                      wrapperStyle={{ width: 72 }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
-                  </td>
-                  <td style={td}>
-                    <input value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
-                  </td>
-                  <td style={td}>
-                    <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} onBlur={() => saveRow(row.id)} placeholder="0" type="number" style={input({ width: 72 })} />
-                  </td>
-                  <td style={td}>
-                    <SettingsSelect
-                      value={row.weightUnit}
-                      onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value, true)}
-                      wrapperStyle={{ width: 72 }}
-                      selectStyle={select({ width: '100%' })}
-                    >
-                      {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-                    </SettingsSelect>
-                  </td>
-                  <td style={{ ...td, color: settingsTheme.textMuted, fontFamily: 'monospace', fontSize: 12 }}>
-                    {row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}
-                  </td>
-                  <td style={{ ...td, fontWeight: 700, color: settingsTheme.primarySoft, fontFamily: 'monospace' }}>
-                    {row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}
-                  </td>
-                  <td style={{ ...td, fontWeight: 700, color: settingsTheme.primary, fontFamily: 'monospace' }}>
-                    {row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}
-                  </td>
-                  <td style={td}>
-                    {isSuperuser && computed.length > 1 && (
-                      <button
-                        onClick={() => removeRow(row.id)}
-                        style={{ border: '1px solid #fecaca', background: settingsTheme.dangerBg, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        type="button"
-                      >
-                        <Trash2 size={13} color={settingsTheme.danger} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {computed.map((row, idx) => {
+                const editing = isEditing(row.id)
+                return (
+                  <tr
+                    key={row.id}
+                    style={{ borderBottom: `1px solid ${settingsTheme.borderSoft}` }}
+                  >
+                    <td style={{ ...td, color: settingsTheme.textSubtle, fontWeight: 700 }}>{idx + 1}</td>
+                    <td style={{ ...td, minWidth: 180, textAlign: 'left' }}>
+                      {editing ? (
+                        <input value={row.item} onChange={(e) => updateRow(row.id, 'item', e.target.value)} placeholder="Item name" style={input()} />
+                      ) : (
+                        <span style={readCell}>{row.item || '-'}</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.length} onChange={(e) => updateRow(row.id, 'length', e.target.value)} placeholder="L" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.length || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.width} onChange={(e) => updateRow(row.id, 'width', e.target.value)} placeholder="W" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.width || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.height} onChange={(e) => updateRow(row.id, 'height', e.target.value)} placeholder="H" type="number" style={input({ width: 68 })} /> : <span style={readCell}>{row.height || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? (
+                        <SettingsSelect
+                          value={row.dimUnit}
+                          onChange={(e) => updateRow(row.id, 'dimUnit', e.target.value)}
+                          wrapperStyle={{ width: 72 }}
+                          selectStyle={select({ width: '100%' })}
+                        >
+                          {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                        </SettingsSelect>
+                      ) : (
+                        <span style={readCell}>{row.dimUnit}</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      <input
+                        value={row.quantity}
+                        onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                        onBlur={() => !isLocalRow(row.id) && saveRow(row.id)}
+                        placeholder="0"
+                        type="number"
+                        style={input({ width: 72 })}
+                      />
+                    </td>
+                    <td style={td}>
+                      {editing ? <input value={row.weightPerCarton} onChange={(e) => updateRow(row.id, 'weightPerCarton', e.target.value)} placeholder="0" type="number" style={input({ width: 72 })} /> : <span style={readCell}>{row.weightPerCarton || '-'}</span>}
+                    </td>
+                    <td style={td}>
+                      {editing ? (
+                        <SettingsSelect
+                          value={row.weightUnit}
+                          onChange={(e) => updateRow(row.id, 'weightUnit', e.target.value)}
+                          wrapperStyle={{ width: 72 }}
+                          selectStyle={select({ width: '100%' })}
+                        >
+                          {WEIGHT_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                        </SettingsSelect>
+                      ) : (
+                        <span style={readCell}>{row.weightUnit}</span>
+                      )}
+                    </td>
+                    <td style={{ ...td, color: settingsTheme.textMuted, fontFamily: 'monospace', fontSize: 12 }}>
+                      {row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-'}
+                    </td>
+                    <td style={{ ...td, fontWeight: 700, color: settingsTheme.primarySoft, fontFamily: 'monospace' }}>
+                      {row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-'}
+                    </td>
+                    <td style={{ ...td, fontWeight: 700, color: settingsTheme.primary, fontFamily: 'monospace' }}>
+                      {row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-'}
+                    </td>
+                    <td style={td}>
+                      <div style={actionGroup}>
+                        {editing ? (
+                          <button onClick={() => saveRow(row.id)} style={saveIconBtn} type="button" title="Save">
+                            <Save size={13} />
+                          </button>
+                        ) : null}
+                        {editing && !isLocalRow(row.id) ? (
+                          <button onClick={() => cancelEditing(row.id)} style={cancelIconBtn} type="button" title="Cancel">
+                            <X size={13} />
+                          </button>
+                        ) : null}
+                        {!editing && isSuperuser ? (
+                          <button onClick={() => startEditing(row.id)} style={editIconBtn} type="button" title="Edit">
+                            <Pencil size={13} />
+                          </button>
+                        ) : null}
+                        {isSuperuser ? (
+                          <button
+                            onClick={() => removeRow(row.id)}
+                            style={deleteIconBtn}
+                            type="button"
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr style={{ background: '#edf8ef', borderTop: `2px solid ${settingsTheme.border}` }}>
@@ -632,7 +882,7 @@ const subtitle = {
 
 const summaryGrid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
   marginBottom: 20,
 }
@@ -649,6 +899,24 @@ const progressCard = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 10,
   padding: '12px 16px',
+}
+
+const editableSummaryValue = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 6,
+}
+
+const summaryInput = {
+  border: 'none',
+  borderBottom: `1px solid ${settingsTheme.border}`,
+  background: 'transparent',
+  color: settingsTheme.text,
+  fontSize: 22,
+  fontWeight: 800,
+  outline: 'none',
+  padding: '0 0 2px',
+  fontFamily: 'inherit',
 }
 
 const tableWrap = {
@@ -699,6 +967,21 @@ const mobileLabel = {
   fontSize: 11.5,
   fontWeight: 700,
   color: settingsTheme.textMuted,
+}
+
+const mobileReadCell = {
+  display: 'flex',
+  minHeight: 33,
+  alignItems: 'center',
+  border: `1px solid ${settingsTheme.borderSoft}`,
+  borderRadius: 8,
+  background: '#f8faf8',
+  padding: '6px 8px',
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: settingsTheme.text,
+  boxSizing: 'border-box',
+  overflowWrap: 'anywhere',
 }
 
 const mobileStatsGrid = {
@@ -752,6 +1035,59 @@ const td = {
   verticalAlign: 'middle',
 }
 
+const readCell = {
+  display: 'inline-block',
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: settingsTheme.text,
+  lineHeight: 1.4,
+}
+
+const actionGroup = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+}
+
+const iconBtnBase = {
+  borderRadius: 8,
+  width: 28,
+  height: 28,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
+const saveIconBtn = {
+  ...iconBtnBase,
+  border: `1px solid ${settingsTheme.border}`,
+  background: '#edf8ef',
+  color: settingsTheme.primarySoft,
+}
+
+const deleteIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #fecaca',
+  background: settingsTheme.dangerBg,
+  color: settingsTheme.danger,
+}
+
+const editIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #bde0fe',
+  background: '#e8f4fd',
+  color: '#1976D2',
+}
+
+const cancelIconBtn = {
+  ...iconBtnBase,
+  border: '1px solid #fed7aa',
+  background: '#fff7ed',
+  color: '#e65100',
+}
+
 const primaryBtn = {
   display: 'flex',
   alignItems: 'center',
@@ -801,4 +1137,3 @@ const formulaNote = {
   border: `1px solid ${settingsTheme.border}`,
   borderRadius: 10,
 }
-

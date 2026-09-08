@@ -4,20 +4,65 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
-import { PACKINGS, PRODUCTS } from '@/components/store/shared/StoreShared'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-
-const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
+import { finishedGoodProductsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = (sr) => ({ sr, goods: '', packing: '', qty: '', status: 'Pending' })
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+function normalizeFinishedGoodProduct(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || '').trim()
+  if (!name) return null
+  return {
+    id: String(entry?.id ?? `fg-good-${idx}`),
+    name,
+    label: name,
+  }
+}
+
+function normalizePacking(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || entry?.packing || entry || '').trim()
+  if (!name) return null
+  return {
+    id: String(entry?.id ?? `packing-${idx}`),
+    name,
+  }
+}
+
+function uniqueByName(options) {
+  const seen = new Set()
+  return options.filter((entry) => {
+    const key = String(entry.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export default function ProductionOrderNewPage() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem(1)])
+  const [goodsOptions, setGoodsOptions] = useState([])
+  const [packingOptions, setPackingOptions] = useState([])
+  const [loadingGoods, setLoadingGoods] = useState(true)
+  const [loadingPacking, setLoadingPacking] = useState(true)
+  const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
@@ -29,6 +74,42 @@ export default function ProductionOrderNewPage() {
     apply()
     mobileQuery.addEventListener('change', apply)
     return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadOptions = async () => {
+      setLoadingGoods(true)
+      setLoadingPacking(true)
+      setLoadWarning('')
+      try {
+        const [goodsRes, packingRes] = await Promise.all([
+          finishedGoodProductsApi.list({ status: 'active' }),
+          packagingApi.list(),
+        ])
+        const nextGoods = toList(goodsRes)
+          .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx))
+          .filter(Boolean)
+        const nextPacking = toList(packingRes)
+          .map((entry, idx) => normalizePacking(entry, idx))
+          .filter(Boolean)
+        if (active) {
+          setGoodsOptions(uniqueByName(nextGoods))
+          setPackingOptions(uniqueByName(nextPacking))
+        }
+      } catch {
+        if (active) {
+          setGoodsOptions([])
+          setPackingOptions([])
+          setLoadWarning('Unable to load goods/packing from Settings.')
+        }
+      } finally {
+        if (active) setLoadingGoods(false)
+        if (active) setLoadingPacking(false)
+      }
+    }
+    loadOptions()
+    return () => { active = false }
   }, [])
 
   const updateItem = (index, key, value) => {
@@ -68,23 +149,20 @@ export default function ProductionOrderNewPage() {
     setSaving(true)
     try {
       const payload = {
-        id: Date.now(),
         name: name.trim() || `Order-${Date.now().toString().slice(-4)}`,
         date,
+        status: cleanItems.some((item) => item.status !== 'Completed') ? 'Pending' : 'Completed',
         items: cleanItems,
       }
 
-      const raw = window.sessionStorage.getItem(PRODUCTION_ORDER_DRAFT_KEY)
-      const existing = raw ? JSON.parse(raw) : []
-      window.sessionStorage.setItem(PRODUCTION_ORDER_DRAFT_KEY, JSON.stringify([payload, ...existing]))
+      await productionOrderApi.create(payload)
       incrementStoreEntries('production-order')
       router.push('/production-order')
-    } catch {
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, form: err?.message || 'Unable to save production order' }))
       setSaving(false)
     }
   }
-
-  const goodsOptions = [...new Set(Object.values(PRODUCTS).flat())]
 
   return (
     <DashboardLayout>
@@ -105,6 +183,9 @@ export default function ProductionOrderNewPage() {
         </div>
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
+          {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+          {errors.form ? <p style={s.errorBanner}>{errors.form}</p> : null}
+
           <div style={s.formRow}>
             <div style={s.formCol}>
               <label style={s.label}>Order Name</label>
@@ -133,7 +214,7 @@ export default function ProductionOrderNewPage() {
           {errors.items ? <p style={s.errorBanner}>{errors.items}</p> : null}
 
           {items.map((item, idx) => (
-            <div key={`row-${idx}`} style={s.itemCard}>
+            <div key={`row-${idx}`} style={s.itemCard} data-keyboard-cell-scope>
               <div style={s.itemTop}>
                 <span style={s.itemTitle}>Item {idx + 1}</span>
                 {items.length > 1 ? (
@@ -149,11 +230,13 @@ export default function ProductionOrderNewPage() {
                   <StoreThemeDropdown
                     value={item.goods}
                     onChange={(nextValue) => updateItem(idx, 'goods', nextValue)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
-                    placeholder="Select goods"
+                    triggerProps={keyboardCellTriggerProps}
+                    placeholder={loadingGoods ? 'Loading goods...' : 'Select goods'}
                     options={[
-                      { value: '', label: 'Select goods' },
-                      ...goodsOptions.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingGoods ? 'Loading goods...' : 'Select goods' },
+                      ...goodsOptions.map((entry) => ({ value: entry.name, label: entry.label })),
                     ]}
                   />
                 </div>
@@ -162,11 +245,13 @@ export default function ProductionOrderNewPage() {
                   <StoreThemeDropdown
                     value={item.packing}
                     onChange={(nextValue) => updateItem(idx, 'packing', nextValue)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
-                    placeholder="Select packing"
+                    triggerProps={keyboardCellTriggerProps}
+                    placeholder={loadingPacking ? 'Loading packing...' : 'Select packing'}
                     options={[
-                      { value: '', label: 'Select packing' },
-                      ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingPacking ? 'Loading packing...' : 'Select packing' },
+                      ...packingOptions.map((entry) => ({ value: entry.name, label: entry.name })),
                     ]}
                   />
                 </div>
@@ -176,7 +261,9 @@ export default function ProductionOrderNewPage() {
                     type="number"
                     min={0}
                     style={s.input}
+                    data-keyboard-cell
                     value={item.qty}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(idx, 'qty', e.target.value)}
                   />
                 </div>
@@ -398,5 +485,4 @@ const s = {
     padding: '8px 12px',
   },
 }
-
 

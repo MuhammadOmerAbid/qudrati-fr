@@ -12,6 +12,13 @@ export const usersApi = {
   create: (data) => post('/users/', data),
   update: (id, data) => patch(`/users/${id}/`, data),
   delete: (id) => del(`/users/${id}/`),
+  setPanelPassword: (id, panel_password) => post(`/users/${id}/set_panel_password/`, { panel_password }),
+}
+
+// ── Panel Password ───────────────────────────────────────────
+export const panelPasswordApi = {
+  verify: (panel_password) => post('/auth/verify-panel-password/', { panel_password }),
+  setOwn: (panel_password) => post('/auth/set-panel-password/', { panel_password }),
 }
 
 // ── Brands ───────────────────────────────────────────────────
@@ -58,7 +65,7 @@ export const unitsApi = {
 
 // ── Packing ──────────────────────────────────────────────────
 export const packingApi = {
-  list: () => get('/packing/'),
+  list: (params) => get('/packing/', params),
   create: (name) => post('/packing/', { name }),
   update: (id, name) => put(`/packing/${id}/`, { name }),
   toggleStatus: (id, status) => patch(`/packing/${id}/`, { status }),
@@ -108,6 +115,7 @@ export const gateOutwardApi = {
 export const inventoryApi = {
   list: (params) => get('/inventory/', params),
   updateComment: (id, comment) => patch(`/inventory/${id}/`, { comment }),
+  delete: (id) => del(`/inventory/${id}/`),
   history: (params) => get('/inventory/history/', params),
   report: (params, filename) => download('/inventory/report/', params, filename),
 }
@@ -141,6 +149,7 @@ export const dailyProductionApi = {
 export const productionOrderApi = {
   list: (params) => get('/production-orders/', params),
   create: (data) => post('/production-orders/', data),
+  update: (id, data) => patch(`/production-orders/${id}/`, data),
   updateItemStatus: (orderId, itemId, status) =>
     patch(`/production-orders/${orderId}/items/${itemId}/`, { status }),
   delete: (id) => del(`/production-orders/${id}/`),
@@ -149,10 +158,18 @@ export const productionOrderApi = {
 
 // ── Finished Goods ───────────────────────────────────────────
 export const finishedGoodsApi = {
-  list: (params) => get('/finished-goods/', params),
+  list: (params) => get('/finished-goods/', { transactions_only: true, ...(params || {}) }),
   create: (data) => post('/finished-goods/', data),
   update: (id, data) => patch(`/finished-goods/${id}/`, data),
   delete: (id) => del(`/finished-goods/${id}/`),
+}
+
+// Finished Good Products (master data used by product selectors)
+export const finishedGoodProductsApi = {
+  list: (params) => get('/finished-good-products/', params),
+  create: (data) => post('/finished-good-products/', data),
+  update: (id, data) => patch(`/finished-good-products/${id}/`, data),
+  delete: (id) => del(`/finished-good-products/${id}/`),
 }
 
 // ── Recipes ──────────────────────────────────────────────────

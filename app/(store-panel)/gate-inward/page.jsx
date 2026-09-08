@@ -5,46 +5,63 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { brandsApi, categoriesApi, gateInwardApi, productsApi, suppliersApi, unitsApi } from '@/infrastructure/api/endpoints'
 import {
   ArrowDownToLine, Plus, Eye, Trash2, RotateCcw,
   FileText, Download, Search, Calendar,
   ChevronDown, ChevronLeft, ChevronRight, Edit2, X, CheckSquare, Square, FileSpreadsheet
 } from 'lucide-react'
+import { ReportModal } from '@/components/store/shared/StoreShared'
+import { StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 
-const MOCK_SUPPLIERS = [
-  { id: 1, name: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore' },
-  { id: 2, name: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi' },
-  { id: 3, name: 'Hassan & Sons', address: 'Block C, Gulberg III, Lahore' },
-]
-const MOCK_BRANDS = [
-  { id: 1, name: 'Soghat' },
-  { id: 2, name: 'General' },
-  { id: 3, name: 'Premium' },
-]
-const MOCK_CATEGORIES = [
-  { id: 1, brandId: 2, name: 'Seal' },
-  { id: 2, brandId: 1, name: 'Bottle' },
-  { id: 3, brandId: 1, name: 'Sticker' },
-  { id: 4, brandId: 3, name: 'Carton' },
-]
-const MOCK_PRODUCTS = [
-  { id: 1, categoryId: 1, name: '69 mm Seal' },
-  { id: 2, categoryId: 1, name: '72 MM Seal' },
-  { id: 3, categoryId: 2, name: '500ml Bottle' },
-  { id: 4, categoryId: 2, name: '1L Bottle' },
-  { id: 5, categoryId: 3, name: 'Front Sticker' },
-  { id: 6, categoryId: 4, name: 'Standard Carton' },
-]
-const MOCK_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
 
-const INITIAL_RECORDS = [
-  { id: 1, grNo: 'QUD1', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: 'First delivery', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 12000, unit: 'Unit' }] },
-  { id: 2, grNo: 'QUD2', supplierId: 2, supplierName: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi', note: '', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 9800, unit: 'Unit' }, { brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 10500, unit: 'Unit' }] },
-  { id: 3, grNo: 'QUD3', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: 'Urgent order', receiveDate: '27/05/2025', status: 'Pending', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 1300, unit: 'Unit' }] },
-  { id: 4, grNo: 'QUD4', supplierId: 3, supplierName: 'Hassan & Sons', address: 'Block C, Gulberg III, Lahore', note: '', receiveDate: '27/05/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 1200, unit: 'Unit' }] },
-  { id: 5, grNo: 'QUD5', supplierId: 1, supplierName: 'Soghat Enterprises', address: 'Plot 12, Industrial Area, Lahore', note: '', receiveDate: '03/06/2025', status: 'Received', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 1, productName: '69 mm seal', quantity: 1230, unit: 'Unit' }] },
-  { id: 6, grNo: 'QUD6', supplierId: 2, supplierName: 'Al-Faisal Trading', address: 'Shop 5, Main Market, Karachi', note: 'Old stock', receiveDate: '08/06/1999', status: 'Pending', items: [{ brandId: 2, brandName: 'General', categoryId: 1, categoryName: 'Seal', productId: 2, productName: '72 MM Seal', quantity: 33, unit: 'Bags' }] },
-]
+
+function toDMY(isoDate) {
+  if (!isoDate) return ''
+  const [y, m, d] = String(isoDate).slice(0, 10).split('-')
+  if (!y || !m || !d) return String(isoDate)
+  return `${d}/${m}/${y}`
+}
+
+function toISODate(value) {
+  if (!value) return ''
+  const text = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  if (text.includes('/')) {
+    const [d, m, y] = text.split('/')
+    if (d && m && y) return `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return text
+}
+
+function normalizeGateInwardItem(raw = {}) {
+  return {
+    brandId: raw.brandId ?? raw.brand_id ?? raw.brand ?? '',
+    brandName: raw.brandName || raw.brand_name || '',
+    categoryId: raw.categoryId ?? raw.category_id ?? raw.category ?? '',
+    categoryName: raw.categoryName || raw.category_name || '',
+    productId: raw.productId ?? raw.product_id ?? raw.product ?? '',
+    productName: raw.productName || raw.product_name || '',
+    quantity: raw.quantity ?? '',
+    unit: raw.unit || '',
+  }
+}
+
+function normalizeGateInwardRecord(raw = {}) {
+  const items = Array.isArray(raw.items) ? raw.items.map(normalizeGateInwardItem) : []
+
+  return {
+    id: raw.id,
+    grNo: raw.grNo || raw.gr_no || `GI-${raw.id}`,
+    supplierId: raw.supplierId ?? raw.supplier ?? '',
+    supplierName: raw.supplierName || raw.supplier_name || '',
+    address: raw.address || '',
+    note: raw.note || '',
+    receiveDate: raw.receiveDate || toDMY(raw.receive_date),
+    status: raw.status || 'Received',
+    items,
+  }
+}
 
 function fmtItems(items, field) { return items.map(i => i[field]).join(', ') }
 function fmtQty(items) { return items.map(i => `${i.quantity} ${i.unit}`).join(', ') }
@@ -58,73 +75,17 @@ function DropdownField({
   compact = false,
   wrapStyle = {},
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-
-  const selected = useMemo(
-    () => options.find((opt) => String(opt.value) === String(value)),
-    [options, value]
-  )
-
-  useEffect(() => {
-    const onOutside = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false)
-    }
-    const onEsc = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onOutside)
-    document.addEventListener('keydown', onEsc)
-    return () => {
-      document.removeEventListener('mousedown', onOutside)
-      document.removeEventListener('keydown', onEsc)
-    }
-  }, [])
-
   return (
-    <div ref={rootRef} style={{ ...s.dropdownWrap, ...wrapStyle }} className="store-theme-dropdown">
-      <button
-        type="button"
-        className="store-theme-dropdown-trigger"
-        style={{
-          ...s.dropdownTrigger,
-          ...(compact ? s.dropdownTriggerCompact : {}),
-          ...(disabled ? s.dropdownDisabled : {}),
-        }}
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-      >
-        <span style={selected ? s.dropdownValue : s.dropdownPlaceholder}>
-          {selected?.label || placeholder}
-        </span>
-        <ChevronDown
-          size={12}
-          style={{ ...s.dropdownChevronIcon, transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}
-        />
-      </button>
-
-      {open && !disabled ? (
-        <div style={s.dropdownMenu} className="store-theme-dropdown-menu">
-          {options.map((option) => {
-            const active = String(option.value) === String(value)
-            return (
-              <button
-                key={String(option.value)}
-                type="button"
-                className={`store-theme-dropdown-item${active ? ' store-theme-dropdown-item-active' : ''}`}
-                style={{ ...s.dropdownItem, ...(active ? s.dropdownItemActive : {}) }}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
+    <StoreThemeDropdown
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      compact={compact}
+      variant="pill"
+      wrapStyle={wrapStyle}
+    />
   )
 }
 
@@ -356,7 +317,7 @@ export default function GateInwardPage() {
   const { user } = useAuthStore()
   const isSuperUser = user?.role === 'superuser'
 
-  const [records, setRecords] = useState(INITIAL_RECORDS)
+  const [records, setRecords] = useState([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('All Status')
   const [filterBrand, setFilterBrand] = useState('All Brands')
@@ -368,6 +329,13 @@ export default function GateInwardPage() {
   const [editRecord, setEditRecord] = useState(null)
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [categoryOptions, setCategoryOptions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [editModalSuppliers, setEditModalSuppliers] = useState([])
+  const [editModalBrands, setEditModalBrands] = useState([])
+  const [editModalProducts, setEditModalProducts] = useState([])
+  const [editModalUnits, setEditModalUnits] = useState([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -379,7 +347,67 @@ export default function GateInwardPage() {
   }, [])
 
   const allBrands = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.brandName)))], [records])
-  const allCategories = useMemo(() => [...new Set(records.flatMap(r => r.items.map(i => i.categoryName)))], [records])
+  const allCategories = useMemo(() => {
+    const fromRecords = records.flatMap(r => r.items.map(i => i.categoryName))
+    const fromSettings = categoryOptions.map((entry) => entry.name)
+    return [...new Set([...fromSettings, ...fromRecords].filter(Boolean))]
+  }, [categoryOptions, records])
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const [recordsRes, categoriesRes, suppliersRes, brandsRes, productsRes, unitsRes] = await Promise.all([
+          gateInwardApi.list(),
+          categoriesApi.list(),
+          suppliersApi.list(),
+          brandsApi.list(),
+          productsApi.list(),
+          unitsApi.list({ status: 'active' }),
+        ])
+        if (!active) return
+
+        const recordsList = Array.isArray(recordsRes) ? recordsRes : (recordsRes?.results || [])
+        const categoriesListRaw = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes?.results || [])
+        const suppliersList = Array.isArray(suppliersRes) ? suppliersRes : (suppliersRes?.results || [])
+        const brandsList = Array.isArray(brandsRes) ? brandsRes : (brandsRes?.results || [])
+        const productsListRaw = Array.isArray(productsRes) ? productsRes : (productsRes?.results || [])
+        const unitsList = Array.isArray(unitsRes) ? unitsRes : (unitsRes?.results || [])
+
+        const categoriesList = categoriesListRaw.map((entry) => ({
+          ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
+        }))
+        const productsList = productsListRaw.map((entry) => ({
+          ...entry,
+          brandId: String(entry.brand ?? entry.brand_id ?? ''),
+          categoryId: String(entry.category ?? entry.category_id ?? ''),
+        }))
+
+        setRecords(recordsList.map(normalizeGateInwardRecord).filter((row) => row.id != null))
+        setCategoryOptions(categoriesList.filter((entry) => entry.status !== false))
+        setEditModalSuppliers(suppliersList.filter((s) => s.id && s.name))
+        setEditModalBrands(brandsList.filter((b) => b.status !== false && b.id && b.name))
+        setEditModalProducts(productsList.filter((p) => p.status !== false && p.id && p.name))
+        setEditModalUnits(unitsList
+          .filter((u) => u?.status !== false && String(u?.status || '').toLowerCase() !== 'inactive')
+          .map((u) => String(u.name || u).trim())
+          .filter(Boolean))
+      } catch (err) {
+        if (active) {
+          setRecords([])
+          setCategoryOptions([])
+          setLoadError(err?.message || 'Unable to load gate inward records')
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    load()
+    return () => { active = false }
+  }, [])
 
   const parseDate = (str) => {
     if (!str) return null
@@ -404,12 +432,58 @@ export default function GateInwardPage() {
 
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll = () => setSelected(s => s.length === filtered.length ? [] : filtered.map(r => r.id))
-  const handleDelete = (id) => { if (window.confirm('Delete this record?')) setRecords(r => r.filter(x => x.id !== id)) }
-  const handleBulkDelete = () => {
-    if (!selected.length) return
-    if (window.confirm(`Delete ${selected.length} selected records?`)) { setRecords(r => r.filter(x => !selected.includes(x.id))); setSelected([]) }
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this record?')) return
+    try {
+      await gateInwardApi.delete(id)
+      setRecords(r => r.filter(x => x.id !== id))
+      setSelected(s => s.filter(x => x !== id))
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to delete gate inward record')
+    }
   }
-  const handleSaveEdit = (updated) => { setRecords(r => r.map(x => x.id === updated.id ? updated : x)); setEditRecord(null) }
+  const handleBulkDelete = async () => {
+    if (!selected.length) return
+    if (!window.confirm(`Delete ${selected.length} selected records?`)) return
+    try {
+      await Promise.all(selected.map((id) => gateInwardApi.delete(id)))
+      setRecords(r => r.filter(x => !selected.includes(x.id)))
+      setSelected([])
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to delete selected gate inward records')
+    }
+  }
+  const handleSaveEdit = async (updated) => {
+    const payload = {
+      gr_no: updated.grNo,
+      supplier: Number.isFinite(Number(updated.supplierId)) ? Number(updated.supplierId) : null,
+      supplier_name: updated.supplierName || '',
+      address: updated.address || '',
+      note: updated.note || '',
+      receive_date: toISODate(updated.receiveDate),
+      status: updated.status || 'Received',
+      items: (updated.items || []).map((item) => ({
+        brandId: Number(item.brandId) || null,
+        brandName: item.brandName || '',
+        categoryId: Number(item.categoryId) || null,
+        categoryName: item.categoryName || '',
+        productId: Number(item.productId) || null,
+        productName: item.productName || '',
+        quantity: Number(item.quantity) || 0,
+        unit: item.unit || '',
+      })),
+    }
+    try {
+      const saved = await gateInwardApi.update(updated.id, payload)
+      setRecords(r => r.map(x => x.id === updated.id ? normalizeGateInwardRecord(saved) : x))
+      setEditRecord(null)
+      setLoadError('')
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to update gate inward record')
+    }
+  }
 
   const exportRows = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
 
@@ -420,11 +494,18 @@ export default function GateInwardPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'gate-inward-report.csv'; a.click()
   }
 
-  const exportPDF = (rows) => {
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>Gate Inward Report</title><style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#2d7a33}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f0fdf4;color:#1a2e1b;padding:8px;text-align:left;border-bottom:2px solid #bbf7d0}td{padding:7px 8px;border-bottom:1px solid #e5e7eb}.r{background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}.p{background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}</style></head><body><h2>Gate Inward Report</h2><p style="color:#6b7280">Generated: ${new Date().toLocaleDateString('en-PK')}</p><table><thead><tr><th>GR No</th><th>Supplier</th><th>Brand</th><th>Category</th><th>Product</th><th>Quantity</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows.flatMap(r => r.items.map(item => `<tr><td>${r.grNo}</td><td>${r.supplierName}</td><td>${item.brandName}</td><td>${item.categoryName}</td><td>${item.productName}</td><td>${item.quantity} ${item.unit}</td><td>${r.receiveDate}</td><td><span class="${r.status === 'Received' ? 'r' : 'p'}">${r.status}</span></td></tr>`)).join('')}</tbody></table></body></html>`)
-    win.document.close(); win.print()
-  }
+  const reportRecords = selected.length > 0 ? records.filter(r => selected.includes(r.id)) : filtered
+  const reportRows = useMemo(() => reportRecords.flatMap((r) => r.items.map((item) => ({
+      _groupId: r.id,
+      grNo: r.grNo,
+      supplier: r.supplierName,
+      brand: item.brandName,
+      category: item.categoryName,
+      product: item.productName,
+      quantity: `${item.quantity} ${item.unit}`,
+      date: r.receiveDate,
+      status: r.status,
+    }))), [reportRecords])
 
   const resetFilters = () => { setSearch(''); setFilterStatus('All Status'); setFilterBrand('All Brands'); setFilterCategory('All Categories'); setFilterDateFrom(''); setFilterDateTo(''); setSelected([]) }
 
@@ -438,24 +519,10 @@ export default function GateInwardPage() {
           </div>
           <div style={s.headerActions}>
             <button style={s.iconBtn} title="Reset filters" onClick={resetFilters}><RotateCcw size={16} /></button>
-            <button style={s.reportBtn} onClick={() => setShowReportPanel(v => !v)}><Eye size={15} /> View Report</button>
+            <button style={s.reportBtn} onClick={() => setShowReportPanel(true)}><FileText size={14} /> View Report</button>
             <button style={s.addBtn} onClick={() => router.push('/gate-inward/new')}><Plus size={16} /> Add New Entry</button>
           </div>
         </div>
-
-        {/* Report Panel */}
-        {showReportPanel && (
-          <div style={s.reportPanel}>
-            <div style={s.reportRow}>
-              <span style={s.reportLabel}><FileText size={14} color="#2d7a33" />Export {selected.length > 0 ? `${selected.length} selected` : `all ${filtered.length} filtered`} records:</span>
-              <div style={s.reportBtns}>
-                <button style={s.csvBtn} onClick={() => exportCSV(exportRows)}><FileSpreadsheet size={14} /> Export CSV</button>
-                <button style={s.pdfBtn} onClick={() => exportPDF(exportRows)}><Download size={14} /> Export PDF</button>
-                {selected.length > 0 && <button style={s.deleteSelBtn} onClick={handleBulkDelete}><Trash2 size={14} /> Delete ({selected.length})</button>}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div style={{ ...s.controlsCard, padding: isMobile ? '12px' : s.controlsCard.padding }}>
           <div style={{ ...s.filtersRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, minmax(150px, 1fr))' }}>
@@ -525,7 +592,11 @@ export default function GateInwardPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#d1d5db" /><p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>Loading records...</p></div></td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#ef4444" /><p style={{ margin: '8px 0 0', color: '#b91c1c', fontSize: 14 }}>{loadError}</p></div></td></tr>
+              ) : filtered.length === 0 ? (
                 <tr><td colSpan={10} style={s.emptyCell}><div style={s.emptyState}><ArrowDownToLine size={32} color="#d1d5db" /><p style={{ margin: '8px 0 0', color: '#9ca3af', fontSize: 14 }}>No records found</p></div></td></tr>
               ) : filtered.map(r => (
                 <tr key={r.id} style={{ ...s.tr, backgroundColor: selected.includes(r.id) ? '#e8f0e8' : '#fff' }}
@@ -558,7 +629,24 @@ export default function GateInwardPage() {
       </div>
 
       {viewRecord && <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />}
-      {editRecord && isSuperUser && <EditModal record={editRecord} suppliers={MOCK_SUPPLIERS} brands={MOCK_BRANDS} categories={MOCK_CATEGORIES} products={MOCK_PRODUCTS} units={MOCK_UNITS} onClose={() => setEditRecord(null)} onSave={handleSaveEdit} />}
+      {showReportPanel ? (
+        <ReportModal
+          title="Gate Inward"
+          data={reportRows}
+          columns={[
+            { key: 'grNo', label: 'GR No', rowSpan: true },
+            { key: 'supplier', label: 'Supplier', rowSpan: true },
+            { key: 'brand', label: 'Brand' },
+            { key: 'category', label: 'Category' },
+            { key: 'product', label: 'Product' },
+            { key: 'quantity', label: 'Quantity' },
+            { key: 'date', label: 'Date', rowSpan: true },
+            { key: 'status', label: 'Status', rowSpan: true },
+          ]}
+          onClose={() => setShowReportPanel(false)}
+        />
+      ) : null}
+      {editRecord && isSuperUser && <EditModal record={editRecord} suppliers={editModalSuppliers} brands={editModalBrands} categories={categoryOptions} products={editModalProducts} units={editModalUnits} onClose={() => setEditRecord(null)} onSave={handleSaveEdit} />}
     </DashboardLayout>
   )
 }
@@ -592,6 +680,7 @@ function ViewModal({ record, onClose }) {
 
 function EditModal({ record, suppliers, brands, categories, products, units, onClose, onSave }) {
   const [form, setForm] = useState({ ...record, items: record.items.map(i => ({ ...i })) })
+  const [formError, setFormError] = useState('')
 
   const updateItem = (idx, field, value) => {
     const items = form.items.map((it, i) => i === idx ? { ...it, [field]: value } : it)
@@ -599,6 +688,16 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
     if (field === 'categoryId') { const c = categories.find(c => c.id === Number(value)); items[idx].categoryName = c?.name || ''; items[idx].productId = ''; items[idx].productName = '' }
     if (field === 'productId') { const p = products.find(p => p.id === Number(value)); items[idx].productName = p?.name || '' }
     setForm(f => ({ ...f, items }))
+    setFormError('')
+  }
+
+  const submit = () => {
+    if (form.items.some((item) => !item.unit)) {
+      setFormError('Please select a unit from Unit Settings for every item.')
+      return
+    }
+    setFormError('')
+    onSave(form)
   }
 
   return (
@@ -609,6 +708,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
           <button style={s.modalClose} onClick={onClose}><X size={18} /></button>
         </div>
         <div style={s.modalBody}>
+          {formError ? <div style={s.errorBanner}>{formError}</div> : null}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div><label style={s.label}>GR Number</label><input style={s.input} value={form.grNo} onChange={e => setForm(f => ({ ...f, grNo: e.target.value }))} /></div>
             <div><label style={s.label}>Receive Date</label><input style={s.input} value={form.receiveDate} onChange={e => setForm(f => ({ ...f, receiveDate: e.target.value }))} /></div>
@@ -642,12 +742,21 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151' }}>Items</p>
-            <button style={s.addItemBtn} onClick={() => setForm(f => ({ ...f, items: [...f.items, { brandId: '', brandName: '', categoryId: '', categoryName: '', productId: '', productName: '', quantity: '', unit: 'Unit' }] }))}><Plus size={13} /> Add Item</button>
+            <button style={s.addItemBtn} onClick={() => setForm(f => ({ ...f, items: [...f.items, { brandId: '', brandName: '', categoryId: '', categoryName: '', productId: '', productName: '', quantity: '', unit: units[0] || '' }] }))}><Plus size={13} /> Add Item</button>
           </div>
 
           {form.items.map((item, i) => {
-            const brandCats = categories.filter(c => c.brandId === Number(item.brandId))
-            const catProds = products.filter(p => p.categoryId === Number(item.categoryId))
+            const brandCats = categories.filter((entry) => (
+              !entry.brandId || String(entry.brandId) === String(item.brandId)
+            ))
+            const catProds = products.filter((entry) => (
+              String(entry.categoryId) === String(item.categoryId)
+              && (!entry.brandId || String(entry.brandId) === String(item.brandId))
+            ))
+            const rowUnitOptions = [
+              ...units,
+              ...(item.unit && !units.includes(item.unit) ? [item.unit] : []),
+            ]
             return (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 72px 80px 32px', gap: 8, marginBottom: 8, alignItems: 'end' }}>
                 <div>
@@ -698,7 +807,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
                     value={item.unit}
                     onChange={(nextValue) => updateItem(i, 'unit', nextValue)}
                     placeholder="Unit"
-                    options={units.map((entry) => ({ value: entry, label: entry }))}
+                    options={rowUnitOptions.map((entry) => ({ value: entry, label: entry }))}
                     wrapStyle={{ minWidth: 0 }}
                   />
                 </div>
@@ -709,7 +818,7 @@ function EditModal({ record, suppliers, brands, categories, products, units, onC
 
           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
             <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button style={s.saveBtn} onClick={() => onSave(form)}>Save Changes</button>
+            <button style={s.saveBtn} onClick={submit}>Save Changes</button>
           </div>
         </div>
       </div>
@@ -1054,6 +1163,7 @@ const s = {
   modalSub: { fontSize: 12.5, color: '#7a8a7a', margin: '4px 0 0' },
   modalClose: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 10, padding: 6, cursor: 'pointer', color: '#607062', display: 'flex' },
   modalBody: { padding: '20px 24px', overflowY: 'auto', flex: 1 },
+  errorBanner: { marginBottom: 12, padding: '9px 12px', border: '1px solid #fecaca', borderRadius: 9, background: '#fef2f2', color: '#b91c1c', fontSize: 12.5, fontWeight: 600 },
   detailGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px', marginBottom: 20 },
   detailLabel: { fontSize: 11, fontWeight: 700, color: '#7a8a7a', textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 4px' },
   detailValue: { fontSize: 13.5, color: '#1f2f21', fontWeight: 600, margin: 0, padding: '7px 10px', background: '#ffffff', borderRadius: 9, border: '1px solid #d4dfd4' },
@@ -1068,4 +1178,3 @@ const s = {
   cancelBtn: { background: '#ffffff', border: '1px solid #d4dfd4', borderRadius: 40, padding: '9px 20px', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer' },
   saveBtn: { background: '#1a3d1f', border: 'none', borderRadius: 40, padding: '9px 24px', fontSize: 13.5, fontWeight: 600, color: '#fff', cursor: 'pointer' },
 }
-

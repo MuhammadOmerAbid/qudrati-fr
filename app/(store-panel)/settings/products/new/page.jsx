@@ -82,8 +82,8 @@ export default function ProductNewPage() {
         category: form.category,
       })
       router.push('/settings/products')
-    } catch {
-      setErrorMsg('Failed to save product. Please try again.')
+    } catch (err) {
+      setErrorMsg(err?.message || 'Failed to save product. Please try again.')
       setSaving(false)
     }
   }

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { panelPasswordApi } from '@/infrastructure/api/endpoints'
 
 // Icons as simple SVG components
 const MonitorIcon = () => (
@@ -44,6 +45,7 @@ export default function PanelSelectPage() {
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
+  const [verifying, setVerifying] = useState(false)
   const passwordRef = useRef(null)
 
   useEffect(() => {
@@ -69,18 +71,21 @@ export default function PanelSelectPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!password.trim()) {
       setError('Password is required')
       return
     }
-    
-    // For prototype, accept any non-empty password on panel select
-    if (password === 'admin123' || password === 'user123') {
+    setVerifying(true)
+    setError('')
+    try {
+      await panelPasswordApi.verify(password)
       setPanel(selected)
       router.push(selected === 'account' ? '/accounts/accounts-dashboard' : '/dashboard')
-    } else {
-      setError('Wrong Password. Please verify your credentials.')
+    } catch {
+      setError('Wrong panel password. Please try again.')
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -219,10 +224,10 @@ export default function PanelSelectPage() {
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
-              style={password.trim() ? styles.button : styles.buttonDisabled}
-              disabled={!password.trim()}
+              style={password.trim() && !verifying ? styles.button : styles.buttonDisabled}
+              disabled={!password.trim() || verifying}
             >
-              Next
+              {verifying ? 'Verifying...' : 'Next'}
             </button>
           </div>
         </div>

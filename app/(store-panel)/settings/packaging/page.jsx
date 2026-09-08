@@ -119,7 +119,7 @@ export default function PackagingPage() {
     <DashboardLayout>
       <SettingsPageShell
         title="Packaging"
-        subtitle="Manage packaging types (Carton, Bag, Box, etc.)"
+        subtitle="Manage packaging types"
         onAdd={() => router.push('/settings/packaging/new')}
         onRefresh={load}
         filterValue={filter}

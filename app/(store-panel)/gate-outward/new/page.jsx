@@ -4,16 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { ArrowUpFromLine, Plus, X, ArrowLeft, Save } from 'lucide-react'
-import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi } from '@/infrastructure/api/endpoints'
+import { customersApi, finishedGoodsApi, gateOutwardApi, inventoryApi, packagingApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-import {
-  CUSTOMERS,
-  GATE_OUTWARD_STORAGE_KEY,
-  INITIAL_GATE_OUTWARD_RECORDS,
-  PRODUCTS,
-  UNITS,
-} from '@/application/services/store/gateOutwardMock'
+import { limitPhoneNumber } from '@/lib/inputLimits'
+import { GATE_OUTWARD_STORAGE_KEY } from '@/application/services/store/gateOutwardMock'
 
 const SOURCE_INVENTORY = 'inventory'
 const SOURCE_FINISHED_GOODS = 'finished_goods'
@@ -50,39 +45,78 @@ const normalizeInventoryProduct = (entry, idx = 0, prefix = 'inv') => {
   const name = String(entry?.product || entry?.name || '').trim()
   if (!name) return null
 
+  const rawId = entry?.id ?? idx
+
   return {
-    id: `${prefix}-${entry?.id ?? idx}`,
+    id: `${prefix}-${rawId}`,
+    inventoryItemId: entry?.id ?? null,
     source: SOURCE_INVENTORY,
     name,
     brand: String(entry?.brand || entry?.brand_name || '').trim(),
-    unit: String(entry?.unit || 'Unit').trim() || 'Unit',
+    category: String(entry?.category || entry?.category_name || '').trim(),
+    subCategory: String(entry?.subcategory || entry?.subCategory || entry?.sub_category || '').trim(),
+    unit: String(entry?.unit || '').trim(),
     available: toNumberOrNull(entry?.quantity ?? entry?.available),
   }
 }
 
-const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg') => {
-  const firstMeta = Array.isArray(entry?.products)
+const normalizeFinishedGoodProduct = (entry, idx = 0, prefix = 'fg', productMeta = null) => {
+  const firstMeta = productMeta || (Array.isArray(entry?.products)
     ? (entry.products[0] || {})
-    : (entry?.products && typeof entry.products === 'object' ? entry.products : {})
+    : (entry?.products && typeof entry.products === 'object' ? entry.products : {}))
 
+  const parentProduct = entry?.product && typeof entry.product === 'object' ? entry.product : {}
+  const packing = String(firstMeta?.packing || firstMeta?.packaging || '').trim()
+  const hasStockShape = Boolean(packing || firstMeta?.cartons != null || firstMeta?.product || parentProduct?.name)
+  const available = hasStockShape
+    ? toNumberOrNull(firstMeta?.cartons ?? firstMeta?.quantity ?? entry?.quantity)
+    : null
   const name = String(
-    entry?.brand
-    || entry?.product_name
-    || firstMeta?.product
+    firstMeta?.product
     || firstMeta?.name
+    || parentProduct?.name
+    || entry?.product_name
+    || entry?.name
     || firstMeta?.description
+    || entry?.brand
     || ''
   ).trim()
   if (!name) return null
 
+  const brand = String(
+    (hasStockShape ? entry?.brand : '')
+    || entry?.brand_name
+    || parentProduct?.brand_name
+    || firstMeta?.brand
+    || firstMeta?.brandName
+    || ''
+  ).trim()
+
   return {
-    id: `${prefix}-${entry?.id ?? idx}`,
+    id: `${prefix}-${entry?.id ?? idx}-${idx}`,
+    finishedGoodsId: entry?.id ?? null,
+    finishedGoodsProductIndex: String(idx).split('-').pop(),
+    finishedGoodsStockRow: hasStockShape,
     source: SOURCE_FINISHED_GOODS,
     name,
-    brand: String(firstMeta?.code || '').trim(),
-    unit: String(entry?.unit || firstMeta?.packing || 'Unit').trim() || 'Unit',
-    available: toNumberOrNull(entry?.quantity ?? firstMeta?.cartons ?? firstMeta?.quantity),
+    brand,
+    category: String(entry?.category || firstMeta?.category || '').trim(),
+    subCategory: String(entry?.subcategory || entry?.subCategory || firstMeta?.subcategory || firstMeta?.subCategory || '').trim(),
+    packing,
+    unit: String(entry?.unit || '').trim(),
+    available,
   }
+}
+
+const normalizeFinishedGoodEntryProducts = (entry, idx = 0, prefix = 'fg') => {
+  if (Array.isArray(entry?.products) && entry.products.length) {
+    return entry.products
+      .map((product, productIdx) => normalizeFinishedGoodProduct(entry, `${idx}-${productIdx}`, prefix, product))
+      .filter(Boolean)
+  }
+
+  const product = normalizeFinishedGoodProduct(entry, idx, prefix)
+  return product ? [product] : []
 }
 
 const mergeCustomers = (...groups) => {
@@ -124,42 +158,48 @@ const uniqueProducts = (items) => {
   return list
 }
 
-const fallbackCustomers = mergeCustomers(
-  CUSTOMERS.map((entry, idx) => normalizeCustomer(entry, idx, 'mock-customer')).filter(Boolean)
-)
 
-const fallbackInventoryProducts = uniqueProducts(
-  PRODUCTS.map((entry, idx) => normalizeInventoryProduct(entry, idx, 'mock-inv')).filter(Boolean)
-)
-
-const fallbackFinishedGoodsProducts = uniqueProducts(
-  PRODUCTS.map((entry, idx) => normalizeFinishedGoodProduct(
-    { id: entry.id, brand: entry.name, unit: entry.unit, quantity: entry.available, products: [{ code: entry.brand }] },
-    idx,
-    'mock-fg'
-  )).filter(Boolean)
-)
-
-const blankItem = () => ({
+const blankItem = (source = '') => ({
   key: Date.now() + Math.random(),
-  source: '',
+  source,
   productId: '',
+  packaging: '',
   numbering: '',
   batchNumber: '',
   quantity: '',
-  unit: 'Unit',
+  unit: '',
+  weightPerCarton: '',
+  comment: '',
   error: '',
 })
 
+const normalizePackagingType = (entry, idx = 0) => {
+  const name = String(entry?.name || entry?.packaging || entry || '').trim()
+  if (!name) return null
+  const isInactive = entry && typeof entry === 'object' && (entry.status === false || entry.status === 'inactive')
+  if (isInactive) return null
+  return {
+    id: String(entry?.id ?? name ?? idx),
+    name,
+  }
+}
+
+const normalizeUnit = (entry) => {
+  const name = String(entry?.name || entry || '').trim()
+  if (!name) return null
+  const isInactive = entry && typeof entry === 'object' && (entry.status === false || entry.status === 'inactive')
+  return isInactive ? null : name
+}
+
 function loadRecords() {
-  if (typeof window === 'undefined') return INITIAL_GATE_OUTWARD_RECORDS
+  if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(GATE_OUTWARD_STORAGE_KEY)
-    if (!raw) return INITIAL_GATE_OUTWARD_RECORDS
+    if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : INITIAL_GATE_OUTWARD_RECORDS
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return INITIAL_GATE_OUTWARD_RECORDS
+    return []
   }
 }
 
@@ -227,12 +267,14 @@ export default function GateOutwardNewPage() {
   const [loadWarning, setLoadWarning] = useState('')
   const [isMobile, setIsMobile] = useState(false)
 
-  const [customers, setCustomers] = useState(fallbackCustomers)
+  const [customers, setCustomers] = useState([])
   const [manualCustomers, setManualCustomers] = useState([])
   const [productsBySource, setProductsBySource] = useState({
-    [SOURCE_INVENTORY]: fallbackInventoryProducts,
-    [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+    [SOURCE_INVENTORY]: [],
+    [SOURCE_FINISHED_GOODS]: [],
   })
+  const [packagingTypes, setPackagingTypes] = useState([])
+  const [unitOptions, setUnitOptions] = useState([])
 
   useEffect(() => {
     let active = true
@@ -269,10 +311,12 @@ export default function GateOutwardNewPage() {
       setLoadWarning('')
 
       try {
-        const [customersRes, inventoryRes, finishedGoodsRes] = await Promise.all([
+        const [customersRes, inventoryRes, finishedGoodsRes, packagingRes, unitsRes] = await Promise.all([
           customersApi.list(),
           inventoryApi.list(),
           finishedGoodsApi.list(),
+          packagingApi.list({ status: 'active' }),
+          unitsApi.list({ status: 'active' }),
         ])
 
         if (!active) return
@@ -289,24 +333,41 @@ export default function GateOutwardNewPage() {
         )
         const finishedGoodsProducts = uniqueProducts(
           toList(finishedGoodsRes)
-            .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx, 'fg'))
-            .filter(Boolean)
+            .flatMap((entry, idx) => normalizeFinishedGoodEntryProducts(entry, idx, 'fg'))
         )
+        const packagingList = toList(packagingRes)
+          .map((entry, idx) => normalizePackagingType(entry, idx))
+          .filter(Boolean)
+        const unitsList = Array.from(new Set(
+          toList(unitsRes).map(normalizeUnit).filter(Boolean)
+        ))
 
-        setCustomers(mergedCustomers.length ? mergedCustomers : fallbackCustomers)
+        setCustomers(mergedCustomers)
         setProductsBySource({
           [SOURCE_INVENTORY]: inventoryProducts,
           [SOURCE_FINISHED_GOODS]: finishedGoodsProducts,
         })
+        setPackagingTypes(packagingList)
+        setUnitOptions(unitsList)
+        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || unitsList[0] || '' })))
+        if (!packagingList.length || !unitsList.length) {
+          const missingSettings = [
+            !packagingList.length ? 'packaging' : '',
+            !unitsList.length ? 'units' : '',
+          ].filter(Boolean).join(' and ')
+          setLoadWarning(`No active ${missingSettings} found in Settings.`)
+        }
       } catch {
         if (!active) return
 
-        setCustomers(mergeCustomers(fallbackCustomers, persistedManual))
+        setCustomers(mergeCustomers([], persistedManual))
         setProductsBySource({
-          [SOURCE_INVENTORY]: fallbackInventoryProducts,
-          [SOURCE_FINISHED_GOODS]: fallbackFinishedGoodsProducts,
+          [SOURCE_INVENTORY]: [],
+          [SOURCE_FINISHED_GOODS]: [],
         })
-        setLoadWarning('Unable to fetch latest Settings data. Showing fallback options.')
+        setPackagingTypes([])
+        setUnitOptions([])
+        setLoadWarning('Unable to fetch latest data. Options may be limited.')
       } finally {
         if (active) setLoadingOptions(false)
       }
@@ -317,15 +378,6 @@ export default function GateOutwardNewPage() {
       active = false
     }
   }, [])
-
-  const unitOptions = useMemo(() => {
-    const all = new Set(UNITS)
-    Object.values(productsBySource).flat().forEach((entry) => {
-      const unitName = String(entry?.unit || '').trim()
-      if (unitName) all.add(unitName)
-    })
-    return Array.from(all)
-  }, [productsBySource])
 
   const customer = useMemo(
     () => customers.find((entry) => String(entry.id) === String(customerId)) || null,
@@ -378,13 +430,20 @@ export default function GateOutwardNewPage() {
 
         if (field === 'source') {
           updated.productId = ''
+          updated.packaging = ''
+          updated.numbering = ''
+          updated.batchNumber = ''
           updated.quantity = ''
-          updated.unit = unitOptions[0] || 'Unit'
+          updated.weightPerCarton = ''
+          updated.unit = unitOptions[0] || ''
         }
 
         if (field === 'productId') {
           const product = getProduct(updated.source, value)
-          updated.unit = product?.unit || row.unit
+          updated.unit = product?.unit || row.unit || unitOptions[0] || ''
+          if (updated.source === SOURCE_FINISHED_GOODS) {
+            updated.packaging = product?.packing || ''
+          }
           if (updated.quantity && product && hasStockLimit(product) && Number(updated.quantity) > product.available) {
             updated.quantity = String(product.available)
             updated.error = `Quantity cannot be over ${product.available} ${product.unit}`
@@ -406,8 +465,33 @@ export default function GateOutwardNewPage() {
     setErrors((prev) => ({ ...prev, items: undefined }))
   }
 
-  const addItem = () => setItems((prev) => [...prev, blankItem()])
+  const addItem = () => setItems((prev) => {
+    const inheritedSource = [...prev].reverse().find((row) => row.source)?.source || ''
+    return [...prev, blankItem(inheritedSource)]
+  })
   const removeItem = (key) => setItems((prev) => (prev.length > 1 ? prev.filter((x) => x.key !== key) : prev))
+
+  const focusNextItemCell = (fromElement) => {
+    if (typeof window === 'undefined') return
+    const current = fromElement || document.activeElement
+    const block = current?.closest?.('[data-go-item-block]')
+    if (!block) return
+
+    const cells = Array.from(block.querySelectorAll('[data-go-item-cell]'))
+      .filter((cell) => {
+        const disabled = cell.disabled || cell.getAttribute('aria-disabled') === 'true'
+        return !disabled && cell.offsetParent !== null
+      })
+    const index = cells.indexOf(current)
+    const next = cells[index >= 0 ? index + 1 : 0]
+    next?.focus?.()
+  }
+
+  const handleItemCellKeyDown = (event) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    focusNextItemCell(event.currentTarget)
+  }
 
   const validate = () => {
     const nextErrors = {}
@@ -415,8 +499,10 @@ export default function GateOutwardNewPage() {
     if (!date) nextErrors.date = 'Please select a date'
     if (!customerId) nextErrors.customer = 'Please select a customer'
 
-    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0)
-    if (missing) nextErrors.items = 'Please complete source, product, and quantity for all rows'
+    const missing = items.some((row) => !row.source || !row.productId || !row.quantity || Number(row.quantity) <= 0 || !row.unit)
+    const missingPackaging = items.some((row) => row.source === SOURCE_FINISHED_GOODS && !row.packaging)
+    if (missing) nextErrors.items = 'Please complete source, product, quantity, and unit for all rows'
+    if (!missing && missingPackaging) nextErrors.items = 'Please select packaging for finished goods rows'
 
     const overLimitRow = items.find((row) => {
       const product = getProduct(row.source, row.productId)
@@ -455,7 +541,6 @@ export default function GateOutwardNewPage() {
     setSaving(true)
 
     try {
-      const customerPk = Number(customer?.id)
       const payload = {
         go_no: goNo,
         dispatch_date: date,
@@ -463,7 +548,6 @@ export default function GateOutwardNewPage() {
         driver_name: driverName,
         driver_phone: driverPhone,
         driver_cnic: driverCnic,
-        customer: Number.isFinite(customerPk) ? customerPk : null,
         customer_name: customer?.name || '',
         address,
         note,
@@ -472,17 +556,40 @@ export default function GateOutwardNewPage() {
         status: 'Dispatched',
         items: items.map((row) => {
           const product = getProduct(row.source, row.productId)
+          const weightPerCarton = row.source === SOURCE_FINISHED_GOODS ? Number(row.weightPerCarton || 0) : 0
+          const totalWeight = weightPerCarton > 0 ? weightPerCarton * Number(row.quantity || 0) : 0
           return {
             source: SOURCE_OPTIONS.find((entry) => entry.value === row.source)?.label || row.source,
             sourceType: row.source,
             productId: product?.id ?? row.productId,
+            finishedGoodsId: product?.finishedGoodsId ?? null,
+            finished_goods_id: product?.finishedGoodsId ?? null,
+            finishedGoodsProductIndex: product?.finishedGoodsProductIndex ?? null,
+            finished_goods_product_index: product?.finishedGoodsProductIndex ?? null,
+            finishedGoodsStockRow: Boolean(product?.finishedGoodsStockRow),
+            finished_goods_stock_row: Boolean(product?.finishedGoodsStockRow),
+            packaging: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
+            packing: row.source === SOURCE_FINISHED_GOODS ? row.packaging : '',
+            inventoryItemId: product?.inventoryItemId ?? null,
+            inventory_item_id: product?.inventoryItemId ?? null,
             productName: product?.name || '',
             brand: product?.brand || '',
-            numbering: row.numbering || '',
-            batchNumber: row.batchNumber || '',
-            batch_number: row.batchNumber || '',
+            category: product?.category || '',
+            categoryName: product?.category || '',
+            subCategory: product?.subCategory || '',
+            subcategory: product?.subCategory || '',
+            numbering: row.source === SOURCE_FINISHED_GOODS ? row.numbering || '' : '',
+            batchNumber: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
+            batch_number: row.source === SOURCE_FINISHED_GOODS ? row.batchNumber || '' : '',
             quantity: Number(row.quantity),
-            unit: row.unit || product?.unit || 'Unit',
+            unit: row.unit || product?.unit || '',
+            weightPerCarton,
+            weight_per_carton: weightPerCarton,
+            totalWeight,
+            total_weight: totalWeight,
+            comment: row.comment || '',
+            itemComment: row.comment || '',
+            item_comment: row.comment || '',
           }
         }),
       }
@@ -490,15 +597,18 @@ export default function GateOutwardNewPage() {
       await gateOutwardApi.create(payload)
       incrementStoreEntries('gate-outward')
       router.push('/gate-outward')
-    } catch {
-      setErrors((prev) => ({ ...prev, form: 'Unable to save gate outward entry. Please check backend connection.' }))
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        form: err?.message || 'Unable to save gate outward entry. Please check backend connection.',
+      }))
       setSaving(false)
     }
   }
 
   return (
     <DashboardLayout>
-      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1100 }}>
+      <div style={{ ...s.wrapper, maxWidth: isMobile ? '100%' : 1480 }}>
         <div style={s.pageHeader}>
           <div style={{ ...s.headerLeft, width: isMobile ? '100%' : 'auto' }}>
             <button style={s.backBtn} onClick={() => router.push('/gate-outward')}>
@@ -602,7 +712,7 @@ export default function GateOutwardNewPage() {
           <div style={{ ...s.driverRow, gridTemplateColumns: isMobile ? '1fr 1fr' : s.driverRow.gridTemplateColumns }}>
             <input style={s.input} placeholder="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} />
             <input style={s.input} placeholder="Driver Name" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
-            <input style={s.input} placeholder="Driver Phone" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} />
+            <input style={s.input} placeholder="Driver Phone" value={driverPhone} maxLength={11} inputMode="numeric" onChange={(e) => setDriverPhone(limitPhoneNumber(e.target.value))} />
             <input style={s.input} placeholder="Driver CNIC" value={driverCnic} onChange={(e) => setDriverCnic(e.target.value)} />
           </div>
 
@@ -619,6 +729,16 @@ export default function GateOutwardNewPage() {
           {items.map((item, idx) => {
             const productsForSource = getProductsForSource(item.source)
             const product = getProduct(item.source, item.productId)
+            const packagingOptions = [
+              ...(product?.packing ? [{ value: product.packing, label: product.packing }] : []),
+              ...packagingTypes
+                .filter((entry) => String(entry.name) !== String(product?.packing || ''))
+                .map((entry) => ({ value: entry.name, label: entry.name })),
+            ]
+            const rowUnitOptions = [
+              ...unitOptions,
+              ...(item.unit && !unitOptions.includes(item.unit) ? [item.unit] : []),
+            ]
 
             let availableText = 'Select source first'
             if (item.source && productsForSource.length === 0) availableText = 'No products available for selected source'
@@ -627,15 +747,22 @@ export default function GateOutwardNewPage() {
             if (product && !hasStockLimit(product)) availableText = `Unit: ${product.unit}`
 
             return (
-              <div key={item.key} style={s.itemBlock}>
-                <div style={s.itemRow}>
-                  <div style={s.itemField}>
+              <div key={item.key} style={s.itemBlock} data-go-item-block>
+                <div
+                  style={{
+                    ...s.itemRow,
+                    flexWrap: isMobile ? 'wrap' : 'nowrap',
+                  }}
+                >
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 145px' }}>
                     {idx === 0 && <label style={s.label}>Source</label>}
                     <StoreThemeDropdown
                       value={item.source}
                       onChange={(nextSource) => updateItem(item.key, 'source', nextSource)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       variant="input"
                       placeholder="Source"
+                      triggerProps={{ 'data-go-item-cell': true }}
                       options={[
                         { value: '', label: 'Source' },
                         ...SOURCE_OPTIONS.map((entry) => ({ value: entry.value, label: entry.label })),
@@ -643,68 +770,136 @@ export default function GateOutwardNewPage() {
                     />
                   </div>
 
-                  <div style={s.itemField}>
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '1 1 190px', minWidth: isMobile ? undefined : 180 }}>
                     {idx === 0 && <label style={s.label}>Select Product</label>}
-                    <select
-                      style={s.input}
+                    <StoreThemeDropdown
                       value={item.productId}
-                      onChange={(e) => updateItem(item.key, 'productId', e.target.value)}
+                      onChange={(nextProductId) => updateItem(item.key, 'productId', nextProductId)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       disabled={!item.source}
-                    >
-                      <option value="">
-                        {!item.source
+                      variant="input"
+                      triggerProps={{ 'data-go-item-cell': true }}
+                      placeholder={
+                        !item.source
                           ? 'Select source first'
                           : productsForSource.length === 0
                             ? 'No products found'
-                            : 'Select Product'}
-                      </option>
-                      {productsForSource.map((entry) => (
-                        <option key={`${item.source}-${entry.id}`} value={entry.id}>
-                          {entry.name}{entry.brand ? ` (${entry.brand})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
-                    {idx === 0 && <label style={s.label}>Numbering</label>}
-                    <input
-                      style={s.input}
-                      placeholder="Numbering"
-                      value={item.numbering}
-                      onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
+                            : 'Select Product'
+                      }
+                      options={[
+                        {
+                          value: '',
+                          label: !item.source
+                            ? 'Select source first'
+                            : productsForSource.length === 0
+                              ? 'No products found'
+                              : 'Select Product',
+                        },
+                        ...productsForSource.map((entry) => ({
+                          value: entry.id,
+                          label: `${entry.name}${entry.brand ? ` (${entry.brand})` : ''}`,
+                        })),
+                      ]}
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 150px' }}>
-                    {idx === 0 && <label style={s.label}>Batch No</label>}
-                    <input
-                      style={s.input}
-                      placeholder="Batch No"
-                      value={item.batchNumber}
-                      onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
-                    />
-                  </div>
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <div style={{ ...s.itemField, flex: isMobile ? '1 1 100%' : '0 0 150px' }}>
+                      {idx === 0 && <label style={s.label}>Packaging</label>}
+                      <StoreThemeDropdown
+                        value={item.packaging}
+                        onChange={(nextPackaging) => updateItem(item.key, 'packaging', nextPackaging)}
+                        onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
+                        variant="input"
+                        triggerProps={{ 'data-go-item-cell': true }}
+                        placeholder={loadingOptions ? 'Loading packaging...' : 'Select Packaging'}
+                        options={[
+                          { value: '', label: loadingOptions ? 'Loading packaging...' : 'Select Packaging' },
+                          ...packagingOptions,
+                        ]}
+                      />
+                    </div>
+                  )}
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 120px' }}>
+                        {idx === 0 && <label style={s.label}>Numbering</label>}
+                        <input
+                          style={s.input}
+                          data-go-item-cell
+                          placeholder="Manual or auto"
+                          value={item.numbering}
+                          onKeyDown={handleItemCellKeyDown}
+                          onChange={(e) => updateItem(item.key, 'numbering', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 6px)' : '0 0 120px' }}>
+                        {idx === 0 && <label style={s.label}>Batch No</label>}
+                        <input
+                          style={s.input}
+                          data-go-item-cell
+                          placeholder="Batch No"
+                          value={item.batchNumber}
+                          onKeyDown={handleItemCellKeyDown}
+                          onChange={(e) => updateItem(item.key, 'batchNumber', e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 105px' }}>
                     {idx === 0 && <label style={s.label}>Quantity</label>}
                     <input
                       style={s.input}
                       type="number"
                       min="1"
+                      data-go-item-cell
                       placeholder="Quantity"
                       value={item.quantity}
+                      onKeyDown={handleItemCellKeyDown}
                       onChange={(e) => updateItem(item.key, 'quantity', e.target.value)}
                     />
                   </div>
 
-                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 120px' }}>
+                  {item.source === SOURCE_FINISHED_GOODS && (
+                    <>
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 130px' }}>
+                        {idx === 0 && <label style={s.label}>Weight Per Carton</label>}
+                        <input
+                          style={s.input}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          data-go-item-cell
+                          placeholder="Weight / carton"
+                          value={item.weightPerCarton}
+                          onKeyDown={handleItemCellKeyDown}
+                          onChange={(e) => updateItem(item.key, 'weightPerCarton', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 105px' }}>
+                        {idx === 0 && <label style={s.label}>Total Weight</label>}
+                        <div style={s.readonlyInput}>
+                          {Number(item.weightPerCarton || 0) > 0 && Number(item.quantity || 0) > 0
+                            ? Number(Number(item.weightPerCarton || 0) * Number(item.quantity || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                            : '-'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ ...s.itemField, flex: isMobile ? '1 1 calc(50% - 5px)' : '0 0 95px' }}>
                     {idx === 0 && <label style={s.label}>Unit</label>}
                     <StoreThemeDropdown
                       value={item.unit}
                       onChange={(nextUnit) => updateItem(item.key, 'unit', nextUnit)}
+                      onSelectComplete={(_, __, triggerEl) => focusNextItemCell(triggerEl)}
                       variant="input"
-                      options={UNITS.map((u) => ({ value: u, label: u }))}
+                      triggerProps={{ 'data-go-item-cell': true }}
+                      options={rowUnitOptions.map((u) => ({ value: u, label: u }))}
                     />
                   </div>
 
@@ -715,6 +910,16 @@ export default function GateOutwardNewPage() {
                       </button>
                     )}
                   </div>
+                </div>
+
+                <div style={s.itemCommentWrap}>
+                  <label style={s.label}>Comment</label>
+                  <textarea
+                    style={{ ...s.input, ...s.textareaSmall }}
+                    value={item.comment}
+                    onChange={(e) => updateItem(item.key, 'comment', e.target.value)}
+                    placeholder="Comment for this product..."
+                  />
                 </div>
 
                 <p style={{ ...s.stockHint, color: item.error ? '#ef4444' : '#6b7280' }}>{item.error || availableText}</p>
@@ -735,7 +940,7 @@ export default function GateOutwardNewPage() {
 }
 
 const s = {
-  wrapper: { maxWidth: 1100, margin: '0 auto' },
+  wrapper: { width: '100%', maxWidth: 1480, margin: '0 auto', boxSizing: 'border-box' },
 
   pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
@@ -747,7 +952,7 @@ const s = {
   saveBtnDisabled: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#b8dcbc', border: 'none', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 700, color: '#fff', cursor: 'not-allowed' },
   cancelBtn: { border: '1.5px solid #d4dfd4', borderRadius: 40, padding: '11px 20px', fontSize: 13.5, fontWeight: 600, color: '#2d7a33', background: '#ffffff', cursor: 'pointer' },
 
-  card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
+  card: { background: '#f2f4f2', borderRadius: 20, border: '1px solid #e2e8e2', padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', boxSizing: 'border-box' },
   warningBanner: { background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, color: '#c2410c', fontSize: 12.5, padding: '8px 12px', marginBottom: 12 },
 
   topRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 },
@@ -777,14 +982,12 @@ const s = {
   addItemBtn: { background: '#54B45B', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', boxShadow: '0 2px 8px rgba(84,180,91,0.35)' },
 
   divider: { height: 1, background: '#f3f4f6', marginBottom: 16 },
-  itemBlock: { marginBottom: 10 },
-  itemRow: { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' },
+  itemBlock: { marginBottom: 10, overflow: 'visible', paddingBottom: 2 },
+  itemRow: { display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' },
+  itemCommentWrap: { marginTop: 8, maxWidth: 520 },
   stockHint: { margin: '4px 0 0', fontSize: 11.5, paddingLeft: 2 },
 
   removeBtn: { background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: 6, padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 36 },
 
   formFooter: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6' },
 }
-
-
-

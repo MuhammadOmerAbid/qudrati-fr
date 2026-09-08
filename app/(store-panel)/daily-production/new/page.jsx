@@ -17,6 +17,7 @@ const blankEntry = () => ({
   startTime: '',
   endTime: '',
   noOfLabour: '',
+  note: '',
 })
 
 function calcHours(start, end) {
@@ -34,7 +35,6 @@ export default function DailyProductionNewPage() {
   const { user } = useAuthStore()
 
   const [date, setDate]       = useState(todayISO())
-  const [note, setNote]       = useState('')
   const [entries, setEntries] = useState([blankEntry()])
   const [saving, setSaving]   = useState(false)
   const [errors, setErrors]   = useState({})
@@ -77,12 +77,13 @@ export default function DailyProductionNewPage() {
     try {
       await dailyProductionApi.create({
         date,
-        note: String(note || '').trim(),
+        note: '',
         entries: entries.map((entry) => ({
           product: String(entry.product || '').trim(),
           startTime: entry.startTime,
           endTime: entry.endTime,
           noOfLabour: Number(entry.noOfLabour) || 0,
+          note: String(entry.note || '').trim(),
           entryBy: user?.username || '',
         })),
       })
@@ -198,6 +199,17 @@ export default function DailyProductionNewPage() {
                       onChange={e => updateEntry(entry.key, 'noOfLabour', e.target.value)}
                     />
                   </div>
+
+                  <div style={{ ...s.fieldGroup, gridColumn: '1 / -1' }}>
+                    <label style={s.label}>Comment</label>
+                    <textarea
+                      style={s.noteInput}
+                      placeholder="Any additional notes for this entry..."
+                      value={entry.note}
+                      onChange={e => updateEntry(entry.key, 'note', e.target.value)}
+                      rows={2}
+                    />
+                  </div>
                 </div>
 
                 {/* Remove entry */}
@@ -214,18 +226,6 @@ export default function DailyProductionNewPage() {
           <button style={s.addEntryDashed} onClick={addEntry}>
             <Plus size={14} /> Add Another Entry
           </button>
-
-          {/* Note */}
-          <div style={s.noteSection}>
-            <label style={s.label}>Note</label>
-            <textarea
-              style={s.noteInput}
-              placeholder="Any additional notes for this production session..."
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-            />
-          </div>
 
           {/* Footer */}
           <div style={s.formFooter}>

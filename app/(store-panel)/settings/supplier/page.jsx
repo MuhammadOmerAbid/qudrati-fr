@@ -10,6 +10,7 @@ import {
   ActionButtons, ConfirmDelete, Toast, settingsTheme,
 } from '@/components/settings/SettingsShared'
 import { Check, X } from 'lucide-react'
+import { limitPhoneNumber } from '@/lib/inputLimits'
 
 export default function SuppliersPage() {
   const router = useRouter()
@@ -125,9 +126,11 @@ export default function SuppliersPage() {
           {isEditing ? (
             <input
               value={editForm.contact}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, contact: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, contact: limitPhoneNumber(e.target.value) }))}
               style={s.cellInput}
-              placeholder="Phone / Email"
+              placeholder="Phone"
+              maxLength={11}
+              inputMode="numeric"
             />
           ) : (item.contact || '—')}
         </td>

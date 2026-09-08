@@ -27,6 +27,8 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react'
+import { useAuthStore } from '@/application/state/auth/useAuthStore'
+import { addPdfReportHeader, getUserDisplayName, loadImageDataUrl } from '@/lib/reportDesign'
 
 const REPORT_TYPES = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -145,35 +147,6 @@ function downloadBlob(fileName, text, mimeType) {
   anchor.click()
   document.body.removeChild(anchor)
   URL.revokeObjectURL(url)
-}
-
-function loadImageDataUrl(src) {
-  if (typeof window === 'undefined') return Promise.resolve(null)
-  return new Promise((resolve) => {
-    const image = new Image()
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = image.naturalWidth
-        canvas.height = image.naturalHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          resolve(null)
-          return
-        }
-        ctx.drawImage(image, 0, 0)
-        resolve({
-          dataUrl: canvas.toDataURL('image/png'),
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-        })
-      } catch {
-        resolve(null)
-      }
-    }
-    image.onerror = () => resolve(null)
-    image.src = src
-  })
 }
 
 function classifyCashFlowBucket(voucherRows, accountByCode, cashAccountCodes) {
@@ -685,6 +658,8 @@ function buildReportExportPattern(activeReport, reportData, fromDate, toDate) {
 }
 
 export default function ReportsPage() {
+  const { user } = useAuthStore()
+  const generatedBy = getUserDisplayName(user)
   const [activeReport, setActiveReport] = useState('overview')
   const [fromDate, setFromDate] = useState(monthStartISO())
   const [toDate, setToDate] = useState(todayISO())
@@ -1173,7 +1148,7 @@ export default function ReportsPage() {
       const [{ default: jsPDF }, { default: autoTable }, logoImage] = await Promise.all([
         import('jspdf'),
         import('jspdf-autotable'),
-        loadImageDataUrl('/qudartinew.png'),
+        loadImageDataUrl('/qudarti-packaging-logo.png'),
       ])
 
       const doc = new jsPDF({
@@ -1181,47 +1156,13 @@ export default function ReportsPage() {
         unit: 'pt',
         format: 'a4',
       })
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const centerX = pageWidth / 2
-      const logoTopY = 18
-      let logoBottomY = logoTopY
-      let tableStartY = 140
-
-      if (logoImage?.dataUrl) {
-        // Keep logo natural proportions and fit into a header-safe box.
-        const maxLogoWidth = 156
-        const maxLogoHeight = 50
-        const naturalWidth = Number(logoImage.width) || maxLogoWidth
-        const naturalHeight = Number(logoImage.height) || maxLogoHeight
-        const ratio = Math.min(maxLogoWidth / naturalWidth, maxLogoHeight / naturalHeight)
-        const logoWidth = Math.max(24, naturalWidth * ratio)
-        const logoHeight = Math.max(12, naturalHeight * ratio)
-        const logoX = centerX - (logoWidth / 2)
-        doc.addImage(logoImage.dataUrl, 'PNG', logoX, logoTopY, logoWidth, logoHeight)
-        logoBottomY = logoTopY + logoHeight
-      }
-
-      const brandY = logoBottomY + 16
-      const reportTitleY = brandY + 17
-      const periodY = reportTitleY + 14
-      const generatedY = periodY + 12
-      tableStartY = generatedY + 16
-
-      doc.setFontSize(17)
-      doc.setTextColor(17, 24, 39)
-      doc.text('Qudarti Food', centerX, brandY, { align: 'center' })
-
-      doc.setFontSize(12.5)
-      doc.setTextColor(30, 41, 59)
-      doc.text(reportLabel, centerX, reportTitleY, { align: 'center' })
-
-      doc.setFontSize(10)
-      doc.setTextColor(71, 85, 105)
-      doc.text(`Period: ${fromDate || '-'} to ${toDate || '-'}`, centerX, periodY, { align: 'center' })
-      doc.text(`Generated: ${new Date().toLocaleString()}`, centerX, generatedY, { align: 'center' })
-      doc.setDrawColor(203, 213, 225)
-      doc.setLineWidth(0.8)
-      doc.line(32, tableStartY - 8, pageWidth - 32, tableStartY - 8)
+      const tableStartY = addPdfReportHeader(doc, {
+        title: reportLabel,
+        subtitle: `Financial report | Period: ${fromDate || '-'} to ${toDate || '-'}`,
+        generatedBy,
+        recordCount: exportPattern.rows.length,
+        logoImage,
+      })
 
       const head = [exportPattern.columns.map((column) => column.label)]
       const bodyRows = exportPattern.rows.length > 0
@@ -1256,16 +1197,17 @@ export default function ReportsPage() {
         head,
         body,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 4, lineColor: [226, 232, 240], lineWidth: 0.5 },
-        headStyles: { fillColor: [34, 84, 61] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 8, cellPadding: 4, textColor: [39, 53, 41], lineColor: [0, 0, 0], lineWidth: 0.45, fillColor: [255, 255, 255] },
+        headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.45 },
+        bodyStyles: { fillColor: [255, 255, 255], lineColor: [0, 0, 0] },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
         columnStyles,
         didParseCell: (data) => {
           if (data.section !== 'body') return
           const rowRef = bodyRows[data.row.index]
           if (rowRef?._summary) {
-            data.cell.styles.fillColor = [240, 253, 244]
-            data.cell.styles.textColor = [17, 24, 39]
+            data.cell.styles.fillColor = [239, 246, 252]
+            data.cell.styles.textColor = [15, 23, 42]
             data.cell.styles.fontStyle = 'bold'
             return
           }
@@ -1281,8 +1223,8 @@ export default function ReportsPage() {
           const pageWidth = doc.internal.pageSize.getWidth()
           const pageHeight = doc.internal.pageSize.getHeight()
           doc.setFontSize(9)
-          doc.setTextColor(107, 114, 128)
-          doc.text(`Generated ${new Date().toLocaleString()}`, 32, pageHeight - 18, { align: 'left' })
+          doc.setTextColor(100, 116, 100)
+          doc.text('Qudarti Food Processors | System generated report', 32, pageHeight - 18, { align: 'left' })
           doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - 32, pageHeight - 18, { align: 'right' })
         },
       })
@@ -1375,19 +1317,26 @@ export default function ReportsPage() {
 
         <section style={s.reportCard}>
           <div className="print-only" style={s.printHead}>
-            <img src="/qudartinew.png" alt="Qudarti Food Logo" style={s.printLogo} />
-            <p style={s.printBrand}>Qudarti Food</p>
-            <p style={s.printTitle}>{reportLabel}</p>
-            <p style={s.printMeta}>Period: {fromDate || '-'} to {toDate || '-'}</p>
-            {activeReport === 'general-ledger' && reportData.generalLedger.selected ? (
-              <p style={s.printMeta}>
-                Ledger Account: {reportData.generalLedger.selected.code} - {reportData.generalLedger.selected.name}
-              </p>
-            ) : null}
-            <p style={s.printMeta}>Generated: {new Date().toLocaleString()}</p>
+            <div style={s.printBrandRow}>
+              <div style={s.printLogoFrame}>
+                <img src="/qudarti-packaging-logo.png" alt="Qudarti Food Logo" style={s.printLogo} />
+              </div>
+              <div style={s.printBrandText}>
+                <p style={s.printBrand}>Qudarti Food Processors</p>
+                <p style={s.printCompanySuffix}>(SMC-PVT) LTD.</p>
+              </div>
+            </div>
+            <div style={s.printTitleBlock}>
+              <p style={s.printEyebrow}>Financial Report</p>
+              <p style={s.printTitle}>{reportLabel}</p>
+              <p style={s.printedBy}>Printed By: {generatedBy}</p>
+            </div>
           </div>
 
-          <div className="print-only" style={s.printTableWrap}>
+          <div
+            className={`print-only ${exportPattern.columns.length > 8 ? 'print-wide-report' : 'print-standard-report'}`}
+            style={s.printTableWrap}
+          >
             {exportPattern.columns.length > 0 ? (
               <table style={s.table}>
                 <thead>
@@ -1906,7 +1855,41 @@ export default function ReportsPage() {
           table {
             width: 100% !important;
             min-width: 0 !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
             page-break-inside: auto;
+          }
+
+          th,
+          td {
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+          }
+
+          th {
+            line-height: 1.15 !important;
+          }
+
+          .print-wide-report th {
+            font-size: 7.3px !important;
+            padding: 4px 4px !important;
+            letter-spacing: 0 !important;
+          }
+
+          .print-wide-report td {
+            font-size: 7.5px !important;
+            padding: 4px 4px !important;
+            line-height: 1.16 !important;
+          }
+
+          .print-standard-report th {
+            font-size: 9px !important;
+            padding: 6px 6px !important;
+          }
+
+          .print-standard-report td {
+            font-size: 9.3px !important;
+            padding: 6px 6px !important;
           }
 
           thead {
@@ -1923,7 +1906,7 @@ export default function ReportsPage() {
           }
 
           @page {
-            size: A4;
+            size: A4 landscape;
             margin: 10mm;
           }
         }
@@ -2083,32 +2066,104 @@ const s = {
     gap: 12,
   },
   printHead: {
-    borderBottom: '1px solid #cbd5e1',
-    paddingBottom: 10,
+    background: '#123416',
+    color: '#ffffff',
+    padding: '18px 20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  printBrandRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  printLogoFrame: {
+    width: 92,
+    height: 58,
+    background: 'transparent',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  printBrandText: {
+    minHeight: 58,
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    textAlign: 'center',
-    gap: 3,
+    justifyContent: 'center',
   },
   printLogo: {
+    display: 'block',
+    maxWidth: '100%',
+    maxHeight: '100%',
     width: 'auto',
-    maxWidth: 156,
-    height: 48,
+    height: 'auto',
     objectFit: 'contain',
-    marginBottom: 3,
   },
   printBrand: {
     margin: 0,
-    fontSize: 18,
+    fontSize: 21,
     fontWeight: 800,
-    color: '#0f172a',
+    color: '#ffffff',
+  },
+  printCompanySuffix: {
+    margin: '4px 0 0',
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: 0.8,
+    color: 'rgba(255,255,255,0.82)',
+  },
+  printTitleBlock: {
+    textAlign: 'right',
+  },
+  printEyebrow: {
+    margin: '0 0 5px',
+    color: 'rgba(255,255,255,0.76)',
+    fontSize: 10,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
   },
   printTitle: {
     margin: 0,
-    fontSize: 13,
+    fontSize: 22,
+    fontWeight: 800,
+    color: '#ffffff',
+  },
+  printedBy: {
+    margin: '7px 0 0',
+    fontSize: 11,
     fontWeight: 700,
-    color: '#1e293b',
+    color: '#ffffff',
+  },
+  printMetaGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: 8,
+    marginTop: 12,
+  },
+  printMetaBox: {
+    border: '1px solid #cfe0d0',
+    borderLeft: '4px solid #2d7a33',
+    background: '#f8fbf8',
+    padding: '8px 10px',
+  },
+  printMetaLabel: {
+    display: 'block',
+    color: '#637463',
+    fontSize: 9.5,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  printMetaValue: {
+    display: 'block',
+    marginTop: 4,
+    color: '#1e2d20',
+    fontSize: 11.5,
+    fontWeight: 800,
   },
   printMeta: {
     margin: '3px 0 0',
@@ -2117,17 +2172,19 @@ const s = {
     fontWeight: 500,
   },
   printTableWrap: {
-    border: '1px solid #e5e7eb',
-    borderRadius: 10,
+    border: '1px solid #000000',
+    borderRadius: 0,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 12,
   },
   printSummaryTd: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#111827',
+    color: '#0f172a',
     verticalAlign: 'top',
     fontWeight: 800,
+    background: '#eff6fc',
+    borderRight: '1px solid #000000',
   },
   reportHead: {
     display: 'flex',
@@ -2193,7 +2250,7 @@ const s = {
   },
   tableWrap: {
     overflow: 'auto',
-    border: '1px solid #e5e7eb',
+    border: '1px solid #000000',
     borderRadius: 12,
   },
   table: {
@@ -2202,23 +2259,25 @@ const s = {
     minWidth: 840,
   },
   th: {
-    background: '#f1f5f9',
-    color: '#475569',
+    background: '#f8fafc',
+    color: '#0f172a',
     fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px',
-    fontWeight: 700,
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: 800,
     textAlign: 'left',
     padding: '10px 10px',
+    border: '1px solid #000000',
   },
-  tr: { borderTop: '1px solid #e5e7eb' },
+  tr: { borderTop: '1px solid #000000' },
   td: {
     padding: '9px 10px',
     fontSize: 12.5,
-    color: '#111827',
+    color: '#273529',
     verticalAlign: 'top',
+    border: '1px solid #000000',
   },
-  tFoot: { background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 800 },
+  tFoot: { background: '#eff6fc', borderTop: '1px solid #000000', fontWeight: 800 },
   emptyCell: {
     padding: '16px 10px',
     textAlign: 'center',

@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, RefreshCw, X } from 'lucide-react'
 import {
-  PRODUCTION_INITIAL,
-  PRODUCTS,
-  PACKINGS,
   STATUS_COLORS,
-  nextSerial,
   formatDate,
   Checkbox,
   AppButton,
@@ -18,15 +14,43 @@ import {
   ui,
 } from '@/components/store/shared/StoreShared'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
+import { finishedGoodProductsApi, packagingApi, productionOrderApi } from '@/infrastructure/api/endpoints'
 
-const PRODUCTION_ORDER_DRAFT_KEY = 'store.productionOrderDrafts'
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+const normalizeOrder = (order = {}, index = 0) => ({
+  id: order.id,
+  serialNo: order.serialNo ?? order.serial_no ?? index + 1,
+  name: order.name || order.product?.name || '',
+  date: order.date || '',
+  status: order.status || 'Pending',
+  items: Array.isArray(order.items) ? order.items.map((item, itemIndex) => ({
+    id: item.id ?? item.sr ?? itemIndex + 1,
+    sr: item.sr ?? itemIndex + 1,
+    goods: item.goods || item.product || item.name || '',
+    packing: item.packing || '',
+    qty: item.qty ?? item.quantity ?? 0,
+    status: item.status || order.status || 'Pending',
+  })) : [],
+})
+
+function parseDateValue(value) {
+  if (!value) return null
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
 export default function ProductionOrderPage({ isSuperUser = true }) {
   const router = useRouter()
-  const [orders, setOrders] = useState(PRODUCTION_INITIAL)
+  const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('All Status')
+  const [filterGoods, setFilterGoods] = useState('All Goods')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [selected, setSelected] = useState([])
   const [showReport, setShowReport] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [showEditor, setShowEditor] = useState(false)
   const [editor, setEditor] = useState({
     id: null,
@@ -34,43 +58,80 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     date: new Date().toISOString().slice(0, 10),
     items: [{ sr: 1, goods: '', packing: '', qty: '', status: 'Pending' }],
   })
+  const [editorGoodsOptions, setEditorGoodsOptions] = useState([])
+  const [editorPackingOptions, setEditorPackingOptions] = useState([])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const raw = window.sessionStorage.getItem(PRODUCTION_ORDER_DRAFT_KEY)
-      if (!raw) return
-
-      const drafts = JSON.parse(raw)
-      if (!Array.isArray(drafts) || drafts.length === 0) return
-
-      setOrders((prev) => {
-        let serialNo = nextSerial(prev)
-        const prepared = drafts.map((draft, index) => ({
-          ...draft,
-          id: draft.id || Date.now() + index,
-          serialNo: serialNo++,
-        }))
-        return [...prepared, ...prev]
-      })
-    } catch {
-      // Ignore malformed session data.
-    } finally {
-      window.sessionStorage.removeItem(PRODUCTION_ORDER_DRAFT_KEY)
-    }
+    loadOrders()
   }, [])
 
+  useEffect(() => {
+    if (!showEditor) return
+    let active = true
+    Promise.all([finishedGoodProductsApi.list({ status: 'active' }), packagingApi.list()]).then(([goodsRes, packingRes]) => {
+      if (!active) return
+      const goods = toList(goodsRes)
+        .map((entry) => {
+          if (entry?.status === false || String(entry?.status || '').toLowerCase() === 'inactive') return null
+          const name = String(entry?.name || '').trim()
+          return name ? { value: name, label: name } : null
+        })
+        .filter(Boolean)
+      const seen = new Set()
+      const uniqueGoods = goods.filter(({ value }) => {
+        const k = value.toLowerCase()
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
+      const packing = toList(packingRes)
+        .map((entry) => {
+          const name = String(entry?.name || entry?.packing || entry || '').trim()
+          return name ? { value: name, label: name } : null
+        })
+        .filter(Boolean)
+      setEditorGoodsOptions(uniqueGoods)
+      setEditorPackingOptions(packing)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [showEditor])
+
+  const loadOrders = async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const data = await productionOrderApi.list()
+      const loaded = toList(data).map(normalizeOrder).filter((order) => order.items.length > 0)
+      setOrders(loaded)
+    } catch (err) {
+      setLoadError(err?.message || 'Unable to load production orders')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const goodsOptions = useMemo(() => {
+    const goods = orders.flatMap((order) => order.items.map((item) => item.goods)).filter(Boolean)
+    return Array.from(new Set(goods)).sort((a, b) => a.localeCompare(b))
+  }, [orders])
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return orders
     const q = search.toLowerCase()
-    return orders.filter((order) =>
-      [order.name, ...order.items.map((item) => `${item.goods} ${item.packing} ${item.status}`)]
+    return orders.filter((order) => {
+      const text = [order.name, order.date, ...order.items.map((item) => `${item.goods} ${item.packing} ${item.status}`)]
         .join(' ')
         .toLowerCase()
-        .includes(q)
-    )
-  }, [orders, search])
+      const matchesSearch = !q.trim() || text.includes(q)
+      const matchesStatus = filterStatus === 'All Status' || order.items.some((item) => item.status === filterStatus)
+      const matchesGoods = filterGoods === 'All Goods' || order.items.some((item) => item.goods === filterGoods)
+      const rowDate = parseDateValue(order.date)
+      const fromDate = filterDateFrom ? new Date(`${filterDateFrom}T00:00:00`) : null
+      const toDate = filterDateTo ? new Date(`${filterDateTo}T23:59:59`) : null
+      const matchesFrom = !fromDate || (rowDate && rowDate >= fromDate)
+      const matchesTo = !toDate || (rowDate && rowDate <= toDate)
+      return matchesSearch && matchesStatus && matchesGoods && matchesFrom && matchesTo
+    })
+  }, [orders, search, filterStatus, filterGoods, filterDateFrom, filterDateTo])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -82,20 +143,23 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     return map
   }, [filtered])
 
+  const reportOrders = selected.length > 0 ? orders.filter((order) => selected.includes(order.id)) : filtered
+
   const reportRows = useMemo(
     () =>
-      orders.flatMap((order) =>
+      reportOrders.flatMap((order) =>
         order.items.map((item) => ({
+          _groupId: order.id,
           date: order.date,
           orderName: order.name,
-          serialNo: order.serialNo,
+          serialNo: item.sr,
           goods: item.goods,
           packing: item.packing,
           qty: item.qty,
           status: item.status,
         }))
       ),
-    [orders]
+    [reportOrders]
   )
 
   const openEditEditor = (order) => {
@@ -107,7 +171,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     router.push('/production-order/new')
   }
 
-  const saveOrder = () => {
+  const saveOrder = async () => {
     const cleanedItems = editor.items
       .map((item, idx) => ({ ...item, sr: idx + 1, qty: Number(item.qty) || 0 }))
       .filter((item) => item.goods && item.packing)
@@ -115,9 +179,20 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
     if (!cleanedItems.length) return
 
     if (editor.id) {
-      setOrders((prev) =>
-        prev.map((order) => (order.id === editor.id ? { ...editor, items: cleanedItems } : order))
-      )
+      try {
+        const saved = await productionOrderApi.update(editor.id, {
+          name: editor.name,
+          date: editor.date,
+          status: cleanedItems.some((item) => item.status !== 'Completed') ? 'Pending' : 'Completed',
+          items: cleanedItems,
+        })
+        setOrders((prev) =>
+          prev.map((order) => (order.id === editor.id ? normalizeOrder(saved) : order))
+        )
+      } catch (err) {
+        setLoadError(err?.message || 'Unable to update production order')
+        return
+      }
     }
 
     setShowEditor(false)
@@ -134,7 +209,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
         subtitle="Track production order batches and item status"
         actions={(
           <>
-            <AppButton onClick={() => setOrders([...PRODUCTION_INITIAL])}>
+            <AppButton onClick={loadOrders}>
               <RefreshCw size={14} />
             </AppButton>
             <AppButton onClick={() => setShowReport(true)}>
@@ -151,14 +226,42 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
         )}
       />
 
-      <div style={ui.searchWrap}>
-        <Search size={15} color="#7a8a7a" />
-        <input
-          style={ui.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order name, goods, packing or status"
-        />
+      {loadError ? <div style={errorBanner}>{loadError}</div> : null}
+
+      <div style={filterCard}>
+        <div style={ui.filtersRow}>
+          <StoreThemeDropdown
+            value={filterStatus}
+            onChange={setFilterStatus}
+            placeholder="All Status"
+            variant="pill"
+            options={[
+              { value: 'All Status', label: 'All Status' },
+              ...Object.keys(STATUS_COLORS).map((status) => ({ value: status, label: status })),
+            ]}
+          />
+          <StoreThemeDropdown
+            value={filterGoods}
+            onChange={setFilterGoods}
+            placeholder="All Goods"
+            variant="pill"
+            options={[
+              { value: 'All Goods', label: 'All Goods' },
+              ...goodsOptions.map((goods) => ({ value: goods, label: goods })),
+            ]}
+          />
+          <StoreThemeDatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From Date" variant="pill" />
+          <StoreThemeDatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="To Date" variant="pill" alignRight />
+        </div>
+        <div style={{ ...ui.searchWrap, marginTop: 12 }}>
+          <Search size={15} color="#7a8a7a" />
+          <input
+            style={ui.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by order name, goods, packing or status"
+          />
+        </div>
       </div>
 
       <TableShell
@@ -186,7 +289,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           { key: 'actions', label: 'Actions', align: 'right' },
         ]}
         emptyColSpan={filtered.length === 0 ? 9 : null}
-        emptyText="No production orders found"
+        emptyText={loading ? 'Loading production orders...' : 'No production orders found'}
       >
         {Object.entries(grouped).flatMap(([dateKey, dayOrders]) => {
           const rows = []
@@ -215,6 +318,9 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                     <StoreThemeDropdown
                       value={item.status}
                       onChange={(status) => {
+                        productionOrderApi.updateItemStatus(order.id, item.id ?? item.sr, status).catch((err) => {
+                          setLoadError(err?.message || 'Unable to update item status')
+                        })
                         setOrders((prev) =>
                           prev.map((entry) =>
                             entry.id === order.id
@@ -252,7 +358,15 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                           <button
                             type="button"
                             style={ui.iconDangerButton}
-                            onClick={() => setOrders((prev) => prev.filter((entry) => entry.id !== order.id))}
+                            onClick={async () => {
+                              if (!window.confirm('Delete this production order?')) return
+                              try {
+                                await productionOrderApi.delete(order.id)
+                                setOrders((prev) => prev.filter((entry) => entry.id !== order.id))
+                              } catch (err) {
+                                setLoadError(err?.message || 'Unable to delete production order')
+                              }
+                            }}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -343,7 +457,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                       placeholder="Select goods"
                       options={[
                         { value: '', label: 'Select goods' },
-                        ...[...new Set(Object.values(PRODUCTS).flat())].map((entry) => ({ value: entry, label: entry })),
+                        ...editorGoodsOptions,
                       ]}
                     />
                   </div>
@@ -363,7 +477,7 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
                       placeholder="Select packing"
                       options={[
                         { value: '', label: 'Select packing' },
-                        ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                        ...editorPackingOptions,
                       ]}
                     />
                   </div>
@@ -417,9 +531,9 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
           data={reportRows}
           dateKey="date"
           columns={[
-            { key: 'orderName', label: 'Order Name' },
+            { key: 'orderName', label: 'Order Name', rowSpan: true },
             { key: 'serialNo', label: 'P.Sr' },
-            { key: 'date', label: 'Date' },
+            { key: 'date', label: 'Date', rowSpan: true },
             { key: 'goods', label: 'Goods' },
             { key: 'packing', label: 'Packing' },
             { key: 'qty', label: 'Qty of Cartons' },
@@ -430,4 +544,12 @@ export default function ProductionOrderPage({ isSuperUser = true }) {
       ) : null}
     </div>
   )
+}
+
+const filterCard = {
+  backgroundColor: '#f2f4f2',
+  borderRadius: 20,
+  padding: 14,
+  border: '1px solid #e2e8e2',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
 }

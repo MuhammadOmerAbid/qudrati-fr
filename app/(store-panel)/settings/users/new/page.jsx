@@ -120,6 +120,7 @@ export default function UserNewPage() {
     username: '',
     email: '',
     password: '',
+    panel_password: '',
     role: 'user',
     permissions: [],
   })
@@ -133,6 +134,7 @@ export default function UserNewPage() {
     const next = {}
     if (!form.username.trim()) next.username = 'Username is required'
     if (!form.password) next.password = 'Password is required'
+    if (!form.panel_password) next.panel_password = 'Panel password is required'
     if (!hasFullAccessRole(form.role) && form.permissions.length === 0) {
       next.permissions = 'Select at least one section permission'
     }
@@ -150,6 +152,7 @@ export default function UserNewPage() {
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,
+        panel_password: form.panel_password,
         role: normalizeRoleForApi(form.role),
         permissions: hasFullAccessRole(form.role) ? [] : form.permissions,
       }
@@ -241,6 +244,21 @@ export default function UserNewPage() {
               />
               {errors.password ? <span style={s.errorText}>{errors.password}</span> : null}
             </div>
+            <div style={s.fieldWrap}>
+              <label style={s.label}>Panel Password *</label>
+              <input
+                type="password"
+                style={{ ...s.input, ...(errors.panel_password ? s.inputError : {}) }}
+                value={form.panel_password}
+                placeholder="Panel access password"
+                onChange={(e) => setField('panel_password', e.target.value)}
+              />
+              {errors.panel_password ? <span style={s.errorText}>{errors.panel_password}</span> : null}
+            </div>
+          </div>
+
+          <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : s.grid2.gridTemplateColumns }}>
+            <div style={{ display: 'none' }} />
             <div style={s.fieldWrap}>
               <label style={s.label}>Role</label>
               <SettingsSelect

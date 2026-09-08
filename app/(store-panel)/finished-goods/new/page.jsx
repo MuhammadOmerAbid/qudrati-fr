@@ -5,25 +5,69 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Save, X } from 'lucide-react'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { incrementStoreEntries } from '@/application/services/store/storeEntryTracker'
+import { brandsApi, finishedGoodProductsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import {
-  BRANDS,
-  CATEGORIES,
-  PRODUCTS,
-  PACKINGS,
   getWordCount,
 } from '@/components/store/shared/StoreShared'
-import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
-
-const FINISHED_GOODS_DRAFT_KEY = 'store.finishedGoodsDrafts'
+import {
+  StoreThemeDatePicker,
+  StoreThemeDropdown,
+  focusNextKeyboardCell,
+  handleKeyboardCellEnter,
+  keyboardCellTriggerProps,
+} from '@/components/store/shared/StoreThemeControls'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const blankItem = () => ({ product: '', packing: '', cartons: '', comment: '' })
+const toList = (value) => (Array.isArray(value) ? value : (value?.results || []))
+
+function normalizeFinishedGoodProduct(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || '').trim()
+  if (!name) return null
+
+  return {
+    id: String(entry?.id ?? `fg-product-${idx}`),
+    name,
+    label: name,
+  }
+}
+
+function normalizePacking(entry, idx = 0) {
+  const status = String(entry?.status || '').toLowerCase()
+  if (status === 'inactive' || entry?.status === false) return null
+
+  const name = String(entry?.name || entry?.packing || entry || '').trim()
+  if (!name) return null
+  return {
+    id: String(entry?.id ?? `packing-${idx}`),
+    name,
+  }
+}
+
+function uniqueByName(options) {
+  const seen = new Set()
+  return options.filter((entry) => {
+    const key = String(entry.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export default function FinishedGoodsNewPage() {
   const router = useRouter()
   const [brand, setBrand] = useState('')
   const [date, setDate] = useState(todayISO())
   const [items, setItems] = useState([blankItem()])
+  const [brandOptions, setBrandOptions] = useState([])
+  const [loadingBrands, setLoadingBrands] = useState(true)
+  const [productOptions, setProductOptions] = useState([])
+  const [packingOptions, setPackingOptions] = useState([])
+  const [loadingOptions, setLoadingOptions] = useState(true)
+  const [loadWarning, setLoadWarning] = useState('')
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
@@ -35,6 +79,62 @@ export default function FinishedGoodsNewPage() {
     apply()
     mobileQuery.addEventListener('change', apply)
     return () => mobileQuery.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadOptions = async () => {
+      setLoadingOptions(true)
+      setLoadWarning('')
+      try {
+        const [productsRes, packingRes] = await Promise.all([
+          finishedGoodProductsApi.list({ status: 'active' }),
+          packagingApi.list(),
+        ])
+        if (!active) return
+
+        const nextProducts = toList(productsRes)
+          .map((entry, idx) => normalizeFinishedGoodProduct(entry, idx))
+          .filter(Boolean)
+        const nextPacking = toList(packingRes)
+          .map((entry, idx) => normalizePacking(entry, idx))
+          .filter(Boolean)
+
+        setProductOptions(uniqueByName(nextProducts))
+        setPackingOptions(uniqueByName(nextPacking))
+      } catch {
+        if (!active) return
+        setProductOptions([])
+        setPackingOptions([])
+        setLoadWarning('Unable to load products/packing from Settings.')
+      } finally {
+        if (active) setLoadingOptions(false)
+      }
+    }
+
+    loadOptions()
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadBrands = async () => {
+      setLoadingBrands(true)
+      try {
+        const data = await brandsApi.list()
+        const list = toList(data)
+          .filter((entry) => entry.status !== false && String(entry.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry.name || '').trim())
+          .filter(Boolean)
+        if (active) setBrandOptions(Array.from(new Set(list)).sort((a, b) => a.localeCompare(b)))
+      } catch {
+        if (active) setBrandOptions([])
+      } finally {
+        if (active) setLoadingBrands(false)
+      }
+    }
+    loadBrands()
+    return () => { active = false }
   }, [])
 
   const updateItem = (index, key, value) => {
@@ -64,13 +164,16 @@ export default function FinishedGoodsNewPage() {
 
     setSaving(true)
     try {
-      const payload = { id: Date.now(), brand, date, products: cleanItems }
-      const raw = window.sessionStorage.getItem(FINISHED_GOODS_DRAFT_KEY)
-      const existing = raw ? JSON.parse(raw) : []
-      window.sessionStorage.setItem(FINISHED_GOODS_DRAFT_KEY, JSON.stringify([payload, ...existing]))
+      await finishedGoodsApi.create({
+        brand,
+        date,
+        status: 'Completed',
+        products: cleanItems,
+      })
       incrementStoreEntries('finished-goods')
       router.push('/finished-goods')
-    } catch {
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, form: err?.message || 'Unable to save finished goods entry' }))
       setSaving(false)
     }
   }
@@ -94,6 +197,9 @@ export default function FinishedGoodsNewPage() {
         </div>
 
         <div style={{ ...s.card, borderRadius: isMobile ? 14 : 20, padding: isMobile ? 14 : 20 }}>
+          {loadWarning ? <p style={s.errorBanner}>{loadWarning}</p> : null}
+          {errors.form ? <p style={s.errorBanner}>{errors.form}</p> : null}
+
           <div style={s.formRow}>
             <div style={s.formCol}>
               <label style={s.label}>Brand</label>
@@ -105,10 +211,10 @@ export default function FinishedGoodsNewPage() {
                 }}
                 hasError={Boolean(errors.brand)}
                 variant="input"
-                placeholder="Select brand"
+                placeholder={loadingBrands ? 'Loading brands...' : 'Select brand'}
                 options={[
-                  { value: '', label: 'Select brand' },
-                  ...BRANDS.map((entry) => ({ value: entry, label: entry })),
+                  { value: '', label: loadingBrands ? 'Loading brands...' : 'Select brand' },
+                  ...brandOptions.map((entry) => ({ value: entry, label: entry })),
                 ]}
               />
               {errors.brand ? <p style={s.errorText}>{errors.brand}</p> : null}
@@ -131,7 +237,7 @@ export default function FinishedGoodsNewPage() {
           {errors.items ? <p style={s.errorBanner}>{errors.items}</p> : null}
 
           {items.map((item, idx) => (
-            <div key={`row-${idx}`} style={s.itemCard}>
+            <div key={`row-${idx}`} style={s.itemCard} data-keyboard-cell-scope>
               <div style={s.itemTop}>
                 <span style={s.itemTitle}>Product {idx + 1}</span>
                 {items.length > 1 ? (
@@ -147,13 +253,13 @@ export default function FinishedGoodsNewPage() {
                   <StoreThemeDropdown
                     value={item.product}
                     onChange={(nextProduct) => updateItem(idx, 'product', nextProduct)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
-                    placeholder="Select product"
+                    triggerProps={keyboardCellTriggerProps}
+                    placeholder={loadingOptions ? 'Loading products...' : 'Select product'}
                     options={[
-                      { value: '', label: 'Select product' },
-                      ...(CATEGORIES[brand] || [])
-                        .flatMap((categoryName) => PRODUCTS[categoryName] || [])
-                        .map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingOptions ? 'Loading products...' : 'Select product' },
+                      ...productOptions.map((entry) => ({ value: entry.name, label: entry.label })),
                     ]}
                   />
                 </div>
@@ -162,11 +268,13 @@ export default function FinishedGoodsNewPage() {
                   <StoreThemeDropdown
                     value={item.packing}
                     onChange={(nextPacking) => updateItem(idx, 'packing', nextPacking)}
+                    onSelectComplete={(_, __, triggerEl) => focusNextKeyboardCell(triggerEl)}
                     variant="input"
-                    placeholder="Select packing"
+                    triggerProps={keyboardCellTriggerProps}
+                    placeholder={loadingOptions ? 'Loading packing...' : 'Select packing'}
                     options={[
-                      { value: '', label: 'Select packing' },
-                      ...PACKINGS.map((entry) => ({ value: entry, label: entry })),
+                      { value: '', label: loadingOptions ? 'Loading packing...' : 'Select packing' },
+                      ...packingOptions.map((entry) => ({ value: entry.name, label: entry.name })),
                     ]}
                   />
                 </div>
@@ -176,7 +284,9 @@ export default function FinishedGoodsNewPage() {
                     type="number"
                     min={0}
                     style={s.input}
+                    data-keyboard-cell
                     value={item.cartons}
+                    onKeyDown={handleKeyboardCellEnter}
                     onChange={(e) => updateItem(idx, 'cartons', e.target.value)}
                   />
                 </div>
@@ -439,5 +549,4 @@ const s = {
     padding: '8px 12px',
   },
 }
-
 
