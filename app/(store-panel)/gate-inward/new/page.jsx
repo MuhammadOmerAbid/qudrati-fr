@@ -14,8 +14,6 @@ import {
   keyboardCellTriggerProps,
 } from '@/components/store/shared/StoreThemeControls'
 
-const DEFAULT_UNITS = ['Unit', 'Bags', 'Carton', 'Dozen', 'KG', 'Litre']
-
 /* Auto-generate GR number */
 const getNextGR = () => `QUD${Math.floor(Math.random() * 900) + 100}`
 
@@ -23,7 +21,7 @@ const getNextGR = () => `QUD${Math.floor(Math.random() * 900) + 100}`
 const todayISO = () => new Date().toISOString().split('T')[0]
 
 /* Fresh blank item row */
-const blankItem = (defaultUnit = 'Unit') => ({
+const blankItem = (defaultUnit = '') => ({
   key: Date.now() + Math.random(),
   brandId: '', brandName: '',
   categoryId: '', categoryName: '',
@@ -73,7 +71,7 @@ export default function GateInwardNewPage() {
   const [brands, setBrands] = useState([])
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
-  const [units, setUnits] = useState(DEFAULT_UNITS)
+  const [units, setUnits] = useState([])
 
   useEffect(() => {
     let active = true
@@ -89,7 +87,7 @@ export default function GateInwardNewPage() {
           brandsApi.list(),
           categoriesApi.list(),
           productsApi.list(),
-          unitsApi.list(),
+          unitsApi.list({ status: 'active' }),
         ])
 
         if (!active) return
@@ -114,20 +112,20 @@ export default function GateInwardNewPage() {
         const unitNames = Array.from(
           new Set(
             unitsListRaw
+              .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
               .map((entry) => String(entry?.name || '').trim())
               .filter(Boolean)
           )
         )
-
-        const resolvedUnits = unitNames.length ? unitNames : DEFAULT_UNITS
 
         setGrNo(nextGrRes?.gr_no || getNextGR())
         setSuppliers(suppliersList)
         setBrands(brandsList)
         setCategories(normalizedCategories)
         setProducts(normalizedProducts)
-        setUnits(resolvedUnits)
-        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || resolvedUnits[0] || 'Unit' })))
+        setUnits(unitNames)
+        setItems((prev) => prev.map((item) => ({ ...item, unit: item.unit || unitNames[0] || '' })))
+        if (!unitNames.length) setLoadError('No active units are available in Unit Settings.')
       } catch {
         if (!active) return
         setLoadError('Failed to load settings data. Please refresh and try again.')
@@ -200,7 +198,7 @@ export default function GateInwardNewPage() {
     setErrors((err) => ({ ...err, items: undefined }))
   }
 
-  const addItem = () => setItems((prev) => [...prev, blankItem(units[0] || 'Unit')])
+  const addItem = () => setItems((prev) => [...prev, blankItem(units[0] || '')])
   const removeItem = (key) => setItems((prev) => prev.filter((entry) => entry.key !== key))
 
   /* Validate */

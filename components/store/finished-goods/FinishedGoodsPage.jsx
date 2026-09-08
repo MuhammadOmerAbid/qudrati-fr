@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, FileText, Pencil, Trash2, ChevronDown, RefreshCw, X } from 'lucide-react'
-import { finishedGoodProductsApi, finishedGoodsApi } from '@/infrastructure/api/endpoints'
+import { brandsApi, finishedGoodProductsApi, finishedGoodsApi, packagingApi } from '@/infrastructure/api/endpoints'
 import { StoreThemeDatePicker, StoreThemeDropdown } from '@/components/store/shared/StoreThemeControls'
 import {
   formatDate,
@@ -54,7 +54,9 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
   const [savingEdit, setSavingEdit] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [masterBrandOptions, setMasterBrandOptions] = useState([])
   const [masterProductOptions, setMasterProductOptions] = useState([])
+  const [masterPackingOptions, setMasterPackingOptions] = useState([])
 
   const loadEntries = async () => {
     setLoading(true)
@@ -69,6 +71,23 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    let active = true
+    brandsApi.list({ status: 'active' })
+      .then((data) => {
+        if (!active) return
+        const names = toList(data)
+          .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry?.name || '').trim())
+          .filter(Boolean)
+        setMasterBrandOptions(Array.from(new Set(names)).sort((a, b) => a.localeCompare(b)))
+      })
+      .catch(() => {
+        if (active) setMasterBrandOptions([])
+      })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     loadEntries()
@@ -91,22 +110,26 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    packagingApi.list({ status: 'active' })
+      .then((data) => {
+        if (!active) return
+        const names = toList(data)
+          .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
+          .map((entry) => String(entry?.name || entry?.packing || entry || '').trim())
+          .filter(Boolean)
+        setMasterPackingOptions(Array.from(new Set(names)).sort((a, b) => a.localeCompare(b)))
+      })
+      .catch(() => {
+        if (active) setMasterPackingOptions([])
+      })
+    return () => { active = false }
+  }, [])
+
   const brandOptions = useMemo(() => {
     const brands = entries.map((entry) => entry.brand).filter(Boolean)
     return Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b))
-  }, [entries])
-
-  const productOptions = useMemo(() => {
-    const products = [
-      ...masterProductOptions,
-      ...entries.flatMap((entry) => entry.products.map((product) => product.product)),
-    ].filter(Boolean)
-    return Array.from(new Set(products)).sort((a, b) => a.localeCompare(b))
-  }, [entries, masterProductOptions])
-
-  const packingOptions = useMemo(() => {
-    const packings = entries.flatMap((entry) => entry.products.map((product) => product.packing)).filter(Boolean)
-    return Array.from(new Set(packings)).sort((a, b) => a.localeCompare(b))
   }, [entries])
 
   const filtered = useMemo(() => {
@@ -436,8 +459,8 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
                   placeholder="Select brand"
                   options={[
                     { value: '', label: 'Select brand' },
-                    ...brandOptions.map((brand) => ({ value: brand, label: brand })),
-                    ...(editor.brand && !brandOptions.includes(editor.brand)
+                    ...masterBrandOptions.map((brand) => ({ value: brand, label: brand })),
+                    ...(editor.brand && !masterBrandOptions.includes(editor.brand)
                       ? [{ value: editor.brand, label: editor.brand }]
                       : []),
                   ]}
@@ -485,7 +508,10 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
                       placeholder="Select product"
                       options={[
                         { value: '', label: 'Select product' },
-                        ...productOptions.map((entry) => ({ value: entry, label: entry })),
+                        ...masterProductOptions.map((entry) => ({ value: entry, label: entry })),
+                        ...(product.product && !masterProductOptions.includes(product.product)
+                          ? [{ value: product.product, label: product.product }]
+                          : []),
                       ]}
                     />
                   </div>
@@ -498,7 +524,10 @@ export default function FinishedGoodsPage({ isSuperUser = true }) {
                       placeholder="Select packing"
                       options={[
                         { value: '', label: 'Select packing' },
-                        ...packingOptions.map((entry) => ({ value: entry, label: entry })),
+                        ...masterPackingOptions.map((entry) => ({ value: entry, label: entry })),
+                        ...(product.packing && !masterPackingOptions.includes(product.packing)
+                          ? [{ value: product.packing, label: product.packing }]
+                          : []),
                       ]}
                     />
                   </div>

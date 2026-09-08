@@ -5,27 +5,25 @@ import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
-import { recipesApi } from '@/infrastructure/api/endpoints'
+import { recipesApi, unitsApi } from '@/infrastructure/api/endpoints'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
 import { ArrowLeft, Plus, Save, Shield, Trash2 } from 'lucide-react'
 
-const UNITS = ['Gram', 'Kg', 'Litre', 'ml', 'Piece']
-
-const blankItem = () => ({ ingredient: '', quantity: '', unit: 'Gram' })
+const blankItem = (defaultUnit = '') => ({ ingredient: '', quantity: '', unit: defaultUnit })
 
 function normalizeForm(recipe) {
   const items = Array.isArray(recipe?.items) && recipe.items.length > 0
     ? recipe.items.map((item) => ({
         ingredient: item?.ingredient || '',
         quantity: item?.quantity ?? '',
-        unit: item?.unit || 'Gram',
+        unit: item?.unit || '',
       }))
     : [blankItem()]
 
   return {
     name: recipe?.name || '',
     for_quantity: recipe?.for_quantity ?? '',
-    for_unit: recipe?.for_unit || 'Kg',
+    for_unit: recipe?.for_unit || '',
     items,
   }
 }
@@ -47,6 +45,9 @@ function RecipeNewContent() {
   const [errorMsg, setErrorMsg] = useState('')
   const [errors, setErrors] = useState({})
   const [isMobile, setIsMobile] = useState(false)
+  const [unitOptions, setUnitOptions] = useState([])
+  const [loadingUnits, setLoadingUnits] = useState(true)
+  const [unitError, setUnitError] = useState('')
 
   const title = isEdit ? 'Edit Recipe' : 'Add Recipe'
   const subtitle = isEdit ? 'Update recipe details and ingredients' : 'Create a new recipe'
@@ -101,6 +102,39 @@ function RecipeNewContent() {
     return () => mobileQuery.removeEventListener('change', apply)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    setLoadingUnits(true)
+    setUnitError('')
+    unitsApi.list({ status: 'active' })
+      .then((data) => {
+        if (!active) return
+        const rows = Array.isArray(data) ? data : (data?.results || [])
+        const names = Array.from(new Set(
+          rows
+            .filter((entry) => entry?.status !== false && String(entry?.status || '').toLowerCase() !== 'inactive')
+            .map((entry) => String(entry?.name || entry || '').trim())
+            .filter(Boolean)
+        ))
+        setUnitOptions(names)
+        setForm((prev) => ({
+          ...prev,
+          for_unit: prev.for_unit || names[0] || '',
+          items: prev.items.map((item) => ({ ...item, unit: item.unit || names[0] || '' })),
+        }))
+        if (!names.length) setUnitError('No active units are available in Unit Settings.')
+      })
+      .catch(() => {
+        if (!active) return
+        setUnitOptions([])
+        setUnitError('Unable to load units from Unit Settings.')
+      })
+      .finally(() => {
+        if (active) setLoadingUnits(false)
+      })
+    return () => { active = false }
+  }, [])
+
   const canRemoveItem = useMemo(() => form.items.length > 1, [form.items.length])
 
   const setField = (key, value) => {
@@ -118,7 +152,7 @@ function RecipeNewContent() {
   }
 
   const addItem = () => {
-    setForm((prev) => ({ ...prev, items: [...prev.items, blankItem()] }))
+    setForm((prev) => ({ ...prev, items: [...prev.items, blankItem(unitOptions[0] || '')] }))
     setErrors((prev) => ({ ...prev, items: undefined }))
   }
 
@@ -130,6 +164,7 @@ function RecipeNewContent() {
     const next = {}
 
     if (!form.name.trim()) next.name = 'Recipe name is required'
+    if (!form.for_unit) next.for_unit = 'Select a unit from Unit Settings'
 
     const forQty = parseFloat(form.for_quantity)
     if (!form.for_quantity || Number.isNaN(forQty) || forQty <= 0) {
@@ -205,7 +240,7 @@ function RecipeNewContent() {
             </div>
           </div>
 
-          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving || loading}>
+          <button type="button" style={{ ...(saving ? s.saveBtnDisabled : s.saveBtn), width: isMobile ? '100%' : 'auto' }} onClick={handleSave} disabled={saving || loading || loadingUnits}>
             <Save size={15} /> {saving ? 'Saving...' : isEdit ? 'Update Recipe' : 'Save Recipe'}
           </button>
         </div>
@@ -251,8 +286,11 @@ function RecipeNewContent() {
                       wrapperStyle={{ width: '100%' }}
                       selectStyle={s.selectInput}
                     >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      <option value="">Select Unit</option>
+                      {unitOptions.map((unit) => <option key={unit}>{unit}</option>)}
+                      {form.for_unit && !unitOptions.includes(form.for_unit) ? <option>{form.for_unit}</option> : null}
                     </SettingsSelect>
+                    {errors.for_unit ? <span style={s.errorText}>{errors.for_unit}</span> : null}
                   </div>
                 </div>
               </div>
@@ -266,6 +304,7 @@ function RecipeNewContent() {
 
               {errors.items ? <div style={s.itemsError}>{errors.items}</div> : null}
               {errorMsg ? <div style={s.itemsError}>{errorMsg}</div> : null}
+              {unitError ? <div style={s.itemsError}>{unitError}</div> : null}
 
               {form.items.map((item, idx) => (
                 <div key={`ingredient-${idx}`} style={s.itemRow}>
@@ -301,7 +340,9 @@ function RecipeNewContent() {
                       wrapperStyle={{ width: '100%' }}
                       selectStyle={s.selectInput}
                     >
-                      {UNITS.map((unit) => <option key={unit}>{unit}</option>)}
+                      <option value="">Select Unit</option>
+                      {unitOptions.map((unit) => <option key={unit}>{unit}</option>)}
+                      {item.unit && !unitOptions.includes(item.unit) ? <option>{item.unit}</option> : null}
                     </SettingsSelect>
                   </div>
 

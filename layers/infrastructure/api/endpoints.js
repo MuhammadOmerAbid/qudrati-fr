@@ -65,7 +65,7 @@ export const unitsApi = {
 
 // ── Packing ──────────────────────────────────────────────────
 export const packingApi = {
-  list: () => get('/packing/'),
+  list: (params) => get('/packing/', params),
   create: (name) => post('/packing/', { name }),
   update: (id, name) => put(`/packing/${id}/`, { name }),
   toggleStatus: (id, status) => patch(`/packing/${id}/`, { status }),
