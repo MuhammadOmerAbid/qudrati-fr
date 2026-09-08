@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/presentation/layouts/StorePanelLayout'
 import { useAuthStore } from '@/application/state/auth/useAuthStore'
 import { cbmProductsApi } from '@/infrastructure/api/endpoints'
-import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save, Pencil, X } from 'lucide-react'
+import { Plus, Trash2, Calculator, RotateCcw, Package, ArrowLeft, Save, Pencil, X, Printer } from 'lucide-react'
 import { SettingsSelect, settingsTheme } from '@/components/settings/SettingsShared'
+import { openReportWindow, getUserDisplayName } from '@/lib/reportDesign'
 
 const UNITS = ['Inch', 'CM', 'MM']
 const WEIGHT_UNITS = ['Kg', 'Gram', 'Lb']
@@ -217,6 +218,75 @@ export default function CBMCalculatorPage() {
   const cbmPct = containerCBM > 0 ? Math.min((totalCBMUsed / containerCBM) * 100, 100) : 0
   const weightPct = totalWeightUsed > 0 && containerWeight > 0 ? Math.min((totalWeightUsed / containerWeight) * 100, 100) : 0
 
+  const printableRows = computed.filter((row) => (parseFloat(row.quantity) || 0) > 0)
+
+  const printReport = () => {
+    if (!printableRows.length) return
+    const printTotalCBM = printableRows.reduce((sum, row) => sum + row.totalCBM, 0)
+    const printTotalWeight = printableRows.reduce((sum, row) => sum + row.totalWeight, 0)
+    const printCbmRemaining = containerCBM - printTotalCBM
+
+    const columns = [
+      { key: 'srNo', label: 'SR.NO', width: '5%' },
+      { key: 'item', label: 'Item', width: '18%' },
+      { key: 'dimensions', label: 'Dimensions (L × W × H)', width: '16%' },
+      { key: 'dimUnit', label: 'Unit', width: '6%' },
+      { key: 'quantity', label: 'Quantity', width: '8%' },
+      { key: 'weightPerCarton', label: 'Wt/Carton', width: '8%' },
+      { key: 'weightUnit', label: 'Wt Unit', width: '6%' },
+      { key: 'cbmPerCarton', label: 'CBM/Carton', width: '11%' },
+      { key: 'totalCBM', label: 'Total CBM', width: '11%' },
+      { key: 'totalWeight', label: 'Total Wt (Kg)', width: '11%' },
+    ]
+
+    const reportRows = printableRows.map((row, idx) => ({
+      srNo: idx + 1,
+      item: row.item || '-',
+      dimensions: `${row.length || '-'} × ${row.width || '-'} × ${row.height || '-'}`,
+      dimUnit: row.dimUnit || 'Inch',
+      quantity: row.quantity,
+      weightPerCarton: row.weightPerCarton || '-',
+      weightUnit: row.weightUnit || 'Kg',
+      cbmPerCarton: row.cbmPerCarton > 0 ? row.cbmPerCarton.toFixed(6) : '-',
+      totalCBM: row.totalCBM > 0 ? row.totalCBM.toFixed(6) : '-',
+      totalWeight: row.totalWeight > 0 ? row.totalWeight.toFixed(2) : '-',
+    }))
+
+    reportRows.push({
+      srNo: ' ',
+      item: 'TOTAL',
+      dimensions: ' ',
+      dimUnit: ' ',
+      quantity: printableRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0), 0),
+      weightPerCarton: ' ',
+      weightUnit: ' ',
+      cbmPerCarton: ' ',
+      totalCBM: printTotalCBM.toFixed(6),
+      totalWeight: printTotalWeight > 0 ? printTotalWeight.toFixed(2) : '-',
+    })
+
+    reportRows.push({
+      srNo: ' ',
+      item: `CBM REMAINING (${containerType.toUpperCase()} - ${containerCBM} m³)`,
+      dimensions: ' ',
+      dimUnit: ' ',
+      quantity: ' ',
+      weightPerCarton: ' ',
+      weightUnit: ' ',
+      cbmPerCarton: ' ',
+      totalCBM: printCbmRemaining.toFixed(6),
+      totalWeight: ' ',
+    })
+
+    openReportWindow({
+      title: 'CBM + Weight Calculator',
+      subtitle: `${containerType.toUpperCase()} Container — Capacity: ${containerCBM} m³ / ${containerWeight} Kg`,
+      columns,
+      rows: reportRows,
+      generatedBy: getUserDisplayName(user),
+    })
+  }
+
   const summaryCards = [
     {
       label: 'Total CBM Used',
@@ -424,6 +494,21 @@ export default function CBMCalculatorPage() {
               <RotateCcw size={14} /> Reset
             </button>
           ) : null}
+          <button
+            onClick={printReport}
+            disabled={!printableRows.length}
+            style={{
+              ...outlineBtn,
+              color: printableRows.length ? settingsTheme.primarySoft : settingsTheme.textMuted,
+              borderColor: printableRows.length ? settingsTheme.primarySoft : settingsTheme.border,
+              opacity: printableRows.length ? 1 : 0.6,
+              cursor: printableRows.length ? 'pointer' : 'not-allowed',
+            }}
+            type="button"
+            title={printableRows.length ? `Print ${printableRows.length} item(s) with quantities` : 'Enter quantities to print'}
+          >
+            <Printer size={14} /> Print {printableRows.length > 0 ? `(${printableRows.length})` : ''}
+          </button>
         </div>
         {loadingRows ? (
           <div style={{ marginBottom: 12, fontSize: 12.5, fontWeight: 600, color: settingsTheme.textMuted }}>
